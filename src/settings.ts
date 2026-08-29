@@ -3,7 +3,7 @@ import type ThreadJournalPlugin from './main';
 import type { ThreadJournalSettings } from './types';
 
 export const DEFAULT_SETTINGS: ThreadJournalSettings = {
-	threadsFolder: '50-行动系统/线程',
+	threadsFolder: '50-行动系统',
 	dailyFolder: '00-日记',
 	dailyFilePattern: '^\\d{4}-\\d{2}-\\d{2}\\.md$',
 	dailyRecordsHeading: '今日记录',

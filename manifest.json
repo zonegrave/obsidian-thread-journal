@@ -1,7 +1,7 @@
 {
 	"id": "thread-journal",
 	"name": "Thread Journal",
-	"version": "0.5.1",
+	"version": "0.5.2",
 	"minAppVersion": "1.13.1",
 	"description": "Compose customizable thread-body Meta Bind forms into daily notes.",
 	"author": "zonegrave",

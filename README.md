@@ -11,6 +11,7 @@
 
 - 从任意位置新建 thread，并选择父 thread 或创建根节点。
 - 从当前 thread 新建子 thread 或同级 thread。
+- 所有 thread 默认直接平铺在 `50-行动系统/`，不按 project、area 或 routine 分目录。
 - 新建文件使用 `YYMMDD·标题.md`；`aliases`、`title` 和正文标题保留原始名称。
 - 通过“编辑当前 thread 的日记表单”打开双栏编辑器：左侧编辑 Markdown，右侧实时预览 callout，并可快捷插入常用 Meta Bind 控件。
 - 在 thread 中把表单渲染成禁用控件的 callout 预览，避免误写 thread 自身的 properties。
