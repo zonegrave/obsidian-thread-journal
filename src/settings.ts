@@ -69,7 +69,7 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('日记记录标题')
-			.setDesc('生成的长文本段落会插入这个二级标题下。')
+			.setDesc('活跃 thread 的正文表单模板会复制到这个二级标题下。')
 			.addText((text) => text
 				.setPlaceholder(DEFAULT_SETTINGS.dailyRecordsHeading)
 				.setValue(this.plugin.settings.dailyRecordsHeading)
@@ -80,7 +80,7 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('活跃状态')
-			.setDesc('逗号分隔。只有 type: thread 且状态匹配并声明 daily 的文件参与注入。')
+			.setDesc('逗号分隔。只有状态匹配且正文包含 thread-daily-form 的 thread 参与注入。')
 			.addText((text) => text
 				.setPlaceholder(DEFAULT_SETTINGS.activeStatuses)
 				.setValue(this.plugin.settings.activeStatuses)
@@ -91,7 +91,7 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('自动补全新日记')
-			.setDesc('日记创建后注入活跃 thread 的表单快照；不会预写空属性。')
+			.setDesc('日记创建后复制活跃 thread 的表单模板；填写控件后写入日记属性。')
 			.addToggle((toggle) => toggle
 				.setValue(this.plugin.settings.autoComposeDaily)
 				.onChange(async (value) => {

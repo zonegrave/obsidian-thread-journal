@@ -5,7 +5,7 @@ import {
 	TFile,
 	type EventRef,
 } from 'obsidian';
-import { DailyFormManager } from './daily-form-manager';
+import { DailyTemplateManager } from './daily-template-manager';
 import { JournalComposer } from './journal-composer';
 import { ThreadRenderers } from './renderers';
 import {
@@ -22,7 +22,7 @@ const AUTO_COMPOSE_DELAY_MS = 1200;
 export default class ThreadJournalPlugin extends Plugin {
 	settings: ThreadJournalSettings = DEFAULT_SETTINGS;
 	private index!: ThreadIndex;
-	private formManager!: DailyFormManager;
+	private formManager!: DailyTemplateManager;
 	private composer!: JournalComposer;
 	private creator!: ThreadCreator;
 	private renderers!: ThreadRenderers;
@@ -33,7 +33,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		await this.loadSettings();
 		const getSettings = () => this.settings;
 		this.index = new ThreadIndex(this.app, getSettings);
-		this.formManager = new DailyFormManager(this.app);
+		this.formManager = new DailyTemplateManager(this.app);
 		this.composer = new JournalComposer(this.app, this.index, getSettings);
 		this.creator = new ThreadCreator(this.app, this.index, getSettings);
 		this.renderers = new ThreadRenderers(this.app, this.index, getSettings);
@@ -96,13 +96,16 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'manage-daily-form',
-			name: '管理当前 thread 的日记表单',
+			name: '添加或定位当前 thread 的日记表单',
 			checkCallback: (checking) => {
 				const file = this.currentThreadFile();
 				if (!file) return false;
 				if (!checking) {
 					const form = this.index.getThread(file)?.daily.form ?? [];
-					this.formManager.open(file, form);
+					void this.formManager.open(file, form).catch((error: unknown) => {
+						console.error('Thread Journal failed to open daily form template', error);
+						new Notice(`打开日记表单失败：${String(error)}`);
+					});
 				}
 				return true;
 			},
@@ -132,6 +135,8 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.registerMarkdownCodeBlockProcessor('thread-children', (_source, el, ctx) => {
 			this.renderers.renderChildren(el, ctx);
 		});
+		this.registerMarkdownCodeBlockProcessor('thread-daily-form', (source, el, ctx) =>
+			this.renderers.renderDailyFormPreview(source, el, ctx));
 		this.registerMarkdownCodeBlockProcessor('thread-records', (source, el, ctx) =>
 			this.renderers.renderRecords(source, el, ctx));
 	}

@@ -1,5 +1,10 @@
 import { App, Notice, TFile, normalizePath } from 'obsidian';
-import { buildDailyFormBlock, insertBlocksUnderHeading } from './core';
+import {
+	buildDailyFormBlock,
+	buildDailyTemplateBlock,
+	extractThreadDailyForm,
+	insertBlocksUnderHeading,
+} from './core';
 import type { ThreadIndex } from './thread-index';
 import type { DailyFieldSpec, ThreadInfo, ThreadJournalSettings } from './types';
 
@@ -42,20 +47,28 @@ export class JournalComposer {
 		if (!this.isDailyFile(file)) {
 			throw new Error(`Not a configured daily note: ${file.path}`);
 		}
-		const providers = this.index.getActiveProviders();
+		const activeThreads = this.index.getActiveThreads();
+		const providers = (await Promise.all(activeThreads.map(async (thread) => ({
+			thread,
+			template: extractThreadDailyForm(await this.app.vault.cachedRead(thread.file)),
+		})))).filter((provider) => provider.template || provider.thread.daily.enabled);
 		if (providers.length === 0) {
 			const result = { providers: 0, formsAdded: 0, conflicts: [] };
 			if (showNotice) this.showResult(result);
 			return result;
 		}
-		const fieldOwners = this.collectFields(providers);
+		const legacyThreads = providers
+			.filter((provider) => !provider.template)
+			.map((provider) => provider.thread);
+		const fieldOwners = this.collectFields(legacyThreads);
 		const conflicts = [...fieldOwners.entries()]
 			.filter(([, declarations]) =>
 				new Set(declarations.map((item) => fieldSignature(item.field))).size > 1)
 			.map(([key]) => key);
 		const conflictSet = new Set(conflicts);
-		const blocks = providers.map((thread) =>
-			buildDailyFormBlock(thread.id, thread.title, thread.daily.form, conflictSet));
+		const blocks = providers.map(({ thread, template }) => template
+			? buildDailyTemplateBlock(thread.id, template)
+			: buildDailyFormBlock(thread.id, thread.title, thread.daily.form, conflictSet));
 		let formsAdded = 0;
 		await this.app.vault.process(file, (content) => {
 			const result = insertBlocksUnderHeading(
@@ -86,7 +99,7 @@ export class JournalComposer {
 
 	private showResult(result: ComposeResult): void {
 		if (result.providers === 0) {
-			new Notice('没有活跃且声明 daily 的 thread，日记未改变。');
+			new Notice('没有活跃且包含日记表单模板的 thread，日记未改变。');
 			return;
 		}
 		const conflictText = result.conflicts.length > 0

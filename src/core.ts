@@ -234,6 +234,83 @@ export function buildDailyFormBlock(
 	].join('\n\n');
 }
 
+export function extractThreadDailyForm(content: string): string | undefined {
+	const lines = content.split(/\r?\n/);
+	for (let index = 0; index < lines.length; index += 1) {
+		const opening = lines[index]?.match(/^\s*(`{3,}|~{3,})\s*thread-daily-form\s*$/i);
+		const fence = opening?.[1];
+		if (!fence || new Set(fence).size !== 1) continue;
+		const fenceCharacter = fence[0];
+		if (!fenceCharacter) continue;
+		for (let closing = index + 1; closing < lines.length; closing += 1) {
+			const candidate = lines[closing]?.trim() ?? '';
+			if (candidate.length < fence.length) continue;
+			if ([...candidate].every((character) => character === fenceCharacter)) {
+				const template = lines.slice(index + 1, closing).join('\n').trim();
+				return template || undefined;
+			}
+		}
+	}
+	return undefined;
+}
+
+export function buildThreadDailyFormCodeBlock(template: string): string {
+	return ['```thread-daily-form', template.trim(), '```'].join('\n');
+}
+
+export function buildDefaultThreadDailyForm(threadTitle: string): string {
+	const title = threadTitle.replace(/[\n\r]+/g, ' ').trim();
+	const key = `${slugify(title).replace(/-/g, '_')}_记录`;
+	return [
+		`> [!note]+ ${title}`,
+		`> **记录** \`INPUT[text:${key}]\``,
+	].join('\n');
+}
+
+export function buildLegacyThreadDailyForm(
+	threadTitle: string,
+	form: DailyFormItem[],
+): string {
+	const title = threadTitle.replace(/[\n\r]+/g, ' ').trim();
+	const lines = [`> [!note]+ ${title}`];
+	for (const item of form) {
+		lines.push('>');
+		if (item.kind === 'section') {
+			lines.push(`> **${item.label}**`, '>');
+			continue;
+		}
+		const label = item.label ?? item.key;
+		const unit = item.unit ? `（${item.unit}）` : '';
+		lines.push(`> **${label}${unit}** \`${metaBindInput(item)}\``);
+	}
+	return lines.join('\n');
+}
+
+export function buildDailyTemplateBlock(threadId: string, template: string): string {
+	const markers = dailyFormMarkers(threadId);
+	return [markers.start, template.trim(), markers.end].join('\n');
+}
+
+export function extractMetaBindPropertyKeys(template: string): string[] {
+	const keys = new Set<string>();
+	for (const match of template.matchAll(/INPUT\[([^\]\r\n]+)\]/g)) {
+		const declaration = match[1] ?? '';
+		const separator = declaration.lastIndexOf(':');
+		if (separator < 0) continue;
+		const key = declaration.slice(separator + 1).trim();
+		if (key) keys.add(key);
+	}
+	return [...keys];
+}
+
+export function neutralizeMetaBindInputs(template: string): string {
+	return template.replace(/`?INPUT\[([^\]\r\n]+)\]`?/g, (_match, declaration: string) => {
+		const separator = declaration.lastIndexOf(':');
+		const key = separator >= 0 ? declaration.slice(separator + 1).trim() : '未绑定';
+		return `\`预览：${key}\``;
+	});
+}
+
 export function extractMarkedSection(
 	content: string,
 	threadId: string,

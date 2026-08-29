@@ -1,9 +1,9 @@
 {
 	"id": "thread-journal",
 	"name": "Thread Journal",
-	"version": "0.4.1",
+	"version": "0.5.0",
 	"minAppVersion": "1.13.1",
-	"description": "Organize parented threads and compose their Meta Bind forms into daily notes.",
+	"description": "Compose customizable thread-body Meta Bind forms into daily notes.",
 	"author": "zonegrave",
 	"isDesktopOnly": false
 }

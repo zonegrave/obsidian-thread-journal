@@ -76,7 +76,7 @@ export class ThreadIndex {
 			.sort((a, b) => a.title.localeCompare(b.title));
 	}
 
-	getActiveProviders(): ThreadInfo[] {
+	getActiveThreads(): ThreadInfo[] {
 		const statuses = new Set(
 			this.getSettings().activeStatuses
 				.split(',')
@@ -84,7 +84,7 @@ export class ThreadIndex {
 				.filter(Boolean),
 		);
 		return this.getAllThreads().filter((thread) =>
-			thread.daily.enabled && statuses.has(thread.status.toLocaleLowerCase()));
+			statuses.has(thread.status.toLocaleLowerCase()));
 	}
 
 	getDisplayName(file: TFile): string {

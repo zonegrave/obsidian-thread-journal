@@ -33,6 +33,24 @@
 	font-style: italic;
 }
 
+.thread-journal-form-preview {
+	margin: 0.75rem 0 1rem;
+}
+
+.thread-journal-form-preview-label {
+	margin-bottom: 0.35rem;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-form-preview-body > :first-child {
+	margin-top: 0;
+}
+
+.thread-journal-form-preview-body > :last-child {
+	margin-bottom: 0;
+}
+
 .thread-journal-records {
 	display: grid;
 	gap: 0.8rem;
@@ -85,69 +103,4 @@
 
 .thread-journal-section-body > :last-child {
 	margin-bottom: 0;
-}
-
-.thread-journal-fields-modal {
-	width: min(42rem, calc(100vw - 2rem));
-}
-
-.thread-journal-fields-list {
-	display: grid;
-	gap: 0.8rem;
-	max-height: min(60vh, 38rem);
-	margin: 1rem 0;
-	padding-right: 0.25rem;
-	overflow-y: auto;
-}
-
-.thread-journal-fields-empty {
-	padding: 1.2rem;
-	border: 1px dashed var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	text-align: center;
-}
-
-.thread-journal-field-card {
-	padding: 0.7rem 0.9rem 0.2rem;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	background: var(--background-secondary);
-}
-
-.thread-journal-field-number {
-	margin-bottom: 0.2rem;
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
-	font-weight: var(--font-semibold);
-}
-
-.thread-journal-field-card .setting-item {
-	padding: 0.55rem 0;
-}
-
-.thread-journal-field-card .setting-item-control input,
-.thread-journal-field-card .setting-item-control select {
-	width: min(18rem, 45vw);
-}
-
-.thread-journal-field-controls .setting-item-info {
-	display: none;
-}
-
-.thread-journal-fields-actions .setting-item-info {
-	display: none;
-}
-
-@media (max-width: 600px) {
-	.thread-journal-field-card .setting-item {
-		align-items: stretch;
-		flex-direction: column;
-		gap: 0.4rem;
-	}
-
-	.thread-journal-field-card .setting-item-control,
-	.thread-journal-field-card .setting-item-control input,
-	.thread-journal-field-card .setting-item-control select {
-		width: 100%;
-	}
 }

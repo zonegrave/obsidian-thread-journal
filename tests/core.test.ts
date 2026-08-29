@@ -2,12 +2,18 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	buildDailyFormBlock,
+	buildDailyTemplateBlock,
+	buildDefaultThreadDailyForm,
+	buildThreadDailyFormCodeBlock,
 	buildThreadFileName,
 	buildSectionBlock,
 	extractMarkedSection,
+	extractMetaBindPropertyKeys,
+	extractThreadDailyForm,
 	hasDailyFormSnapshot,
 	insertBlocksUnderHeading,
 	metaBindInput,
+	neutralizeMetaBindInputs,
 	normalizeDailyContribution,
 	normalizeRecordsConfig,
 	stripWikiLink,
@@ -55,7 +61,7 @@ void test('normalizes an opt-in daily contribution', () => {
 	});
 });
 
-void test('only daily.form participates in diary composition', () => {
+void test('normalizes legacy daily.form for migration and fallback composition', () => {
 	assert.equal(normalizeDailyContribution({ form: [] }).enabled, false);
 	assert.equal(normalizeDailyContribution({ fields: ['legacy'] }).enabled, false);
 	assert.equal(normalizeDailyContribution({
@@ -142,4 +148,37 @@ void test('resolves the target part of a wikilink', () => {
 void test('reads the display alias from a parent wikilink', () => {
 	assert.equal(wikiLinkAlias('[[260826·睡眠管理|睡眠管理]]'), '睡眠管理');
 	assert.equal(wikiLinkAlias('[[260826·睡眠管理]]'), undefined);
+});
+
+void test('extracts a custom Meta Bind form from the thread body', () => {
+	const template = [
+		'> [!note]+ 睡眠',
+		'> **时长** `INPUT[number:sleep_hours]`',
+	].join('\n');
+	const block = buildThreadDailyFormCodeBlock(template);
+	assert.equal(extractThreadDailyForm(`# 睡眠\n\n${block}\n`), template);
+});
+
+void test('copies the custom form into a stable daily snapshot', () => {
+	const template = '> [!note]+ 睡眠\n> `INPUT[number:sleep_hours]`';
+	const block = buildDailyTemplateBlock('sleep-thread', template);
+	assert.match(block, /thread-journal:form:sleep-thread:start/);
+	assert.match(block, /\[!note\]\+ 睡眠/);
+	assert.equal(hasDailyFormSnapshot(block, 'sleep-thread'), true);
+});
+
+void test('discovers Meta Bind property keys in a custom form', () => {
+	const template = [
+		'`INPUT[number:sleep_hours]`',
+		"`INPUT[inlineSelect(option('低'), option('高')):energy]`",
+		'`INPUT[number:sleep_hours]`',
+	].join('\n');
+	assert.deepEqual(extractMetaBindPropertyKeys(template), ['sleep_hours', 'energy']);
+});
+
+void test('renders a safe thread preview without live Meta Bind inputs', () => {
+	const preview = neutralizeMetaBindInputs('> **时长** `INPUT[number:sleep_hours]`');
+	assert.equal(preview, '> **时长** `预览：sleep_hours`');
+	assert.doesNotMatch(preview, /INPUT\[/);
+	assert.match(buildDefaultThreadDailyForm('睡眠 管理'), /睡眠_管理_记录/);
 });

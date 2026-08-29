@@ -9,7 +9,10 @@ import {
 } from 'obsidian';
 import {
 	extractMarkedSection,
+	extractMetaBindPropertyKeys,
+	extractThreadDailyForm,
 	hasDailyFormSnapshot,
+	neutralizeMetaBindInputs,
 	normalizeRecordsConfig,
 	valueIsPresent,
 } from './core';
@@ -88,6 +91,25 @@ export class ThreadRenderers {
 		}
 	}
 
+	async renderDailyFormPreview(
+		source: string,
+		el: HTMLElement,
+		ctx: MarkdownPostProcessorContext,
+	): Promise<void> {
+		el.addClass('thread-journal-form-preview');
+		el.createDiv({ cls: 'thread-journal-form-preview-label', text: '日记表单模板 · 预览' });
+		const body = el.createDiv({ cls: 'thread-journal-form-preview-body' });
+		const child = new MarkdownRenderChild(body);
+		ctx.addChild(child);
+		await MarkdownRenderer.render(
+			this.app,
+			neutralizeMetaBindInputs(source),
+			body,
+			ctx.sourcePath,
+			child,
+		);
+	}
+
 	async renderRecords(source: string, el: HTMLElement, ctx: MarkdownPostProcessorContext): Promise<void> {
 		const current = sourceFile(this.app, ctx);
 		if (!current) return;
@@ -116,9 +138,17 @@ export class ThreadRenderers {
 		config: ReturnType<typeof normalizeRecordsConfig>,
 	): Promise<DailyRecord[]> {
 		if (scope.length === 0) return [];
+		const templateFieldKeys = new Map<string, string[]>();
+		await Promise.all(scope.map(async (thread) => {
+			const template = extractThreadDailyForm(await this.app.vault.cachedRead(thread.file));
+			templateFieldKeys.set(thread.id, template ? extractMetaBindPropertyKeys(template) : []);
+		}));
 		const configuredFields = config.fields.length > 0
 			? config.fields
-			: [...new Set(scope.flatMap((thread) => thread.daily.fields.map((field) => field.key)))];
+			: [...new Set(scope.flatMap((thread) => [
+				...thread.daily.fields.map((field) => field.key),
+				...(templateFieldKeys.get(thread.id) ?? []),
+			]))];
 		const threshold = moment().startOf('day').subtract(config.days - 1, 'days');
 		const dailyFiles = this.app.vault.getMarkdownFiles()
 			.filter((file) => file.path.startsWith(`${this.getSettings().dailyFolder}/`))
@@ -135,7 +165,10 @@ export class ThreadRenderers {
 			if (linkedThreads.length === 0) continue;
 
 			const linkedFieldKeys = new Set(linkedThreads.flatMap((thread) =>
-				thread.daily.fields.map((field) => field.key)));
+				[
+					...thread.daily.fields.map((field) => field.key),
+					...(templateFieldKeys.get(thread.id) ?? []),
+				]));
 			const values = configuredFields
 				.filter((key) => linkedFieldKeys.has(key))
 				.map((key) => ({ key, value: metadata[key] }))
