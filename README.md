@@ -10,6 +10,8 @@
 ## 当前能力
 
 - 从任意位置新建 thread，并选择父 thread 或创建根节点。
+- 新建 thread 时读取可配置的完整 Markdown 模板；插件只校正稳定身份和层级字段。
+- 通过“打开 thread 创建模板”命令直接编辑模板；默认模板不存在时自动创建。
 - 从当前 thread 新建子 thread 或同级 thread。
 - 所有 thread 默认直接平铺在 `50-行动系统/`，不按 project、area 或 routine 分目录。
 - 新建文件使用 `YYMMDD·标题.md`；`aliases`、`title` 和正文标题保留原始名称。
@@ -57,6 +59,21 @@ created: 2026-08-28
 - 旧 `daily.form` 仍可临时注入；运行“编辑当前 thread 的日记表单”并保存后会将其转换到正文并清除旧配置。
 
 控件语法直接遵循 Meta Bind。字段名仍应保持稳定、避免跨 thread 意外重名；Base 和 `thread-records` 都直接读取这些日记 properties。
+
+## Thread 创建模板
+
+默认模板路径是 `Templates/Thread.md`，可在 Thread Journal 设置中修改。模板可以包含任意 Markdown、属性和插件代码块；创建完成后，插件会强制校正 `type`、`thread_id`、`title`、`aliases`、`tags`、`kind`、`status`、`created` 和 `parent`，因此这些身份字段无需写进模板。
+
+支持以下占位符：
+
+- `{{title}}` / `{{thread_title}}`
+- `{{filename}}`、`{{thread_id}}`、`{{kind}}`
+- `{{parent}}`、`{{parent_title}}`
+- `{{created}}` / `{{date}}` / `{{date:YYMMDD}}`
+- `{{goal_heading}}`：area 为“责任范围”，其余为“期望结果”
+- `{{criteria_heading}}`：area 为“维持标准”，其余为“完成条件”
+
+若模板不存在，插件会用内置结构自动创建该模板，然后继续创建 thread。
 
 ## 日记合成
 

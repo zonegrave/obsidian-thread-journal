@@ -20,10 +20,37 @@ import {
 	stripWikiLink,
 	wikiLinkAlias,
 } from '../src/core';
+import { renderThreadTemplate } from '../src/thread-template';
 
 void test('prefixes new thread file names while preserving a safe title', () => {
 	assert.equal(buildThreadFileName('睡眠/管理', '260828'), '260828·睡眠-管理');
 	assert.equal(buildThreadFileName('...', '260828'), '');
+});
+
+void test('renders a thread template with creation context and kind-aware headings', () => {
+	const rendered = renderThreadTemplate([
+		'# {{title}}',
+		'{{kind}} · {{filename}} · {{thread_id}}',
+		'{{parent_title}} {{parent}}',
+		'## {{goal_heading}}',
+		'## {{criteria_heading}}',
+		'{{date}} / {{date:YYMMDD}}',
+		'{{unknown}}',
+	].join('\n'), {
+		title: '睡眠管理',
+		fileName: '260828·睡眠管理',
+		threadId: 'stable-id',
+		kind: 'area',
+		parentTitle: '健康管理',
+		parentLink: '[[260826·健康管理|健康管理]]',
+		created: '2026-08-28',
+	}, (format) => format === 'YYMMDD' ? '260828' : '2026-08-28');
+	assert.match(rendered, /^# 睡眠管理/m);
+	assert.match(rendered, /area · 260828·睡眠管理 · stable-id/);
+	assert.match(rendered, /## 责任范围/);
+	assert.match(rendered, /## 维持标准/);
+	assert.match(rendered, /2026-08-28 \/ 260828/);
+	assert.match(rendered, /\{\{unknown\}\}/);
 });
 
 void test('normalizes an opt-in daily contribution', () => {

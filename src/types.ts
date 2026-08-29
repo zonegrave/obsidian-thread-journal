@@ -53,6 +53,7 @@ export interface ThreadInfo {
 
 export interface ThreadJournalSettings {
 	threadsFolder: string;
+	threadTemplatePath: string;
 	dailyFolder: string;
 	dailyFilePattern: string;
 	dailyRecordsHeading: string;

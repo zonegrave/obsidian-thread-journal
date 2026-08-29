@@ -10,6 +10,10 @@ import {
 	type FuzzyMatch,
 } from 'obsidian';
 import { buildThreadFileName } from './core';
+import {
+	DEFAULT_THREAD_TEMPLATE,
+	renderThreadTemplate,
+} from './thread-template';
 import type { ThreadIndex, ThreadParentCandidate } from './thread-index';
 import type { ThreadJournalSettings, ThreadKind } from './types';
 
@@ -32,45 +36,9 @@ async function ensureFolder(app: App, folder: string): Promise<void> {
 	}
 }
 
-function threadBody(title: string, kind: ThreadKind, parentLink?: string): string {
-	const frontmatter = [
-		'---',
-		'type: thread',
-		`thread_id: ${stableThreadId()}`,
-		`title: ${JSON.stringify(title)}`,
-		`aliases: [${JSON.stringify(title)}]`,
-		'tags: [线程]',
-		`kind: ${kind}`,
-		'status: active',
-		...(parentLink ? [`parent: ${JSON.stringify(parentLink)}`] : []),
-		`created: ${moment().format('YYYY-MM-DD')}`,
-		'---',
-		'',
-		'```thread-breadcrumb',
-		'```',
-		'',
-		`# ${title}`,
-		'',
-		kind === 'area' ? '## 责任范围' : '## 期望结果',
-		'',
-		kind === 'area' ? '## 维持标准' : '## 完成条件',
-		'',
-		'- ',
-		'',
-		'## 子线程',
-		'',
-		'```thread-children',
-		'```',
-		'',
-		'## 记录',
-		'',
-		'```thread-records',
-		'scope: descendants',
-		'days: 30',
-		'```',
-		'',
-	];
-	return frontmatter.join('\n');
+function stringList(value: unknown): string[] {
+	if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+	return typeof value === 'string' && value ? [value] : [];
 }
 
 class NewThreadModal extends Modal {
@@ -193,6 +161,11 @@ export class ThreadCreator {
 		}).open();
 	}
 
+	async openThreadTemplate(): Promise<void> {
+		const file = await this.getOrCreateTemplateFile();
+		await this.app.workspace.getLeaf(false).openFile(file);
+	}
+
 	openNewChildModal(parent: TFile): void {
 		this.openDetailsModal(parent);
 	}
@@ -209,7 +182,8 @@ export class ThreadCreator {
 	}
 
 	async createThread(title: string, kind: ThreadKind, parent?: TFile): Promise<TFile> {
-		const folder = this.getSettings().threadsFolder;
+		const settings = this.getSettings();
+		const folder = settings.threadsFolder;
 		await ensureFolder(this.app, folder);
 		const fileName = buildThreadFileName(title, moment().format('YYMMDD'));
 		if (!fileName) throw new Error('Thread title does not produce a valid file name.');
@@ -226,9 +200,47 @@ export class ThreadCreator {
 				this.index.getDisplayName(parent),
 			)
 			: undefined;
-		const file = await this.app.vault.create(path, threadBody(title, kind, parentLink));
+		const templateFile = await this.getOrCreateTemplateFile();
+		const template = await this.app.vault.cachedRead(templateFile);
+		const threadId = stableThreadId();
+		const created = moment().format('YYYY-MM-DD');
+		const body = renderThreadTemplate(template, {
+			title,
+			fileName,
+			threadId,
+			kind,
+			parentLink,
+			parentTitle: parent ? this.index.getDisplayName(parent) : undefined,
+			created,
+		}, (format) => moment(created, 'YYYY-MM-DD').format(format));
+		const file = await this.app.vault.create(path, body);
+		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+			const metadata = frontmatter as Record<string, unknown>;
+			metadata.type = 'thread';
+			metadata.thread_id = threadId;
+			metadata.title = title;
+			metadata.aliases = [...new Set([title, ...stringList(metadata.aliases)])];
+			metadata.tags = [...new Set(['线程', ...stringList(metadata.tags)])];
+			metadata.kind = kind;
+			metadata.status = 'active';
+			metadata.created = created;
+			if (parentLink) metadata.parent = parentLink;
+			else delete metadata.parent;
+		});
 		await this.app.workspace.getLeaf(false).openFile(file);
 		new Notice(`已创建 ${title}`);
+		return file;
+	}
+
+	private async getOrCreateTemplateFile(): Promise<TFile> {
+		const path = this.getSettings().threadTemplatePath;
+		const existing = this.app.vault.getAbstractFileByPath(path);
+		if (existing instanceof TFile) return existing;
+		if (existing) throw new Error(`Thread template path is not a file: ${path}`);
+		const separator = path.lastIndexOf('/');
+		if (separator > 0) await ensureFolder(this.app, path.slice(0, separator));
+		const file = await this.app.vault.create(path, DEFAULT_THREAD_TEMPLATE);
+		new Notice(`已创建 Thread 模板：${path}`);
 		return file;
 	}
 }

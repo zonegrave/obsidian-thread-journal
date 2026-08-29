@@ -73,6 +73,17 @@ export default class ThreadJournalPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'open-thread-template',
+			name: '打开 thread 创建模板',
+			callback: () => {
+				void this.creator.openThreadTemplate().catch((error: unknown) => {
+					console.error('Thread Journal failed to open thread template', error);
+					new Notice(`打开 Thread 模板失败：${String(error)}`);
+				});
+			},
+		});
+
+		this.addCommand({
 			id: 'new-child-thread',
 			name: '从当前文件新建子 thread',
 			checkCallback: (checking) => {
