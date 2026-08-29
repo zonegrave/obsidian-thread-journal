@@ -14,7 +14,7 @@
 - 新建文件使用 `YYMMDD·标题.md`；`aliases`、`title` 和正文标题保留原始名称。
 - 通过“管理当前 thread 的日记表单”图形界面维护结构化字段与 Markdown 正文段落。
 - 自动或手动把活跃 thread 的表单快照注入日记，不预写空 frontmatter 属性。
-- 用 `thread-breadcrumb` 显示从根节点到当前节点的 breadcrumb。
+- 用 `thread-breadcrumb` 显示从根节点到直接父节点的 breadcrumb，不重复显示当前 thread。
 - 用 `thread-children` 显示直接子 thread。
 - 用 `thread-records` 在任意 thread 中纵向汇总自身及后代的日记记录。
 
@@ -29,7 +29,7 @@ aliases: [睡眠管理]
 tags: [线程]
 kind: area
 status: active
-parent: "[[健康管理]]"
+parent: "[[260826·健康管理|健康管理]]"
 created: 2026-08-28
 daily:
   form:
@@ -59,6 +59,7 @@ daily:
 
 - `kind` 默认为 `normal`，也可以是 `area` 或 `project`；三者统一使用 `type: thread`。
 - `parent` 是唯一结构性父节点；其他关系继续使用普通双链。
+- Breadcrumb 优先使用 `parent` 链接中的 alias；旧链接没有显式 alias 时，回退到父文件的首个 `aliases`。
 - 父节点只接受 `type: thread`；旧式 `area/project/routine` 不自动兼容。
 - `daily.form` 是唯一日记录入声明。没有表单或设置 `daily.enabled: false` 时，thread 不参与日记注入。
 - `kind: field` 由 Meta Bind 写入日记 frontmatter；属性只在用户实际操作控件后创建。

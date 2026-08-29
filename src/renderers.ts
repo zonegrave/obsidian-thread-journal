@@ -59,14 +59,9 @@ export class ThreadRenderers {
 		if (!current) return;
 		const ancestry = this.index.getAncestors(current);
 		el.addClass('thread-journal-breadcrumb');
-		const files = [...ancestry.files, current];
-		files.forEach((file, index) => {
+		ancestry.items.forEach((item, index) => {
 			if (index > 0) el.createSpan({ cls: 'thread-journal-separator', text: '›' });
-			if (file.path === current.path) {
-				el.createSpan({ cls: 'thread-journal-current', text: file.basename });
-			} else {
-				addFileLink(this.app, el, file, ctx.sourcePath);
-			}
+			addFileLink(this.app, el, item.file, ctx.sourcePath, item.label);
 		});
 		if (ancestry.cycle) {
 			el.createSpan({ cls: 'thread-journal-warning', text: '检测到父线程循环' });

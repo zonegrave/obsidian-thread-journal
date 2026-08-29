@@ -219,7 +219,12 @@ export class ThreadCreator {
 			throw new Error(`File already exists: ${path}`);
 		}
 		const parentLink = parent
-			? this.app.fileManager.generateMarkdownLink(parent, path)
+			? this.app.fileManager.generateMarkdownLink(
+				parent,
+				path,
+				undefined,
+				this.index.getDisplayName(parent),
+			)
 			: undefined;
 		const file = await this.app.vault.create(path, threadBody(title, kind, parentLink));
 		await this.app.workspace.getLeaf(false).openFile(file);

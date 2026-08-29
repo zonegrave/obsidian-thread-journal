@@ -11,6 +11,7 @@ import {
 	normalizeDailyContribution,
 	normalizeRecordsConfig,
 	stripWikiLink,
+	wikiLinkAlias,
 } from '../src/core';
 
 void test('prefixes new thread file names while preserving a safe title', () => {
@@ -136,4 +137,9 @@ void test('normalizes record view config', () => {
 
 void test('resolves the target part of a wikilink', () => {
 	assert.equal(stripWikiLink('[[睡眠管理#记录|睡眠]]'), '睡眠管理');
+});
+
+void test('reads the display alias from a parent wikilink', () => {
+	assert.equal(wikiLinkAlias('[[260826·睡眠管理|睡眠管理]]'), '睡眠管理');
+	assert.equal(wikiLinkAlias('[[260826·睡眠管理]]'), undefined);
 });

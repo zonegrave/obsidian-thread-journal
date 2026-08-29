@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import { normalizeDailyContribution, stripWikiLink } from './core';
+import { normalizeDailyContribution, stripWikiLink, wikiLinkAlias } from './core';
 import type { ThreadInfo, ThreadJournalSettings, ThreadKind } from './types';
 
 export interface ThreadParentCandidate {
@@ -8,12 +8,24 @@ export interface ThreadParentCandidate {
 	kind: ThreadKind;
 }
 
+export interface ThreadAncestor {
+	file: TFile;
+	label: string;
+}
+
 function frontmatterFor(app: App, file: TFile): Record<string, unknown> {
 	return app.metadataCache.getFileCache(file)?.frontmatter ?? {};
 }
 
 function textValue(value: unknown): string {
 	return typeof value === 'string' ? value.trim() : '';
+}
+
+function firstTextValue(value: unknown): string {
+	if (Array.isArray(value)) {
+		return value.map(textValue).find(Boolean) ?? '';
+	}
+	return textValue(value);
 }
 
 export class ThreadIndex {
@@ -75,28 +87,42 @@ export class ThreadIndex {
 			thread.daily.enabled && statuses.has(thread.status.toLocaleLowerCase()));
 	}
 
-	getParentFile(file: TFile): TFile | undefined {
+	getDisplayName(file: TFile): string {
 		const frontmatter = frontmatterFor(this.app, file);
-		const parent = stripWikiLink(frontmatter.parent);
+		return firstTextValue(frontmatter.aliases)
+			|| textValue(frontmatter.title)
+			|| file.basename;
+	}
+
+	getParent(file: TFile): ThreadAncestor | undefined {
+		const metadata = frontmatterFor(this.app, file);
+		const parent = stripWikiLink(metadata.parent);
 		if (!parent) return undefined;
 		const target = this.app.metadataCache.getFirstLinkpathDest(parent, file.path);
 		if (!target || frontmatterFor(this.app, target).type !== 'thread') return undefined;
-		return target;
+		return {
+			file: target,
+			label: wikiLinkAlias(metadata.parent) || this.getDisplayName(target),
+		};
 	}
 
-	getAncestors(file: TFile): { files: TFile[]; cycle: boolean } {
-		const result: TFile[] = [];
+	getParentFile(file: TFile): TFile | undefined {
+		return this.getParent(file)?.file;
+	}
+
+	getAncestors(file: TFile): { items: ThreadAncestor[]; cycle: boolean } {
+		const result: ThreadAncestor[] = [];
 		const visited = new Set<string>([file.path]);
-		let cursor = this.getParentFile(file);
+		let cursor = this.getParent(file);
 		while (cursor) {
-			if (visited.has(cursor.path)) {
-				return { files: result.reverse(), cycle: true };
+			if (visited.has(cursor.file.path)) {
+				return { items: result.reverse(), cycle: true };
 			}
-			visited.add(cursor.path);
+			visited.add(cursor.file.path);
 			result.push(cursor);
-			cursor = this.getParentFile(cursor);
+			cursor = this.getParent(cursor.file);
 		}
-		return { files: result.reverse(), cycle: false };
+		return { items: result.reverse(), cycle: false };
 	}
 
 	getDirectChildren(parent: TFile): ThreadInfo[] {
