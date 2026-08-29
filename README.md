@@ -12,7 +12,7 @@
 - 从任意位置新建 thread，并选择父 thread 或创建根节点。
 - 从当前 thread 新建子 thread 或同级 thread。
 - 新建文件使用 `YYMMDD·标题.md`；`aliases`、`title` 和正文标题保留原始名称。
-- 通过“添加或定位当前 thread 的日记表单”命令，在 thread 正文中直接维护 Markdown 与 Meta Bind 控件。
+- 通过“编辑当前 thread 的日记表单”打开双栏编辑器：左侧编辑 Markdown，右侧实时预览 callout，并可快捷插入常用 Meta Bind 控件。
 - 在 thread 中把表单渲染成禁用控件的 callout 预览，避免误写 thread 自身的 properties。
 - 自动或手动把活跃 thread 的正文表单快照注入日记，不预写空 properties。
 - 用 `thread-breadcrumb` 显示从根节点到直接父节点的 breadcrumb，不重复显示当前 thread。
@@ -53,7 +53,7 @@ created: 2026-08-28
 - `thread-daily-form` 代码块是唯一日记录入声明；没有该代码块的 thread 不参与日记注入。
 - 代码块内部是普通 Markdown，可使用 callout、列表、表格、标题或任意 Meta Bind `INPUT[...]` 控件。
 - thread 页面只显示安全预览；复制到日记后，Meta Bind 控件才会绑定并写入当日日记 properties。
-- 旧 `daily.form` 仍可临时注入；运行“添加或定位当前 thread 的日记表单”会将其转换到正文并清除旧配置。
+- 旧 `daily.form` 仍可临时注入；运行“编辑当前 thread 的日记表单”并保存后会将其转换到正文并清除旧配置。
 
 控件语法直接遵循 Meta Bind。字段名仍应保持稳定、避免跨 thread 意外重名；Base 和 `thread-records` 都直接读取这些日记 properties。
 

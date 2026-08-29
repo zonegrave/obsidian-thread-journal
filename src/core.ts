@@ -235,23 +235,19 @@ export function buildDailyFormBlock(
 }
 
 export function extractThreadDailyForm(content: string): string | undefined {
-	const lines = content.split(/\r?\n/);
-	for (let index = 0; index < lines.length; index += 1) {
-		const opening = lines[index]?.match(/^\s*(`{3,}|~{3,})\s*thread-daily-form\s*$/i);
-		const fence = opening?.[1];
-		if (!fence || new Set(fence).size !== 1) continue;
-		const fenceCharacter = fence[0];
-		if (!fenceCharacter) continue;
-		for (let closing = index + 1; closing < lines.length; closing += 1) {
-			const candidate = lines[closing]?.trim() ?? '';
-			if (candidate.length < fence.length) continue;
-			if ([...candidate].every((character) => character === fenceCharacter)) {
-				const template = lines.slice(index + 1, closing).join('\n').trim();
-				return template || undefined;
-			}
-		}
-	}
-	return undefined;
+	const match = /^([ \t]*)(`{3,}|~{3,})[ \t]*thread-daily-form[ \t]*\r?\n([\s\S]*?)^[ \t]*\2[ \t]*$/im.exec(content);
+	const template = match?.[3]?.trim();
+	return template || undefined;
+}
+
+export function replaceThreadDailyForm(content: string, template: string): string | undefined {
+	const pattern = /^([ \t]*)(`{3,}|~{3,})[ \t]*thread-daily-form[ \t]*\r?\n([\s\S]*?)^[ \t]*\2[ \t]*$/im;
+	const match = pattern.exec(content);
+	if (!match || match.index === undefined) return undefined;
+	const indent = match[1] ?? '';
+	const fence = match[2] ?? '```';
+	const replacement = `${indent}${fence}thread-daily-form\n${template.trim()}\n${indent}${fence}`;
+	return content.slice(0, match.index) + replacement + content.slice(match.index + match[0].length);
 }
 
 export function buildThreadDailyFormCodeBlock(template: string): string {

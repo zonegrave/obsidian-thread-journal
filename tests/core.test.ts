@@ -16,6 +16,7 @@ import {
 	neutralizeMetaBindInputs,
 	normalizeDailyContribution,
 	normalizeRecordsConfig,
+	replaceThreadDailyForm,
 	stripWikiLink,
 	wikiLinkAlias,
 } from '../src/core';
@@ -157,6 +158,13 @@ void test('extracts a custom Meta Bind form from the thread body', () => {
 	].join('\n');
 	const block = buildThreadDailyFormCodeBlock(template);
 	assert.equal(extractThreadDailyForm(`# 睡眠\n\n${block}\n`), template);
+});
+
+void test('replaces only the editable body of an existing thread form', () => {
+	const original = '# Thread\n\n```thread-daily-form\n> old\n```\n\n## End\n';
+	const updated = replaceThreadDailyForm(original, '> [!note]+ 新表单\n> new');
+	assert.equal(updated, '# Thread\n\n```thread-daily-form\n> [!note]+ 新表单\n> new\n```\n\n## End\n');
+	assert.equal(extractThreadDailyForm(updated ?? ''), '> [!note]+ 新表单\n> new');
 });
 
 void test('copies the custom form into a stable daily snapshot', () => {

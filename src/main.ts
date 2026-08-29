@@ -96,7 +96,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'manage-daily-form',
-			name: '添加或定位当前 thread 的日记表单',
+			name: '编辑当前 thread 的日记表单',
 			checkCallback: (checking) => {
 				const file = this.currentThreadFile();
 				if (!file) return false;
