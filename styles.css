@@ -51,6 +51,35 @@
 	margin-bottom: 0;
 }
 
+.thread-journal-record-template {
+	margin: 0.75rem 0 1rem;
+	padding: 0.75rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.thread-journal-record-template-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-bottom: 0.55rem;
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.thread-journal-record-template-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+
+.thread-journal-record-template pre {
+	margin: 0;
+	white-space: pre-wrap;
+}
+
 .thread-journal-template-modal {
 	width: min(76rem, calc(100vw - 2rem));
 }

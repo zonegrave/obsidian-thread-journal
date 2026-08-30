@@ -2,12 +2,14 @@ import {
 	App,
 	MarkdownRenderChild,
 	MarkdownRenderer,
+	Notice,
 	TFile,
 	moment,
 	parseYaml,
 	type MarkdownPostProcessorContext,
 } from 'obsidian';
 import {
+	extractThreadBodyRecords,
 	extractMarkedSection,
 	extractMetaBindPropertyKeys,
 	extractThreadDailyForm,
@@ -19,6 +21,7 @@ import {
 import type { ThreadIndex } from './thread-index';
 import type {
 	DailyRecord,
+	ThreadBodyRecord,
 	ThreadInfo,
 	ThreadJournalSettings,
 } from './types';
@@ -91,13 +94,38 @@ export class ThreadRenderers {
 		}
 	}
 
-	async renderDailyFormPreview(
+	renderRecordTemplate(source: string, el: HTMLElement): void {
+		el.addClass('thread-journal-record-template');
+		const header = el.createDiv({ cls: 'thread-journal-record-template-header' });
+		header.createSpan({ text: '记录模板' });
+		const actions = header.createDiv({ cls: 'thread-journal-record-template-actions' });
+		const copy = async (content: string, label: string): Promise<void> => {
+			await navigator.clipboard.writeText(content.trim());
+			new Notice(label);
+		};
+		const rawButton = actions.createEl('button', { text: '复制模板' });
+		rawButton.addEventListener('click', () => {
+			void copy(source, '已复制记录模板。');
+		});
+		const todayButton = actions.createEl('button', { text: '复制今日记录' });
+		todayButton.addEventListener('click', () => {
+			const today = moment().format('YYYY-MM-DD');
+			void copy(source.replace(/YYYY-MM-DD/g, today), `已填入日期 ${today} 并复制。`);
+		});
+		const code = el.createEl('pre').createEl('code');
+		code.setText(source.trim());
+	}
+
+	async renderLegacyDailyForm(
 		source: string,
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext,
 	): Promise<void> {
 		el.addClass('thread-journal-form-preview');
-		el.createDiv({ cls: 'thread-journal-form-preview-label', text: '日记表单模板 · 预览' });
+		el.createDiv({
+			cls: 'thread-journal-form-preview-label',
+			text: '旧版日记表单 · 不再自动注入日记',
+		});
 		const body = el.createDiv({ cls: 'thread-journal-form-preview-body' });
 		const child = new MarkdownRenderChild(body);
 		ctx.addChild(child);
@@ -122,18 +150,47 @@ export class ThreadRenderers {
 		}
 		const config = normalizeRecordsConfig(rawConfig);
 		const scope = this.index.getScope(current, config.scope === 'descendants');
-		const records = await this.collectRecords(scope, config);
+		const bodyRecords = await this.collectThreadBodyRecords(scope, config);
+		const legacyRecords = await this.collectLegacyRecords(scope, config);
 		el.addClass('thread-journal-records');
-		if (records.length === 0) {
+		if (bodyRecords.length === 0 && legacyRecords.length === 0) {
 			el.createDiv({ cls: 'thread-journal-empty', text: '所选时间范围内暂无记录。' });
 			return;
 		}
+		const records: Array<ThreadBodyRecord | DailyRecord> = [...bodyRecords, ...legacyRecords]
+			.sort((a, b) => b.date.localeCompare(a.date));
 		for (const record of records) {
-			await this.renderRecord(record, el, ctx);
+			if ('threadTitle' in record) await this.renderThreadBodyRecord(record, el, ctx, config.fields);
+			else await this.renderLegacyRecord(record, el, ctx);
 		}
 	}
 
-	private async collectRecords(
+	private async collectThreadBodyRecords(
+		scope: ThreadInfo[],
+		config: ReturnType<typeof normalizeRecordsConfig>,
+	): Promise<ThreadBodyRecord[]> {
+		const threshold = moment().startOf('day').subtract(config.days - 1, 'days');
+		const results: ThreadBodyRecord[] = [];
+		await Promise.all(scope.map(async (thread) => {
+			const content = await this.app.vault.cachedRead(thread.file);
+			for (const record of extractThreadBodyRecords(content)) {
+				const parsedDate = moment(record.date, 'YYYY-MM-DD', true);
+				if (!parsedDate.isValid() || parsedDate.isBefore(threshold, 'day')) continue;
+				results.push({
+					file: thread.file,
+					threadTitle: thread.title,
+					date: record.date,
+					line: record.line,
+					blockId: record.blockId,
+					fields: record.fields,
+					body: record.body,
+				});
+			}
+		}));
+		return results;
+	}
+
+	private async collectLegacyRecords(
 		scope: ThreadInfo[],
 		config: ReturnType<typeof normalizeRecordsConfig>,
 	): Promise<DailyRecord[]> {
@@ -151,7 +208,7 @@ export class ThreadRenderers {
 			]))];
 		const threshold = moment().startOf('day').subtract(config.days - 1, 'days');
 		const dailyFiles = this.app.vault.getMarkdownFiles()
-			.filter((file) => file.path.startsWith(`${this.getSettings().dailyFolder}/`))
+			.filter((file) => file.path.startsWith(`${this.getSettings().legacyDailyFolder}/`))
 			.sort((a, b) => b.basename.localeCompare(a.basename));
 		const results: DailyRecord[] = [];
 
@@ -187,7 +244,47 @@ export class ThreadRenderers {
 		return results;
 	}
 
-	private async renderRecord(
+	private async renderThreadBodyRecord(
+		record: ThreadBodyRecord,
+		container: HTMLElement,
+		ctx: MarkdownPostProcessorContext,
+		configuredFields: string[],
+	): Promise<void> {
+		const card = container.createDiv({ cls: 'thread-journal-card' });
+		const header = card.createDiv({ cls: 'thread-journal-card-header' });
+		const target = record.blockId
+			? `${record.file.path}#^${record.blockId}`
+			: record.file.path;
+		const link = header.createEl('a', {
+			text: `${record.date} · ${record.threadTitle}`,
+			attr: { href: target },
+		});
+		link.addEventListener('click', (event) => {
+			event.preventDefault();
+			void this.app.workspace.openLinkText(target, ctx.sourcePath, event.metaKey || event.ctrlKey);
+		});
+		const hiddenFields = new Set(['thread_record', 'record_date', 'record_id', 'summary']);
+		const fields = record.fields
+			.filter((field) => !hiddenFields.has(field.key))
+			.filter((field) => configuredFields.length === 0 || configuredFields.includes(field.key))
+			.filter((field) => valueIsPresent(field.value));
+		if (fields.length > 0) {
+			const properties = card.createDiv({ cls: 'thread-journal-properties' });
+			for (const item of fields) {
+				const property = properties.createDiv({ cls: 'thread-journal-property' });
+				property.createSpan({ cls: 'thread-journal-property-key', text: item.key });
+				property.createSpan({ text: displayValue(item.value) });
+			}
+		}
+		if (record.body) {
+			const body = card.createDiv({ cls: 'thread-journal-section-body' });
+			const child = new MarkdownRenderChild(body);
+			ctx.addChild(child);
+			await MarkdownRenderer.render(this.app, record.body, body, record.file.path, child);
+		}
+	}
+
+	private async renderLegacyRecord(
 		record: DailyRecord,
 		container: HTMLElement,
 		ctx: MarkdownPostProcessorContext,

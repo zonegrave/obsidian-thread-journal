@@ -54,11 +54,7 @@ export interface ThreadInfo {
 export interface ThreadJournalSettings {
 	threadsFolder: string;
 	threadTemplatePath: string;
-	dailyFolder: string;
-	dailyFilePattern: string;
-	dailyRecordsHeading: string;
-	activeStatuses: string;
-	autoComposeDaily: boolean;
+	legacyDailyFolder: string;
 }
 
 export interface ThreadRecordsConfig {
@@ -78,4 +74,14 @@ export interface DailyRecord {
 		heading: string;
 		content: string;
 	}>;
+}
+
+export interface ThreadBodyRecord {
+	file: TFile;
+	threadTitle: string;
+	date: string;
+	line: number;
+	blockId?: string;
+	fields: Array<{ key: string; value: unknown }>;
+	body: string;
 }

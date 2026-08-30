@@ -76,17 +76,6 @@ export class ThreadIndex {
 			.sort((a, b) => a.title.localeCompare(b.title));
 	}
 
-	getActiveThreads(): ThreadInfo[] {
-		const statuses = new Set(
-			this.getSettings().activeStatuses
-				.split(',')
-				.map((status) => status.trim().toLocaleLowerCase())
-				.filter(Boolean),
-		);
-		return this.getAllThreads().filter((thread) =>
-			statuses.has(thread.status.toLocaleLowerCase()));
-	}
-
 	getDisplayName(file: TFile): string {
 		const frontmatter = frontmatterFor(this.app, file);
 		return firstTextValue(frontmatter.aliases)

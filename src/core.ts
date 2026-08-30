@@ -9,6 +9,14 @@ import type {
 
 const DEFAULT_RECORD_DAYS = 30;
 
+export interface ParsedThreadBodyRecord {
+	date: string;
+	line: number;
+	blockId?: string;
+	fields: Array<{ key: string; value: unknown }>;
+	body: string;
+}
+
 export function buildThreadFileName(title: string, datePrefix: string): string {
 	const safeTitle = title
 		.trim()
@@ -373,6 +381,91 @@ export function normalizeRecordsConfig(value: unknown): ThreadRecordsConfig {
 		sections: stringList(config.sections).map(slugify),
 		showEmpty: config.showEmpty === true || config['show-empty'] === true,
 	};
+}
+
+function inlineFieldValue(raw: string): unknown {
+	const value = raw.trim();
+	if (value === 'true') return true;
+	if (value === 'false') return false;
+	if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(value)) return Number(value);
+	return value;
+}
+
+function recordFields(line: string): Array<{ key: string; value: unknown }> {
+	const fields: Array<{ key: string; value: unknown }> = [];
+	for (const match of line.matchAll(/\[([^:]+?)::\s*([^\]]*)\]/g)) {
+		const key = match[1]?.trim();
+		if (!key) continue;
+		fields.push({ key, value: inlineFieldValue(match[2] ?? '') });
+	}
+	return fields;
+}
+
+function fieldValue(
+	fields: Array<{ key: string; value: unknown }>,
+	key: string,
+): unknown {
+	return fields.find((field) => field.key === key)?.value;
+}
+
+export function extractThreadBodyRecords(
+	content: string,
+	heading = '记录',
+): ParsedThreadBodyRecord[] {
+	const lines = content.split(/\r?\n/);
+	const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const headingPattern = new RegExp(`^##\\s+${escapedHeading}\\s*$`);
+	const sectionStart = lines.findIndex((line) => headingPattern.test(line));
+	if (sectionStart < 0) return [];
+	let sectionEnd = lines.length;
+	for (let index = sectionStart + 1; index < lines.length; index += 1) {
+		if (/^#{1,2}\s+/.test(lines[index] ?? '')) {
+			sectionEnd = index;
+			break;
+		}
+	}
+
+	const results: ParsedThreadBodyRecord[] = [];
+	let fence: string | undefined;
+	for (let index = sectionStart + 1; index < sectionEnd; index += 1) {
+		const line = lines[index] ?? '';
+		const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(line);
+		if (fenceMatch) {
+			const token = fenceMatch[1] ?? '';
+			if (!fence) fence = token[0];
+			else if (token[0] === fence) fence = undefined;
+			continue;
+		}
+		if (fence || !/^[-*+]\s+/.test(line)) continue;
+		const fields = recordFields(line);
+		if (fieldValue(fields, 'thread_record') !== true) continue;
+		const rawDate = fieldValue(fields, 'record_date');
+		if (typeof rawDate !== 'string') continue;
+		const date = rawDate;
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+
+		let blockEnd = index + 1;
+		while (blockEnd < sectionEnd && !/^[-*+]\s+/.test(lines[blockEnd] ?? '')) {
+			blockEnd += 1;
+		}
+		const blockId = /\s\^([\w-]+)\s*$/.exec(line)?.[1];
+		const firstLine = line
+			.replace(/^[-*+]\s+/, '')
+			.replace(/\[[^:]+?::\s*[^\]]*\]\s*/g, '')
+			.replace(/\s*\^[\w-]+\s*$/, '')
+			.trim();
+		const continuation = lines
+			.slice(index + 1, blockEnd)
+			.map((item) => item.replace(/^ {1,2}/, ''));
+		const summary = fieldValue(fields, 'summary');
+		const body = [
+			typeof summary === 'string' && summary.trim() ? summary.trim() : firstLine,
+			...continuation,
+		].join('\n').trim();
+		results.push({ date, line: index + 1, blockId, fields, body });
+		index = blockEnd - 1;
+	}
+	return results;
 }
 
 export function valueIsPresent(value: unknown): boolean {

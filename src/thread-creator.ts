@@ -12,6 +12,7 @@ import {
 import { buildThreadFileName } from './core';
 import {
 	DEFAULT_THREAD_TEMPLATE,
+	LEGACY_THREAD_TEMPLATE_060,
 	renderThreadTemplate,
 } from './thread-template';
 import type { ThreadIndex, ThreadParentCandidate } from './thread-index';
@@ -235,7 +236,14 @@ export class ThreadCreator {
 	private async getOrCreateTemplateFile(): Promise<TFile> {
 		const path = this.getSettings().threadTemplatePath;
 		const existing = this.app.vault.getAbstractFileByPath(path);
-		if (existing instanceof TFile) return existing;
+		if (existing instanceof TFile) {
+			const content = await this.app.vault.cachedRead(existing);
+			if (content.trimEnd() === LEGACY_THREAD_TEMPLATE_060.trimEnd()) {
+				await this.app.vault.modify(existing, DEFAULT_THREAD_TEMPLATE);
+				new Notice(`已将 Thread 模板升级为内联记录模式：${path}`);
+			}
+			return existing;
+		}
 		if (existing) throw new Error(`Thread template path is not a file: ${path}`);
 		const separator = path.lastIndexOf('/');
 		if (separator > 0) await ensureFolder(this.app, path.slice(0, separator));

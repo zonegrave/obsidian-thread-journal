@@ -9,6 +9,7 @@ import {
 	buildSectionBlock,
 	extractMarkedSection,
 	extractMetaBindPropertyKeys,
+	extractThreadBodyRecords,
 	extractThreadDailyForm,
 	hasDailyFormSnapshot,
 	insertBlocksUnderHeading,
@@ -51,6 +52,49 @@ void test('renders a thread template with creation context and kind-aware headin
 	assert.match(rendered, /## 维持标准/);
 	assert.match(rendered, /2026-08-28 \/ 260828/);
 	assert.match(rendered, /\{\{unknown\}\}/);
+});
+
+void test('extracts dated list records only from the thread record section', () => {
+	const records = extractThreadBodyRecords([
+		'## 每日记录模板',
+		'```thread-record-template',
+		'- [thread_record:: true] [record_date:: 2026-08-30] [summary:: 模板不应被读取]',
+		'```',
+		'',
+		'## 记录',
+		'',
+		'- [thread_record:: true] [record_date:: 2026-08-30] [sleep_hours:: 7.5] [summary:: 入睡顺利] ^rec-260830-a',
+		'  - 夜间醒来一次。',
+		'- 普通列表项',
+		'- [thread_record:: true] [record_date:: 2026-08-29] [sleep_hours:: 6.8] 睡眠不足',
+		'',
+		'## 其他',
+		'- [thread_record:: true] [record_date:: 2026-08-28] [summary:: 其他章节]',
+	].join('\n'));
+	assert.equal(records.length, 2);
+	assert.deepEqual(records[0], {
+		date: '2026-08-30',
+		line: 8,
+		blockId: 'rec-260830-a',
+		fields: [
+			{ key: 'thread_record', value: true },
+			{ key: 'record_date', value: '2026-08-30' },
+			{ key: 'sleep_hours', value: 7.5 },
+			{ key: 'summary', value: '入睡顺利' },
+		],
+		body: '入睡顺利\n- 夜间醒来一次。',
+	});
+	assert.equal(records[1]?.date, '2026-08-29');
+	assert.equal(records[1]?.body, '睡眠不足');
+});
+
+void test('ignores records with a missing or placeholder date', () => {
+	const records = extractThreadBodyRecords([
+		'## 记录',
+		'- [thread_record:: true] [record_date:: YYYY-MM-DD] [summary:: 空模板]',
+		'- [thread_record:: true] [summary:: 缺少日期]',
+	].join('\n'));
+	assert.deepEqual(records, []);
 });
 
 void test('normalizes an opt-in daily contribution', () => {

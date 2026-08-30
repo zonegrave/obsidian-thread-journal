@@ -1,30 +1,25 @@
 # Thread Journal
 
-一个本地优先的 Obsidian 插件：把行为统一表示为带单一父节点的 `thread`。每个 thread 在正文中维护一份可自由排版的日记表单；新建日记时，插件把所有活跃 thread 的表单冻结为当天快照，Meta Bind 控件在填写后写入当日日记 properties。
-
-## 依赖
-
-- Obsidian 1.13.1 或更高版本。
-- Meta Bind：负责把复制到日记正文中的控件绑定到当日日记 properties。
+一个本地优先的 Obsidian 插件：把行为统一表示为带单一父节点的 `thread`，并把跨日期的事实记录直接保存在所属 thread 中。日记不再被插件修改，它只需要通过 Dataview 或其他查询展示当天的横向切片。
 
 ## 当前能力
 
 - 从任意位置新建 thread，并选择父 thread 或创建根节点。
-- 新建 thread 时读取可配置的完整 Markdown 模板；插件只校正稳定身份和层级字段。
-- 通过“打开 thread 创建模板”命令直接编辑模板；默认模板不存在时自动创建。
 - 从当前 thread 新建子 thread 或同级 thread。
-- 所有 thread 默认直接平铺在 `50-行动系统/`，不按 project、area 或 routine 分目录。
-- 新建文件使用 `YYMMDD·标题.md`；`aliases`、`title` 和正文标题保留原始名称。
-- 通过“编辑当前 thread 的日记表单”打开双栏编辑器：左侧编辑 Markdown，右侧实时预览 callout，并可快捷插入常用 Meta Bind 控件。
-- 在 thread 中把表单渲染成禁用控件的 callout 预览，避免误写 thread 自身的 properties。
-- 自动或手动把活跃 thread 的正文表单快照注入日记，不预写空 properties。
-- 用 `thread-breadcrumb` 显示从根节点到直接父节点的 breadcrumb，不重复显示当前 thread。
+- 所有 thread 默认平铺在 `50-行动系统/`。
+- 新文件使用 `YYMMDD·标题.md`；`aliases`、`title` 和正文标题保留原始名称。
+- 新建 thread 时读取可配置的完整 Markdown 模板。
+- 用 `thread-breadcrumb` 显示从根节点到直接父节点的 breadcrumb。
 - 用 `thread-children` 显示直接子 thread。
-- 用 `thread-records` 在任意 thread 中纵向汇总自身及后代的日记记录。
+- 用 `thread-record-template` 展示可复制的记录模板，并可自动填入今天日期后复制。
+- 用 `thread-records` 汇总自身及后代 thread 正文中的记录。
+- 只读兼容旧版已经写入日记的历史记录；不再监听、修改或补全日记。
+
+插件不再依赖 Meta Bind。Dataview 是可选的，只在日记或 MOC 需要跨文件查询时使用。
 
 ## Thread 数据模型
 
-````markdown
+```yaml
 ---
 type: thread
 thread_id: 3e9b3f36-7f7d-4205-97b0-82c533155eb0
@@ -34,57 +29,60 @@ tags: [线程]
 kind: area
 status: active
 parent: "[[260826·健康管理|健康管理]]"
-created: 2026-08-28
+created: 2026-08-30
 ---
+```
 
-## 日记表单
+- `kind` 默认为 `normal`，也可以是 `area` 或 `project`；三者统一使用 `type: thread`。
+- `parent` 是唯一结构性父节点。
+- 父节点只接受 `type: thread`；旧式 `area/project/routine` 不自动兼容。
+- Breadcrumb 优先使用 `parent` 链接中的 alias。
 
-```thread-daily-form
-> [!note]+ 睡眠管理
-> **睡眠时长（小时）** `INPUT[number:sleep_hours]`
->
-> **睡眠质量** `INPUT[slider(addLabels, minValue(1), maxValue(10), stepSize(1)):sleep_quality]`
->
-> **精力水平** `INPUT[inlineSelect(option('低'), option('中'), option('高')):energy_level]`
+## 在 thread 中记录
+
+记录模板放在 thread 前部：
+
+````markdown
+```thread-record-template
+- [thread_record:: true] [record_date:: YYYY-MM-DD] [sleep_hours:: ] [summary:: ]
+  - 详细观察：
 ```
 ````
 
-- `kind` 默认为 `normal`，也可以是 `area` 或 `project`；三者统一使用 `type: thread`。
-- `parent` 是唯一结构性父节点；其他关系继续使用普通双链。
-- Breadcrumb 优先使用 `parent` 链接中的 alias；旧链接没有显式 alias 时，回退到父文件的首个 `aliases`。
-- 父节点只接受 `type: thread`；旧式 `area/project/routine` 不自动兼容。
-- `thread-daily-form` 代码块是唯一日记录入声明；没有该代码块的 thread 不参与日记注入。
-- 代码块内部是普通 Markdown，可使用 callout、列表、表格、标题或任意 Meta Bind `INPUT[...]` 控件。
-- thread 页面只显示安全预览；复制到日记后，Meta Bind 控件才会绑定并写入当日日记 properties。
-- 旧 `daily.form` 仍可临时注入；运行“编辑当前 thread 的日记表单”并保存后会将其转换到正文并清除旧配置。
+阅读模式会显示两个按钮：
 
-控件语法直接遵循 Meta Bind。字段名仍应保持稳定、避免跨 thread 意外重名；Base 和 `thread-records` 都直接读取这些日记 properties。
+- **复制模板**：保留日期占位符。
+- **复制今日记录**：把所有 `YYYY-MM-DD` 替换为当天日期后复制。
 
-## Thread 创建模板
+把复制结果粘贴到同一 thread 的 `## 记录` 下并填写：
 
-默认模板路径是 `Templates/Thread.md`，可在 Thread Journal 设置中修改。模板可以包含任意 Markdown、属性和插件代码块；创建完成后，插件会强制校正 `type`、`thread_id`、`title`、`aliases`、`tags`、`kind`、`status`、`created` 和 `parent`，因此这些身份字段无需写进模板。
+```markdown
+## 记录
 
-支持以下占位符：
+- [thread_record:: true] [record_date:: 2026-08-30] [sleep_hours:: 7.5] [summary:: 入睡顺利] ^rec-260830-a
+  - 详细观察：夜间醒来一次，但很快重新入睡。
+```
 
-- `{{title}}` / `{{thread_title}}`
-- `{{filename}}`、`{{thread_id}}`、`{{kind}}`
-- `{{parent}}`、`{{parent_title}}`
-- `{{created}}` / `{{date}}` / `{{date:YYMMDD}}`
-- `{{goal_heading}}`：area 为“责任范围”，其余为“期望结果”
-- `{{criteria_heading}}`：area 为“维持标准”，其余为“完成条件”
+每一条顶层列表项是一条独立记录。结构化字段必须使用 `[key:: value]` 并放在同一条顶层列表项上；缩进内容适合长文本。`thread_record:: true` 是记录标记，`record_date` 必须使用 `YYYY-MM-DD`。块 ID 可选，用于稳定定位。
 
-若模板不存在，插件会用内置结构自动创建该模板，然后继续创建 thread。
+## 日记只负责调度和展示
 
-## 日记合成
+插件不会向新日记注入任何表单或属性。日记可以使用 Dataview 展示当天所有 thread 记录：
 
-默认监视 `00-日记/YYYY-MM-DD.md`。创建日记后，插件会：
+````markdown
+```dataview
+TABLE WITHOUT ID
+  file.link AS "Thread",
+  record.summary AS "记录"
+FROM "50-行动系统"
+FLATTEN file.lists AS record
+WHERE record.thread_record = true
+  AND record.record_date = this.date
+SORT file.name ASC
+```
+````
 
-1. 查找状态活跃的 `type: thread` 文件。
-2. 读取其正文中的 `thread-daily-form` 代码块。
-3. 在 `## 今日记录` 下原样复制代码块内部的 Markdown，并用稳定隐藏标记标识 thread 来源。
-4. Meta Bind 在用户实际填写控件后创建或更新日记 property。
-
-日记中的 thread 快照保存在正文隐藏标记中，不使用 `daily_threads`。重复运行 **Thread Journal: 用活跃 thread 补全当前日记** 只会添加尚未存在的 thread 表单，不覆盖已有表单或用户内容。之后修改 thread 模板也不会改变历史日记。
+这样 thread 是纵向事实来源，日记只是按日期形成横向切片；记录不复制、不搬运。
 
 ## Thread 文件中的代码块
 
@@ -102,7 +100,7 @@ Breadcrumb：
 ```
 ````
 
-最近 30 天自身及后代记录：
+汇总自身及后代最近 30 天的记录：
 
 ````markdown
 ```thread-records
@@ -111,17 +109,33 @@ days: 30
 fields:
   - sleep_hours
   - sleep_quality
-sections:
-  - sleep-observation
-show-empty: false
 ```
 ````
 
-省略 `fields` 时，插件从作用域内 thread 的当前正文模板中解析 Meta Bind 绑定键并汇总对应日记 properties。旧 `sections` 配置仍可读取历史 `daily.form` 产生的正文段落。记录归属通过日记正文里的 thread 快照识别。
+`scope` 可设为 `self` 或 `descendants`。省略 `fields` 时显示记录中的全部业务字段。旧版日记快照仍会由此视图只读显示，便于逐步迁移。
 
-## 安装测试版
+## Thread 创建模板
 
-生产构建后，把 `main.js`、`manifest.json` 和 `styles.css` 放入测试 Vault 的 `.obsidian/plugins/thread-journal/`，然后在 **设置 → 第三方插件** 中启用 Thread Journal。
+默认模板路径是 `Templates/Thread.md`，可在 Thread Journal 设置中修改。模板不存在时插件会自动创建；若内容仍是 0.6.0 的未修改默认模板，插件会自动升级为内联记录结构。自定义模板不会被覆盖。
+
+支持以下占位符：
+
+- `{{title}}` / `{{thread_title}}`
+- `{{filename}}`、`{{thread_id}}`、`{{kind}}`
+- `{{parent}}`、`{{parent_title}}`
+- `{{created}}` / `{{date}}` / `{{date:YYMMDD}}`
+- `{{goal_heading}}`：area 为“责任范围”，其余为“期望结果”
+- `{{criteria_heading}}`：area 为“维持标准”，其余为“完成条件”
+
+创建完成后，插件会校正 `type`、`thread_id`、`title`、`aliases`、`tags`、`kind`、`status`、`created` 和 `parent`。
+
+## 从旧版迁移
+
+- 0.7.0 起不再注册“编辑当前 thread 的日记表单”和“用活跃 thread 补全当前日记”命令。
+- 不再监听日记创建事件，也不会产生新的 thread 表单快照。
+- 现有 `thread-daily-form` 代码块只显示为旧版只读预览。
+- 旧日记及其中的 properties、正文和隐藏标记不会被删除或改写。
+- `thread-records` 会同时读取新的 thread 正文记录和旧日记记录。
 
 ## 开发
 
@@ -131,7 +145,5 @@ npm test
 npm run build
 npm run lint
 ```
-
-每次提交都会在 GitHub Actions 中运行测试、生产构建和 lint。推送与 `manifest.json` 版本一致的标签后，发布工作流会构建 `main.js` 并创建包含 `main.js`、`manifest.json` 与 `styles.css` 的草稿 Release。
 
 插件不联网、不收集遥测，也不依赖 Node.js/Electron API，可在桌面端和移动端运行。

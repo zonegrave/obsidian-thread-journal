@@ -5,27 +5,27 @@ import type { ThreadJournalSettings } from './types';
 export const DEFAULT_SETTINGS: ThreadJournalSettings = {
 	threadsFolder: '50-行动系统',
 	threadTemplatePath: 'Templates/Thread.md',
-	dailyFolder: '00-日记',
-	dailyFilePattern: '^\\d{4}-\\d{2}-\\d{2}\\.md$',
-	dailyRecordsHeading: '今日记录',
-	activeStatuses: 'active,进行中,启用',
-	autoComposeDaily: true,
+	legacyDailyFolder: '00-日记',
 };
 
 export function normalizedSettings(
 	value: Partial<ThreadJournalSettings> | null | undefined,
 ): ThreadJournalSettings {
-	const merged = { ...DEFAULT_SETTINGS, ...(value ?? {}) };
+	const raw = (value ?? {}) as Partial<ThreadJournalSettings> & { dailyFolder?: unknown };
+	const merged = { ...DEFAULT_SETTINGS, ...raw };
+	const legacyDailyFolder = typeof raw.legacyDailyFolder === 'string'
+		? raw.legacyDailyFolder
+		: typeof raw.dailyFolder === 'string'
+			? raw.dailyFolder
+			: DEFAULT_SETTINGS.legacyDailyFolder;
 	return {
 		threadsFolder: normalizePath(merged.threadsFolder.trim() || DEFAULT_SETTINGS.threadsFolder),
 		threadTemplatePath: normalizePath(
 			merged.threadTemplatePath.trim() || DEFAULT_SETTINGS.threadTemplatePath,
 		),
-		dailyFolder: normalizePath(merged.dailyFolder.trim() || DEFAULT_SETTINGS.dailyFolder),
-		dailyFilePattern: merged.dailyFilePattern.trim() || DEFAULT_SETTINGS.dailyFilePattern,
-		dailyRecordsHeading: merged.dailyRecordsHeading.trim() || DEFAULT_SETTINGS.dailyRecordsHeading,
-		activeStatuses: merged.activeStatuses.trim() || DEFAULT_SETTINGS.activeStatuses,
-		autoComposeDaily: merged.autoComposeDaily,
+		legacyDailyFolder: normalizePath(
+			legacyDailyFolder.trim() || DEFAULT_SETTINGS.legacyDailyFolder,
+		),
 	};
 }
 
@@ -61,56 +61,13 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('日记目录')
-			.setDesc('仅扫描和修改这个目录中的日记。')
+			.setName('旧日记目录')
+			.setDesc('只读扫描旧版已注入的历史记录；插件不再修改或补全日记。')
 			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.dailyFolder)
-				.setValue(this.plugin.settings.dailyFolder)
+				.setPlaceholder(DEFAULT_SETTINGS.legacyDailyFolder)
+				.setValue(this.plugin.settings.legacyDailyFolder)
 				.onChange(async (value) => {
-					this.plugin.settings.dailyFolder = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('日记文件正则')
-			.setDesc('用于自动补全新建日记；默认匹配 yyyy-mm-dd.md。')
-			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.dailyFilePattern)
-				.setValue(this.plugin.settings.dailyFilePattern)
-				.onChange(async (value) => {
-					this.plugin.settings.dailyFilePattern = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('日记记录标题')
-			.setDesc('活跃 thread 的正文表单模板会复制到这个二级标题下。')
-			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.dailyRecordsHeading)
-				.setValue(this.plugin.settings.dailyRecordsHeading)
-				.onChange(async (value) => {
-					this.plugin.settings.dailyRecordsHeading = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('活跃状态')
-			.setDesc('逗号分隔。只有状态匹配且正文包含 thread-daily-form 的 thread 参与注入。')
-			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.activeStatuses)
-				.setValue(this.plugin.settings.activeStatuses)
-				.onChange(async (value) => {
-					this.plugin.settings.activeStatuses = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('自动补全新日记')
-			.setDesc('日记创建后复制活跃 thread 的表单模板；填写控件后写入日记属性。')
-			.addToggle((toggle) => toggle
-				.setValue(this.plugin.settings.autoComposeDaily)
-				.onChange(async (value) => {
-					this.plugin.settings.autoComposeDaily = value;
+					this.plugin.settings.legacyDailyFolder = value;
 					await this.plugin.saveSettings();
 				}));
 	}

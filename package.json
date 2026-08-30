@@ -1,7 +1,7 @@
 {
 	"name": "thread-journal",
-	"version": "0.6.0",
-	"description": "Thread tree and daily-note composition for Obsidian",
+	"version": "0.7.0",
+	"description": "Thread trees and inline dated records for Obsidian",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
