@@ -16,8 +16,11 @@
 	color: var(--text-faint);
 }
 
-.thread-journal-warning,
-.thread-journal-error {
+.thread-journal-workspace-link a {
+	color: var(--text-accent);
+}
+
+.thread-journal-warning {
 	margin-left: 0.5rem;
 	color: var(--text-error);
 }
@@ -33,177 +36,203 @@
 	font-style: italic;
 }
 
-.thread-journal-form-preview {
-	margin: 0.75rem 0 1rem;
+.thread-journal-checkpoints {
+	display: grid;
+	gap: 0.75rem;
 }
 
-.thread-journal-form-preview-label {
-	margin-bottom: 0.35rem;
-	color: var(--text-faint);
-	font-size: var(--font-ui-smaller);
+.thread-journal-daily-checkpoints {
+	display: grid;
+	gap: 0.75rem;
 }
 
-.thread-journal-form-preview-body > :first-child {
-	margin-top: 0;
-}
-
-.thread-journal-form-preview-body > :last-child {
-	margin-bottom: 0;
-}
-
-.thread-journal-record-template {
-	margin: 0.75rem 0 1rem;
-	padding: 0.75rem;
+.thread-journal-daily-checkpoint-thread {
+	padding: 0.6rem 0.75rem 0.75rem;
 	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary-alt);
+}
+
+.thread-journal-daily-checkpoint-thread > summary {
+	cursor: pointer;
+	font-weight: var(--font-semibold);
+}
+
+.thread-journal-daily-checkpoint-count {
+	margin-left: 0.55rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-normal);
+}
+
+.thread-journal-daily-checkpoint-cards {
+	display: grid;
+	gap: 0.6rem;
+	margin-top: 0.65rem;
+}
+
+.thread-journal-checkpoint-card {
+	padding: 0.9rem 1rem;
+	border: 1px solid rgba(92, 124, 250, 0.35);
+	border-left: 3px solid rgb(92, 124, 250);
 	border-radius: var(--radius-m);
 	background: var(--background-secondary);
 }
 
-.thread-journal-record-template-header {
+.thread-journal-checkpoint-card-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.75rem;
-	margin-bottom: 0.55rem;
-	font-size: var(--font-ui-small);
+}
+
+.thread-journal-checkpoint-card-controls {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.thread-journal-checkpoint-edit {
+	min-height: 1.75rem;
+	padding: 0.1rem 0.55rem;
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-checkpoint-card-date {
 	font-weight: var(--font-semibold);
 }
 
-.thread-journal-record-template-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.4rem;
+.thread-journal-checkpoint-card-kind {
+	padding: 0.12rem 0.45rem;
+	border-radius: 999px;
+	background: rgba(92, 124, 250, 0.16);
+	color: var(--text-accent);
+	font-size: var(--font-ui-smaller);
 }
 
-.thread-journal-record-template pre {
-	margin: 0;
+.thread-journal-checkpoint-card-summary {
+	margin-top: 0.55rem;
+	font-size: var(--font-text-size);
+}
+
+.thread-journal-checkpoint-card-fields {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+	gap: 0.35rem 1rem;
+	margin-top: 0.65rem;
+	padding-top: 0.55rem;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.thread-journal-checkpoint-card-field {
+	display: flex;
+	gap: 0.5rem;
+	min-width: 0;
 	white-space: pre-wrap;
 }
 
-.thread-journal-template-modal {
-	width: min(76rem, calc(100vw - 2rem));
-}
-
-.thread-journal-template-toolbar {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 0.4rem;
-	margin: 0.8rem 0;
-}
-
-.thread-journal-template-toolbar > span {
+.thread-journal-checkpoint-card-field-label {
+	flex: 0 0 auto;
 	color: var(--text-muted);
-	font-size: var(--font-ui-small);
 }
 
-.thread-journal-template-workspace {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-	gap: 1rem;
-	min-height: min(58vh, 38rem);
-}
-
-.thread-journal-template-pane {
-	display: flex;
+.thread-journal-checkpoint-card-field-value {
 	min-width: 0;
-	flex-direction: column;
-	gap: 0.4rem;
+	overflow-wrap: anywhere;
 }
 
-.thread-journal-template-pane-title {
+.thread-journal-checkpoint-modal {
+	width: min(42rem, calc(100vw - 2rem));
+}
+
+.thread-journal-checkpoint-template-modal {
+	width: min(58rem, calc(100vw - 2rem));
+}
+
+.thread-journal-checkpoint-target {
+	margin: -0.25rem 0 0.8rem;
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
-	font-weight: var(--font-semibold);
 }
 
-.thread-journal-template-editor,
-.thread-journal-template-modal-preview {
-	box-sizing: border-box;
-	width: 100%;
-	min-height: min(54vh, 35rem);
-	padding: 0.8rem;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	background: var(--background-primary);
-}
-
-.thread-journal-template-editor {
+.thread-journal-checkpoint-modal textarea {
+	min-height: 6rem;
 	resize: vertical;
-	font-family: var(--font-monospace);
-	font-size: var(--font-ui-small);
-	line-height: 1.55;
 }
 
-.thread-journal-template-modal-preview {
-	overflow: auto;
-}
-
-.thread-journal-template-actions .setting-item-info {
+.thread-journal-checkpoint-actions .setting-item-info {
 	display: none;
 }
 
-@media (max-width: 800px) {
-	.thread-journal-template-workspace {
-		grid-template-columns: 1fr;
-	}
-
-	.thread-journal-template-editor,
-	.thread-journal-template-modal-preview {
-		min-height: 18rem;
-	}
-}
-
-.thread-journal-records {
+.thread-journal-checkpoint-field-setting {
 	display: grid;
-	gap: 0.8rem;
-}
-
-.thread-journal-card {
-	padding: 0.9rem 1rem;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.25rem 0.75rem;
+	margin: 0.5rem 0;
+	padding: 0.4rem 0.7rem 0.55rem;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
 	background: var(--background-secondary);
 }
 
-.thread-journal-card-header {
-	margin-bottom: 0.65rem;
-	font-weight: var(--font-semibold);
+.thread-journal-checkpoint-field-setting.is-deprecated {
+	opacity: 0.7;
+	border-style: dashed;
 }
 
-.thread-journal-properties {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.45rem;
-	margin-bottom: 0.7rem;
+.thread-journal-checkpoint-field-setting > .setting-item {
+	min-width: 0;
+	padding: 0.25rem 0;
+	border-top: 0;
 }
 
-.thread-journal-property {
-	display: inline-flex;
-	gap: 0.35rem;
-	padding: 0.2rem 0.5rem;
-	border-radius: var(--radius-s);
-	background: var(--background-primary-alt);
-	font-size: var(--font-ui-small);
+.thread-journal-checkpoint-field-setting > .setting-item:first-child {
+	grid-column: 1 / -1;
+	padding-bottom: 0.35rem;
+	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.thread-journal-property-key {
+.thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) {
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.15rem;
+	border-top: 0;
+}
+
+.thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) .setting-item-info {
+	margin-right: 0;
+}
+
+.thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) .setting-item-name {
 	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
 }
 
-.thread-journal-section + .thread-journal-section {
-	margin-top: 0.8rem;
+.thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) .setting-item-description {
+	display: none;
 }
 
-.thread-journal-section h4 {
-	margin: 0.2rem 0 0.35rem;
-	font-size: var(--font-ui-medium);
+.thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) .setting-item-control {
+	justify-content: flex-start;
+	width: 100%;
 }
 
-.thread-journal-section-body > :first-child {
-	margin-top: 0;
+.thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) input[type="text"],
+.thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) input[type="number"],
+.thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) select {
+	width: 100%;
+	max-width: none;
 }
 
-.thread-journal-section-body > :last-child {
-	margin-bottom: 0;
+@media (max-width: 800px) {
+	.thread-journal-checkpoint-field-setting {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 520px) {
+	.thread-journal-checkpoint-field-setting {
+		grid-template-columns: minmax(0, 1fr);
+	}
 }

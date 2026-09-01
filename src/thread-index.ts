@@ -1,6 +1,6 @@
-import { App, TFile } from 'obsidian';
-import { normalizeDailyContribution, stripWikiLink, wikiLinkAlias } from './core';
-import type { ThreadInfo, ThreadJournalSettings, ThreadKind } from './types';
+import type { App, TFile } from 'obsidian';
+import { stripWikiLink, wikiLinkAlias } from './core';
+import type { ThreadInfo, ThreadKind } from './types';
 
 export interface ThreadParentCandidate {
 	file: TFile;
@@ -22,33 +22,28 @@ function textValue(value: unknown): string {
 }
 
 function firstTextValue(value: unknown): string {
-	if (Array.isArray(value)) {
-		return value.map(textValue).find(Boolean) ?? '';
-	}
+	if (Array.isArray(value)) return value.map(textValue).find(Boolean) ?? '';
 	return textValue(value);
 }
 
 export class ThreadIndex {
-	constructor(
-		private readonly app: App,
-		private readonly getSettings: () => ThreadJournalSettings,
-	) {}
+	constructor(private readonly app: App) {}
 
 	getThread(file: TFile): ThreadInfo | undefined {
 		const frontmatter = frontmatterFor(this.app, file);
-		if (frontmatter.type !== 'thread') return undefined;
+		const id = textValue(frontmatter.thread_id);
+		if (frontmatter.type !== 'thread' || !id) return undefined;
 		const rawKind = textValue(frontmatter.kind);
 		const kind: ThreadKind = rawKind === 'area' || rawKind === 'project'
 			? rawKind
 			: 'normal';
 		return {
 			file,
-			id: textValue(frontmatter.thread_id) || file.path,
+			id,
 			title: textValue(frontmatter.title) || file.basename,
 			kind,
 			status: textValue(frontmatter.status),
 			parentLink: stripWikiLink(frontmatter.parent),
-			daily: normalizeDailyContribution(frontmatter.daily),
 		};
 	}
 
@@ -58,21 +53,13 @@ export class ThreadIndex {
 			.filter((thread): thread is ThreadInfo => Boolean(thread));
 	}
 
+	getThreadById(threadId: string): ThreadInfo | undefined {
+		return this.getAllThreads().find((thread) => thread.id === threadId);
+	}
+
 	getParentCandidates(): ThreadParentCandidate[] {
-		return this.app.vault.getMarkdownFiles()
-			.map((file) => {
-				const frontmatter = frontmatterFor(this.app, file);
-				const type = textValue(frontmatter.type);
-				if (type !== 'thread') return undefined;
-				return {
-					file,
-					title: textValue(frontmatter.title) || file.basename,
-					kind: frontmatter.kind === 'area' || frontmatter.kind === 'project'
-						? frontmatter.kind
-						: 'normal',
-				};
-			})
-			.filter((candidate): candidate is ThreadParentCandidate => Boolean(candidate))
+		return this.getAllThreads()
+			.map((thread) => ({ file: thread.file, title: thread.title, kind: thread.kind }))
 			.sort((a, b) => a.title.localeCompare(b.title));
 	}
 
@@ -88,7 +75,7 @@ export class ThreadIndex {
 		const parent = stripWikiLink(metadata.parent);
 		if (!parent) return undefined;
 		const target = this.app.metadataCache.getFirstLinkpathDest(parent, file.path);
-		if (!target || frontmatterFor(this.app, target).type !== 'thread') return undefined;
+		if (!target || !this.getThread(target)) return undefined;
 		return {
 			file: target,
 			label: wikiLinkAlias(metadata.parent) || this.getDisplayName(target),
@@ -99,14 +86,40 @@ export class ThreadIndex {
 		return this.getParent(file)?.file;
 	}
 
+	getWorkspace(file: TFile): TFile | undefined {
+		const thread = this.getThread(file);
+		if (!thread) return undefined;
+		return this.getWorkspaceByThreadId(thread.id);
+	}
+
+	getWorkspaceByThreadId(threadId: string): TFile | undefined {
+		return this.app.vault.getMarkdownFiles().find((candidate) =>
+			this.isWorkspaceForThreadId(candidate, threadId));
+	}
+
+	getThreadForWorkspace(file: TFile): TFile | undefined {
+		const metadata = frontmatterFor(this.app, file);
+		if (metadata.type !== 'thread-workspace') return undefined;
+		const threadId = textValue(metadata.thread_id);
+		if (!threadId) return undefined;
+		return this.getThreadById(threadId)?.file;
+	}
+
+	getThreadFile(file: TFile): TFile | undefined {
+		return this.getThread(file)?.file ?? this.getThreadForWorkspace(file);
+	}
+
+	isWorkspaceForThreadId(file: TFile, threadId: string): boolean {
+		const metadata = frontmatterFor(this.app, file);
+		return metadata.type === 'thread-workspace' && textValue(metadata.thread_id) === threadId;
+	}
+
 	getAncestors(file: TFile): { items: ThreadAncestor[]; cycle: boolean } {
 		const result: ThreadAncestor[] = [];
 		const visited = new Set<string>([file.path]);
 		let cursor = this.getParent(file);
 		while (cursor) {
-			if (visited.has(cursor.file.path)) {
-				return { items: result.reverse(), cycle: true };
-			}
+			if (visited.has(cursor.file.path)) return { items: result.reverse(), cycle: true };
 			visited.add(cursor.file.path);
 			result.push(cursor);
 			cursor = this.getParent(cursor.file);
@@ -118,29 +131,5 @@ export class ThreadIndex {
 		return this.getAllThreads()
 			.filter((thread) => this.getParentFile(thread.file)?.path === parent.path)
 			.sort((a, b) => a.title.localeCompare(b.title));
-	}
-
-	getDescendants(root: TFile): ThreadInfo[] {
-		const result: ThreadInfo[] = [];
-		const queue: TFile[] = [root];
-		const visited = new Set<string>([root.path]);
-		while (queue.length > 0) {
-			const parent = queue.shift();
-			if (!parent) break;
-			for (const child of this.getDirectChildren(parent)) {
-				if (visited.has(child.file.path)) continue;
-				visited.add(child.file.path);
-				result.push(child);
-				queue.push(child.file);
-			}
-		}
-		return result;
-	}
-
-	getScope(root: TFile, includeDescendants: boolean): ThreadInfo[] {
-		const self = this.getThread(root);
-		const result = self ? [self] : [];
-		if (includeDescendants) result.push(...this.getDescendants(root));
-		return result;
 	}
 }

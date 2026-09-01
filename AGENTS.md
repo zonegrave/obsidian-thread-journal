@@ -97,6 +97,14 @@ npm run build
 - Bump `version` in `manifest.json` (SemVer) and update `versions.json` to map plugin version → minimum app version.
 - Create a GitHub release whose tag exactly matches `manifest.json`'s `version`. Do not use a leading `v`.
 - Attach `manifest.json`, `main.js`, and `styles.css` (if present) to the release as individual assets.
+
+## Exploration-stage schema evolution
+
+- Thread Journal is currently an exploratory system. Its behavior model, note schema, terminology, and design philosophy may change frequently.
+- Do not add backward-compatibility branches, legacy parsers, dual-write paths, fallback fields, or deprecated settings unless the user explicitly requests compatibility for a specific migration.
+- When the current schema changes, inspect the small set of existing vault notes, migrate them once to the new schema, update templates and settings in the same change, and then keep only the new implementation.
+- Remove superseded code and tests after the one-time migration. Tests should describe the current model instead of preserving every historical representation.
+- Do not let existing note structure constrain a clearer model during exploration. Preserve note content, but migrate its structure deliberately before deploying the new plugin build.
 - After the initial release, follow the process to add/update your plugin in the community catalog as required.
 
 ## Security, privacy, and compliance

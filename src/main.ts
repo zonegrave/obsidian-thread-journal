@@ -4,6 +4,7 @@ import {
 	Plugin,
 	TFile,
 } from 'obsidian';
+import { CheckpointManager } from './checkpoint';
 import { ThreadRenderers } from './renderers';
 import {
 	DEFAULT_SETTINGS,
@@ -12,6 +13,8 @@ import {
 } from './settings';
 import { ThreadCreator } from './thread-creator';
 import { ThreadIndex } from './thread-index';
+import { ThreadStatusManager } from './thread-status';
+import { ThreadWorkspaceManager } from './thread-workspace';
 import type { ThreadJournalSettings } from './types';
 
 export default class ThreadJournalPlugin extends Plugin {
@@ -19,17 +22,36 @@ export default class ThreadJournalPlugin extends Plugin {
 	private index!: ThreadIndex;
 	private creator!: ThreadCreator;
 	private renderers!: ThreadRenderers;
+	private workspaces!: ThreadWorkspaceManager;
+	private statuses!: ThreadStatusManager;
+	private checkpoints!: CheckpointManager;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		const getSettings = () => this.settings;
-		this.index = new ThreadIndex(this.app, getSettings);
-		this.creator = new ThreadCreator(this.app, this.index, getSettings);
-		this.renderers = new ThreadRenderers(this.app, this.index, getSettings);
+		this.index = new ThreadIndex(this.app);
+		this.workspaces = new ThreadWorkspaceManager(this.app, this.index, getSettings);
+		this.statuses = new ThreadStatusManager(this.app, this.index);
+		this.checkpoints = new CheckpointManager(this.app, this.index, getSettings);
+		this.creator = new ThreadCreator(this.app, this.index, this.workspaces, getSettings);
+		this.renderers = new ThreadRenderers(
+			this.app,
+			this.index,
+			getSettings,
+			(file, entry) => this.checkpoints.openCheckpointEditModal(file, entry),
+		);
 
 		this.registerCommands();
 		this.registerRenderers();
 		this.addSettingTab(new ThreadJournalSettingTab(this.app, this));
+		this.app.workspace.onLayoutReady(() => {
+			this.registerEvent(this.app.workspace.on('file-open', (file) => {
+				void this.workspaces.handleFileOpen(file);
+			}));
+			this.registerEvent(this.app.workspace.on('layout-change', () => {
+				this.workspaces.handleLayoutChange();
+			}));
+		});
 	}
 
 	async loadSettings(): Promise<void> {
@@ -45,61 +67,78 @@ export default class ThreadJournalPlugin extends Plugin {
 
 	private registerCommands(): void {
 		this.addCommand({
+			id: 'edit-current-thread-checkpoint-template',
+			name: '编辑 checkpoint 模板',
+			checkCallback: (checking) => {
+				if (!this.checkpoints.getCurrentThreadFile()) return false;
+				if (!checking) this.checkpoints.openCurrentCheckpointTemplateModal();
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'create-current-thread-checkpoint',
+			name: '创建 checkpoint',
+			checkCallback: (checking) => {
+				if (!this.checkpoints.getCurrentThreadFile()) return false;
+				if (!checking) this.checkpoints.openCurrentCheckpointModal();
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'set-current-thread-status',
+			name: '设置 thread 状态',
+			checkCallback: (checking) => {
+				if (!this.statuses.getCurrentThreadFile()) return false;
+				if (!checking) this.statuses.openCurrentStatusModal();
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'open-thread-workspace',
+			name: '打开 thread 工作区',
+			checkCallback: (checking) => {
+				const file = this.currentThreadFile();
+				if (!file) return false;
+				if (!checking) {
+					void this.workspaces.openWorkspace(file, true).catch((error: unknown) => {
+						console.error('Thread Journal failed to open workspace', error);
+						new Notice(`打开 Thread 工作区失败：${String(error)}`);
+					});
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: 'new-thread',
-			name: '新建 thread（选择父 thread）',
+			name: '新建 thread',
 			callback: () => {
 				this.creator.openNewThreadModal();
-			},
-		});
-
-		this.addCommand({
-			id: 'open-thread-template',
-			name: '打开 thread 创建模板',
-			callback: () => {
-				void this.creator.openThreadTemplate().catch((error: unknown) => {
-					console.error('Thread Journal failed to open thread template', error);
-					new Notice(`打开 Thread 模板失败：${String(error)}`);
-				});
-			},
-		});
-
-		this.addCommand({
-			id: 'new-child-thread',
-			name: '从当前文件新建子 thread',
-			checkCallback: (checking) => {
-				const file = this.currentThreadFile();
-				if (!file) return false;
-				if (!checking) this.creator.openNewChildModal(file);
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: 'new-sibling-thread',
-			name: '从当前文件新建同级 thread',
-			checkCallback: (checking) => {
-				const file = this.currentThreadFile();
-				if (!file) return false;
-				if (!checking) this.creator.openNewSiblingModal(file);
-				return true;
 			},
 		});
 
 	}
 
 	private registerRenderers(): void {
+		this.registerMarkdownCodeBlockProcessor('thread-checkpoints', async (_source, el, ctx) => {
+			await this.renderers.renderCheckpoints(el, ctx);
+		});
+		this.registerMarkdownCodeBlockProcessor(
+			'thread-daily-checkpoints',
+			async (_source, el, ctx) => {
+				await this.renderers.renderDailyCheckpoints(el, ctx);
+			},
+		);
+
 		this.registerMarkdownCodeBlockProcessor('thread-breadcrumb', (_source, el, ctx) => {
 			this.renderers.renderBreadcrumb(el, ctx);
 		});
 		this.registerMarkdownCodeBlockProcessor('thread-children', (_source, el, ctx) => {
 			this.renderers.renderChildren(el, ctx);
 		});
-		this.registerMarkdownCodeBlockProcessor('thread-record-template', (source, el) =>
-			this.renderers.renderRecordTemplate(source, el));
-		this.registerMarkdownCodeBlockProcessor('thread-daily-form', (source, el, ctx) =>
-			this.renderers.renderLegacyDailyForm(source, el, ctx));
-		this.registerMarkdownCodeBlockProcessor('thread-records', (source, el, ctx) =>
-			this.renderers.renderRecords(source, el, ctx));
 	}
 
 	private currentThreadFile(): TFile | undefined {

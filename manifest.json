@@ -1,9 +1,9 @@
 {
 	"id": "thread-journal",
 	"name": "Thread Journal",
-	"version": "0.7.0",
+	"version": "0.19.0",
 	"minAppVersion": "1.13.1",
-	"description": "Organize thread trees and dated records without modifying daily notes.",
+	"description": "Organize thread trees with free-form workspaces and structured checkpoints.",
 	"author": "zonegrave",
 	"isDesktopOnly": false
 }

@@ -12,10 +12,10 @@ import {
 import { buildThreadFileName } from './core';
 import {
 	DEFAULT_THREAD_TEMPLATE,
-	LEGACY_THREAD_TEMPLATE_060,
 	renderThreadTemplate,
 } from './thread-template';
 import type { ThreadIndex, ThreadParentCandidate } from './thread-index';
+import type { ThreadWorkspaceManager } from './thread-workspace';
 import type { ThreadJournalSettings, ThreadKind } from './types';
 
 function stableThreadId(): string {
@@ -145,35 +145,51 @@ export class ThreadCreator {
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
+		private readonly workspaces: ThreadWorkspaceManager,
 		private readonly getSettings: () => ThreadJournalSettings,
 	) {}
 
 	openNewThreadModal(): void {
-		const choices: ParentChoice[] = [
-			{ title: '无父 thread', detail: '创建根节点' },
-			...this.index.getParentCandidates().map((candidate: ThreadParentCandidate) => ({
-				file: candidate.file,
-				title: candidate.title,
-				detail: `${candidate.kind} · ${candidate.file.path}`,
-			})),
-		];
+		const activeFile = this.app.workspace.getActiveFile();
+		const activeThread = activeFile
+			? this.index.getThreadFile(activeFile)
+			: undefined;
+		const choices = this.parentChoices(activeThread);
 		new ParentThreadModal(this.app, choices, (parent) => {
 			this.openDetailsModal(parent);
 		}).open();
 	}
 
-	async openThreadTemplate(): Promise<void> {
-		const file = await this.getOrCreateTemplateFile();
-		await this.app.workspace.getLeaf(false).openFile(file);
-	}
+	private parentChoices(activeThread?: TFile): ParentChoice[] {
+		const preferred: ParentChoice[] = [];
+		const seen = new Set<string>();
+		let cursor = activeThread;
+		let depth = 0;
+		while (cursor && !seen.has(cursor.path)) {
+			const thread = this.index.getThread(cursor);
+			if (!thread) break;
+			seen.add(cursor.path);
+			preferred.push({
+				file: cursor,
+				title: thread.title,
+				detail: `${depth === 0 ? '当前 thread' : '祖先 thread'} · ${thread.kind} · ${cursor.path}`,
+			});
+			cursor = this.index.getParentFile(cursor);
+			depth += 1;
+		}
 
-	openNewChildModal(parent: TFile): void {
-		this.openDetailsModal(parent);
-	}
-
-	openNewSiblingModal(current: TFile): void {
-		const parent = this.index.getParentFile(current);
-		this.openDetailsModal(parent);
+		const others = this.index.getParentCandidates()
+			.filter((candidate) => !seen.has(candidate.file.path))
+			.map((candidate: ThreadParentCandidate) => ({
+				file: candidate.file,
+				title: candidate.title,
+				detail: `${candidate.kind} · ${candidate.file.path}`,
+			}));
+		return [
+			...preferred,
+			{ title: '无父 thread', detail: '创建根节点' },
+			...others,
+		];
 	}
 
 	private openDetailsModal(parent?: TFile): void {
@@ -228,6 +244,11 @@ export class ThreadCreator {
 			if (parentLink) metadata.parent = parentLink;
 			else delete metadata.parent;
 		});
+		await this.workspaces.ensureForThread(file, {
+			id: threadId,
+			title,
+			created,
+		});
 		await this.app.workspace.getLeaf(false).openFile(file);
 		new Notice(`已创建 ${title}`);
 		return file;
@@ -236,14 +257,7 @@ export class ThreadCreator {
 	private async getOrCreateTemplateFile(): Promise<TFile> {
 		const path = this.getSettings().threadTemplatePath;
 		const existing = this.app.vault.getAbstractFileByPath(path);
-		if (existing instanceof TFile) {
-			const content = await this.app.vault.cachedRead(existing);
-			if (content.trimEnd() === LEGACY_THREAD_TEMPLATE_060.trimEnd()) {
-				await this.app.vault.modify(existing, DEFAULT_THREAD_TEMPLATE);
-				new Notice(`已将 Thread 模板升级为内联记录模式：${path}`);
-			}
-			return existing;
-		}
+		if (existing instanceof TFile) return existing;
 		if (existing) throw new Error(`Thread template path is not a file: ${path}`);
 		const separator = path.lastIndexOf('/');
 		if (separator > 0) await ensureFolder(this.app, path.slice(0, separator));
