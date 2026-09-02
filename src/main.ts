@@ -145,7 +145,6 @@ export default class ThreadJournalPlugin extends Plugin {
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		const file = view?.file;
 		if (!file) return undefined;
-		const type: unknown = this.app.metadataCache.getFileCache(file)?.frontmatter?.type;
-		return type === 'thread' ? file : undefined;
+		return this.index.getThreadFile(file);
 	}
 }

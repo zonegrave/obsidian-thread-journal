@@ -64,7 +64,8 @@ export class ThreadWorkspaceManager {
 	async openWorkspace(threadFile: TFile, activate = false): Promise<void> {
 		const request = ++this.openRequest;
 		const workspaceFile = await this.ensureForThread(threadFile);
-		if (!workspaceFile || request !== this.openRequest) return;
+		if (!workspaceFile) throw new Error('无法定位或创建 Thread 工作区。');
+		if (request !== this.openRequest) return;
 		if (!activate && this.app.workspace.getActiveFile()?.path !== threadFile.path) return;
 
 		const attachedPair = this.getAttachedPair();
@@ -76,7 +77,7 @@ export class ThreadWorkspaceManager {
 				: this.findLeafForFile(threadFile, attachedPair?.workspaceLeaf)
 					?? this.app.workspace.getMostRecentLeaf()
 					?? undefined;
-		if (!sourceLeaf) return;
+		if (!sourceLeaf) throw new Error('无法定位用于打开工作区的主文件窗口。');
 
 		let target = attachedPair?.workspaceLeaf;
 		if (!target || target === sourceLeaf) target = this.findLeafForFile(workspaceFile, sourceLeaf);
@@ -90,7 +91,12 @@ export class ThreadWorkspaceManager {
 			workspaceFile,
 		};
 		await target.openFile(workspaceFile, { active: activate });
-		this.app.workspace.setActiveLeaf(activate ? target : sourceLeaf, { focus: true });
+		if (activate) {
+			await this.app.workspace.revealLeaf(target);
+			this.app.workspace.setActiveLeaf(target, { focus: true });
+		} else {
+			this.app.workspace.setActiveLeaf(sourceLeaf, { focus: true });
+		}
 	}
 
 	async handleFileOpen(file: TFile | null): Promise<void> {
@@ -115,8 +121,8 @@ export class ThreadWorkspaceManager {
 	handleLayoutChange(): void {
 		const pair = this.pair;
 		if (!pair) return;
-		const mainAttached = this.isLeafAttached(pair.mainLeaf);
-		const workspaceAttached = this.isLeafAttached(pair.workspaceLeaf);
+		const mainAttached = this.isLeafUsable(pair.mainLeaf);
+		const workspaceAttached = this.isLeafUsable(pair.workspaceLeaf);
 		if (!mainAttached) {
 			this.pair = undefined;
 			if (workspaceAttached) pair.workspaceLeaf.detach();
@@ -136,7 +142,7 @@ export class ThreadWorkspaceManager {
 				await this.openWorkspace(mainTarget, false);
 				return;
 			}
-			if (this.isLeafAttached(pair.workspaceLeaf)) {
+			if (this.isLeafUsable(pair.workspaceLeaf)) {
 				await pair.workspaceLeaf.openFile(pair.workspaceFile, { active: false });
 				this.pair = pair;
 			}
@@ -240,7 +246,9 @@ export class ThreadWorkspaceManager {
 		return result;
 	}
 
-	private isLeafAttached(target: WorkspaceLeaf): boolean {
+	private isLeafUsable(target: WorkspaceLeaf): boolean {
+		const container = (target as WorkspaceLeaf & { containerEl?: HTMLElement }).containerEl;
+		if (container?.isConnected) return true;
 		let found = false;
 		this.app.workspace.iterateAllLeaves((leaf) => {
 			if (leaf === target) found = true;
@@ -251,7 +259,7 @@ export class ThreadWorkspaceManager {
 	private getAttachedPair(): CompanionPair | undefined {
 		const pair = this.pair;
 		if (!pair) return undefined;
-		if (this.isLeafAttached(pair.mainLeaf) && this.isLeafAttached(pair.workspaceLeaf)) return pair;
+		if (this.isLeafUsable(pair.mainLeaf) && this.isLeafUsable(pair.workspaceLeaf)) return pair;
 		this.pair = undefined;
 		return undefined;
 	}

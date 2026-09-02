@@ -141,6 +141,8 @@ SORT checkpoint.checkpoint_date DESC
 - 关闭主窗格时，同时关闭配套工作区；单独关闭工作区不关闭主窗格。
 - 命令执行后焦点进入工作区。
 
+窗格复用依据 leaf 是否仍连接在界面中，而不依赖特定布局插件或单一 leaf 枚举结果。显式打开时通过 Obsidian 的 `revealLeaf()` 显示并聚焦目标；从主 thread 或工作区执行命令都会通过 `thread_id` 定位同一对象。真正无法定位主窗格或工作区时会显示错误，不再静默失败。
+
 ## 命令
 
 - 新建 thread
