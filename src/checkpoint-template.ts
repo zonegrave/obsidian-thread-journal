@@ -4,11 +4,19 @@ import {
 	normalizeCheckpointFields,
 	placeDeprecatedFieldsLast,
 } from './checkpoint-model';
+import {
+	buildCheckpointTemplateFieldModalForm,
+	checkpointFieldFromModalData,
+	checkpointTemplateFieldValues,
+	getModalFormApi,
+	type ModalFormApi,
+} from './modal-form';
 import type { CheckpointFieldSpec } from './types';
 
 export class CheckpointTemplateModal extends Modal {
 	private fields: CheckpointFieldSpec[];
 	private saving = false;
+	private readonly modalFormApi: ModalFormApi | undefined;
 
 	constructor(
 		app: App,
@@ -20,6 +28,7 @@ export class CheckpointTemplateModal extends Modal {
 	) {
 		super(app);
 		this.fields = cloneCheckpointFields(initialFields);
+		this.modalFormApi = getModalFormApi(app);
 	}
 
 	onOpen(): void {
@@ -41,7 +50,10 @@ export class CheckpointTemplateModal extends Modal {
 				: '当前使用此 thread 的独立模板。废弃字段不再用于新 checkpoint，但仍解释历史数据。',
 		});
 
-		this.fields.forEach((field, index) => this.renderField(field, index));
+		this.fields.forEach((field, index) => {
+			if (this.modalFormApi) this.renderFieldSummary(field, index);
+			else this.renderField(field, index);
+		});
 
 		new Setting(this.contentEl)
 			.setName('模板字段')
@@ -50,7 +62,7 @@ export class CheckpointTemplateModal extends Modal {
 				.setButtonText('添加字段')
 				.onClick(() => {
 					const next = this.fields.length + 1;
-					this.fields.push({
+					const field: CheckpointFieldSpec = {
 						key: `checkpoint_field_${next}`,
 						label: `自定义字段 ${next}`,
 						control: 'text',
@@ -58,8 +70,12 @@ export class CheckpointTemplateModal extends Modal {
 						required: false,
 						deprecated: false,
 						options: [],
-					});
-					this.render();
+					};
+					if (this.modalFormApi) void this.openFieldForm(field, undefined);
+					else {
+						this.fields.push(field);
+						this.render();
+					}
 				}));
 
 		const actions = new Setting(this.contentEl)
@@ -97,6 +113,83 @@ export class CheckpointTemplateModal extends Modal {
 					button.setDisabled(false);
 				}
 			}));
+	}
+
+	private moveField(field: CheckpointFieldSpec, index: number, direction: -1 | 1): void {
+		const otherIndex = index + direction;
+		const other = this.fields[otherIndex];
+		if (!other || other.deprecated !== field.deprecated) return;
+		this.fields[index] = other;
+		this.fields[otherIndex] = field;
+		this.render();
+	}
+
+	private renderFieldSummary(field: CheckpointFieldSpec, index: number): void {
+		const previous = this.fields[index - 1];
+		const next = this.fields[index + 1];
+		const controlNames: Record<CheckpointFieldSpec['control'], string> = {
+			text: '单行文本',
+			textarea: '多行文本',
+			number: '数字',
+			toggle: '开关',
+			date: '日期',
+			select: '选择项',
+		};
+		const details = [
+			field.key,
+			controlNames[field.control],
+			field.storage === 'inline' ? '可查询字段' : 'Checkpoint 正文',
+			field.required ? '必填' : '',
+			field.deprecated ? '已废弃' : '',
+		].filter(Boolean).join(' · ');
+		const card = this.contentEl.createDiv({
+			cls: `thread-journal-checkpoint-field-setting is-summary${field.deprecated ? ' is-deprecated' : ''}`,
+		});
+		new Setting(card)
+			.setName(field.label || field.key)
+			.setDesc(details)
+			.addButton((button) => button
+				.setButtonText('编辑')
+				.onClick(() => void this.openFieldForm(field, index)))
+			.addExtraButton((button) => button
+				.setIcon('arrow-up')
+				.setTooltip('上移')
+				.setDisabled(!previous || previous.deprecated !== field.deprecated)
+				.onClick(() => this.moveField(field, index, -1)))
+			.addExtraButton((button) => button
+				.setIcon('arrow-down')
+				.setTooltip('下移')
+				.setDisabled(!next || next.deprecated !== field.deprecated)
+				.onClick(() => this.moveField(field, index, 1)))
+			.addExtraButton((button) => button
+				.setIcon('trash-2')
+				.setTooltip('删除字段')
+				.onClick(() => {
+					this.fields.splice(index, 1);
+					this.render();
+				}));
+	}
+
+	private async openFieldForm(field: CheckpointFieldSpec, index: number | undefined): Promise<void> {
+		if (!this.modalFormApi) return;
+		try {
+			const values = checkpointTemplateFieldValues(field);
+			const result = await this.modalFormApi.openForm(
+				buildCheckpointTemplateFieldModalForm(
+					index === undefined ? '添加 checkpoint 字段' : '编辑 checkpoint 字段',
+				),
+				{ values },
+			);
+			if (result.status !== 'ok') return;
+			const nextField = checkpointFieldFromModalData(result.getData(), field);
+			if (index === undefined) this.fields.push(nextField);
+			else this.fields[index] = nextField;
+			this.fields = placeDeprecatedFieldsLast(this.fields);
+			this.render();
+		} catch (error) {
+			console.error('Thread Journal failed to open checkpoint field form', error);
+			new Notice(`打开字段表单失败：${String(error)}`);
+		}
 	}
 
 	private renderField(field: CheckpointFieldSpec, index: number): void {

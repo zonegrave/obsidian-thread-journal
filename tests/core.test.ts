@@ -23,7 +23,12 @@ import {
 } from '../src/core';
 import { DEFAULT_THREAD_TEMPLATE, renderThreadTemplate } from '../src/thread-template';
 import { ThreadIndex } from '../src/thread-index';
-import { buildCheckpointModalForm } from '../src/modal-form';
+import {
+	buildCheckpointModalForm,
+	buildCheckpointTemplateFieldModalForm,
+	checkpointFieldFromModalData,
+	checkpointTemplateFieldValues,
+} from '../src/modal-form';
 import { THREAD_STATUS_CHOICES, threadStatusLabel } from '../src/thread-status-model';
 
 void test('builds current thread and workspace file names', () => {
@@ -178,6 +183,57 @@ void test('maps checkpoint fields to a Modal Form inline definition', () => {
 			{ value: 'review', label: 'review' },
 			{ value: 'custom-review', label: 'custom-review' },
 		],
+	});
+});
+
+void test('builds a Modal Form checkpoint template field editor', () => {
+	const definition = buildCheckpointTemplateFieldModalForm('编辑 checkpoint 字段');
+	assert.equal(definition.title, '编辑 checkpoint 字段');
+	assert.deepEqual(
+		definition.fields.map((field) => [field.name, field.input.type]),
+		[
+			['label', 'text'],
+			['key', 'text'],
+			['control', 'select'],
+			['storage', 'select'],
+			['required', 'toggle'],
+			['deprecated', 'toggle'],
+			['options', 'textarea'],
+		],
+	);
+	assert.deepEqual(checkpointTemplateFieldValues({
+		key: 'checkpoint_kind',
+		label: '类型',
+		control: 'select',
+		storage: 'inline',
+		required: true,
+		deprecated: false,
+		options: ['milestone', 'review'],
+	}), {
+		key: 'checkpoint_kind',
+		label: '类型',
+		control: 'select',
+		storage: 'inline',
+		required: true,
+		deprecated: false,
+		options: 'milestone\nreview',
+	});
+	assert.deepEqual(checkpointFieldFromModalData({
+		label: '新的类型',
+		key: 'new kind',
+		control: 'select',
+		storage: 'inline',
+		required: true,
+		deprecated: true,
+		options: 'milestone\nreview, archived',
+	}, DEFAULT_CHECKPOINT_FIELDS[0]!), {
+		key: 'new_kind',
+		label: '新的类型',
+		control: 'select',
+		storage: 'inline',
+		required: false,
+		deprecated: true,
+		options: ['milestone', 'review', 'archived'],
 	});
 });
 

@@ -1,7 +1,7 @@
 {
 	"id": "thread-journal",
 	"name": "Thread Journal",
-	"version": "0.20.0",
+	"version": "0.20.1",
 	"minAppVersion": "1.13.1",
 	"description": "Organize thread trees with free-form workspaces and structured checkpoints.",
 	"author": "zonegrave",
