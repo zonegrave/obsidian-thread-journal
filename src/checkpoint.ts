@@ -404,7 +404,6 @@ export class CheckpointManager {
 				await this.app.fileManager.processFrontMatter(threadFile, (metadata) => {
 					(metadata as Record<string, unknown>).checkpoint_fields = nextFields;
 				});
-				new Notice(`已保存 ${threadFile.basename} 的 Checkpoint 模板。`);
 			},
 			async () => {
 				await this.app.fileManager.processFrontMatter(threadFile, (metadata) => {

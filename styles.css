@@ -155,6 +155,17 @@
 	font-size: var(--font-ui-small);
 }
 
+.thread-journal-checkpoint-save-status {
+	margin: -0.3rem 0 0.65rem;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	text-align: right;
+}
+
+.thread-journal-checkpoint-save-status.is-failed {
+	color: var(--text-error);
+}
+
 .thread-journal-checkpoint-system-fields,
 .thread-journal-checkpoint-custom-fields {
 	display: grid;
