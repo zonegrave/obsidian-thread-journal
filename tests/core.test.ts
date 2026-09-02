@@ -23,6 +23,7 @@ import {
 } from '../src/core';
 import { DEFAULT_THREAD_TEMPLATE, renderThreadTemplate } from '../src/thread-template';
 import { ThreadIndex } from '../src/thread-index';
+import { buildCheckpointModalForm } from '../src/modal-form';
 import { THREAD_STATUS_CHOICES, threadStatusLabel } from '../src/thread-status-model';
 
 void test('builds current thread and workspace file names', () => {
@@ -153,6 +154,31 @@ void test('moves deprecated fields last and excludes them from new checkpoint in
 		activeCheckpointFields(fields).map((field) => field.key),
 		['current_metric'],
 	);
+});
+
+void test('maps checkpoint fields to a Modal Form inline definition', () => {
+	const definition = buildCheckpointModalForm('创建 checkpoint', normalizeCheckpointFields([
+		{
+			key: 'checkpoint_kind', label: '类型', control: 'select', storage: 'inline',
+			required: true, options: ['milestone', 'review'],
+		},
+		{
+			key: 'notes', label: '说明', control: 'textarea', storage: 'body', required: false,
+		},
+	]), { checkpoint_kind: 'custom-review' });
+	assert.equal(definition.customClassname, 'thread-journal-modal-form');
+	assert.deepEqual(definition.fields.map((field) => field.input.type), [
+		'date', 'time', 'select', 'textarea',
+	]);
+	assert.deepEqual(definition.fields[2]?.input, {
+		type: 'select',
+		source: 'fixed',
+		options: [
+			{ value: 'milestone', label: 'milestone' },
+			{ value: 'review', label: 'review' },
+			{ value: 'custom-review', label: 'custom-review' },
+		],
+	});
 });
 
 void test('builds a Dataview-queryable checkpoint with a free-form body', () => {

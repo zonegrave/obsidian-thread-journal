@@ -20,6 +20,7 @@ import {
 	checkpointFieldsForThread,
 } from './checkpoint-model';
 import { CheckpointTemplateModal } from './checkpoint-template';
+import { buildCheckpointModalForm, getModalFormApi } from './modal-form';
 import type { ThreadIndex } from './thread-index';
 import { THREAD_STATUS_CHOICES, type ThreadStatus } from './thread-status-model';
 import type { CheckpointFieldSpec, ThreadJournalSettings } from './types';
@@ -52,6 +53,12 @@ interface CheckpointModalInitialState {
 	values: Record<string, CheckpointValue | undefined>;
 }
 
+type CheckpointSubmit = (
+	date: string,
+	time: string,
+	values: Record<string, CheckpointValue | undefined>,
+) => Promise<void>;
+
 interface CheckpointEditState {
 	fields: CheckpointFieldSpec[];
 	values: Record<string, CheckpointValue | undefined>;
@@ -60,7 +67,12 @@ interface CheckpointEditState {
 const CHECKPOINT_SYSTEM_KEYS = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
 
 function modalValue(field: CheckpointFieldSpec, value: string): CheckpointValue {
-	return field.control === 'toggle' ? value === 'true' : value;
+	if (field.control === 'toggle') return value === 'true';
+	if (field.control === 'number') {
+		const number = Number(value);
+		if (Number.isFinite(number)) return number;
+	}
+	return value;
 }
 
 function checkpointEditState(
@@ -122,6 +134,34 @@ function checkpointEditState(
 	return { fields, values };
 }
 
+function checkpointFormValues(
+	fields: CheckpointFieldSpec[],
+	date: string,
+	time: string,
+	initial?: Record<string, CheckpointValue | undefined>,
+): Record<string, CheckpointValue | undefined> {
+	const values: Record<string, CheckpointValue | undefined> = {
+		...initial,
+		checkpoint_date: date,
+		checkpoint_time: time,
+	};
+	for (const field of fields) {
+		if (values[field.key] !== undefined) continue;
+		if (field.control === 'toggle') values[field.key] = false;
+		else if (field.control === 'select' && field.required && field.options[0]) {
+			values[field.key] = field.options[0];
+		}
+		else if (field.control === 'date' && field.required) values[field.key] = date;
+	}
+	return values;
+}
+
+function checkpointValue(value: unknown): CheckpointValue | undefined {
+	if (typeof value === 'string' || typeof value === 'boolean') return value;
+	if (typeof value === 'number' && Number.isFinite(value)) return value;
+	return undefined;
+}
+
 class CheckpointModal extends Modal {
 	private date: string;
 	private time: string;
@@ -132,27 +172,13 @@ class CheckpointModal extends Modal {
 		app: App,
 		private readonly threadFile: TFile,
 		private readonly fields: CheckpointFieldSpec[],
-		private readonly onSubmit: (
-			date: string,
-			time: string,
-			values: Record<string, CheckpointValue | undefined>,
-		) => Promise<void>,
+		private readonly onSubmit: CheckpointSubmit,
 		private readonly initial?: CheckpointModalInitialState,
 	) {
 		super(app);
 		this.date = initial?.date || moment().format('YYYY-MM-DD');
 		this.time = initial?.time || moment().format('HH:mm');
-		this.values = { ...initial?.values };
-		for (const field of fields) {
-			if (this.values[field.key] !== undefined) continue;
-			if (field.control === 'toggle') this.values[field.key] = false;
-			else if (field.control === 'select' && field.required && field.options[0]) {
-				this.values[field.key] = field.options[0];
-			}
-			else if (field.control === 'date' && field.required) {
-				this.values[field.key] = this.date;
-			}
-		}
+		this.values = checkpointFormValues(fields, this.date, this.time, initial?.values);
 	}
 
 	onOpen(): void {
@@ -311,6 +337,53 @@ export class CheckpointManager {
 		return this.index.getThreadFile(file);
 	}
 
+	private openCheckpointForm(
+		threadFile: TFile,
+		fields: CheckpointFieldSpec[],
+		onSubmit: CheckpointSubmit,
+		initial?: CheckpointModalInitialState,
+	): void {
+		const api = getModalFormApi(this.app);
+		if (!api) {
+			new CheckpointModal(this.app, threadFile, fields, onSubmit, initial).open();
+			return;
+		}
+		const date = initial?.date || moment().format('YYYY-MM-DD');
+		const time = initial?.time || moment().format('HH:mm');
+		const values = checkpointFormValues(fields, date, time, initial?.values);
+		const definition = buildCheckpointModalForm(
+			`${initial ? '编辑' : '创建'} checkpoint · ${threadFile.basename}`,
+			fields,
+			values,
+		);
+		void api.openForm(definition, { values }).then(async (result) => {
+			if (result.status !== 'ok') return;
+			const data = result.getData();
+			const nextDate = checkpointValue(data.checkpoint_date);
+			const nextTime = checkpointValue(data.checkpoint_time);
+			if (typeof nextDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+				new Notice('Modal form 未返回有效的 checkpoint 日期。');
+				return;
+			}
+			if (typeof nextTime !== 'string' || !/^\d{2}:\d{2}$/.test(nextTime)) {
+				new Notice('Modal form 未返回有效的 checkpoint 时间。');
+				return;
+			}
+			const nextValues: Record<string, CheckpointValue | undefined> = {};
+			for (const field of fields) nextValues[field.key] = checkpointValue(data[field.key]);
+			try {
+				await onSubmit(nextDate, nextTime, nextValues);
+			} catch (error) {
+				console.error('Thread Journal failed to save Modal Form checkpoint', error);
+				new Notice(`保存 Checkpoint 失败：${String(error)}`);
+			}
+		}).catch((error: unknown) => {
+			console.error('Thread Journal failed to open Modal Form', error);
+			new Notice('Modal form 打开失败，已使用内置表单。');
+			new CheckpointModal(this.app, threadFile, fields, onSubmit, initial).open();
+		});
+	}
+
 	openCurrentCheckpointTemplateModal(): void {
 		const threadFile = this.getCurrentThreadFile();
 		if (!threadFile) {
@@ -353,7 +426,7 @@ export class CheckpointManager {
 			ownTemplate,
 			this.getSettings().checkpointFields,
 		));
-		new CheckpointModal(this.app, threadFile, fields, async (date, time, values) => {
+		this.openCheckpointForm(threadFile, fields, async (date, time, values) => {
 			const entry = buildCheckpointEntry({
 				date,
 				time,
@@ -377,7 +450,7 @@ export class CheckpointManager {
 				}
 			}
 			new Notice(`已为 ${threadFile.basename} 创建 checkpoint。`);
-		}).open();
+		});
 	}
 
 	openCheckpointEditModal(threadFile: TFile, entry: ParsedCheckpointEntry): void {
@@ -391,8 +464,7 @@ export class CheckpointManager {
 			this.getSettings().checkpointFields,
 		);
 		const editState = checkpointEditState(templateFields, entry);
-		new CheckpointModal(
-			this.app,
+		this.openCheckpointForm(
 			threadFile,
 			editState.fields,
 			async (date, time, values) => {
@@ -412,6 +484,6 @@ export class CheckpointManager {
 				time: entry.values.checkpoint_time || moment().format('HH:mm'),
 				values: editState.values,
 			},
-		).open();
+		);
 	}
 }
