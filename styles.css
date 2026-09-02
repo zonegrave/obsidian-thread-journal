@@ -142,7 +142,7 @@
 }
 
 .thread-journal-checkpoint-modal {
-	width: min(42rem, calc(100vw - 2rem));
+	width: min(54rem, calc(100vw - 2rem));
 }
 
 .thread-journal-checkpoint-template-modal {
@@ -155,9 +155,71 @@
 	font-size: var(--font-ui-small);
 }
 
-.thread-journal-checkpoint-modal textarea {
-	min-height: 6rem;
+.thread-journal-checkpoint-system-fields,
+.thread-journal-checkpoint-custom-fields {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.6rem 0.8rem;
+}
+
+.thread-journal-checkpoint-custom-fields {
+	margin-top: 0.75rem;
+}
+
+.thread-journal-checkpoint-form-field {
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.4rem;
+	min-width: 0;
+	padding: 0.65rem 0.75rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.thread-journal-checkpoint-form-field.is-wide {
+	grid-column: 1 / -1;
+}
+
+.thread-journal-checkpoint-form-field .setting-item-info {
+	flex: 0 0 auto;
+	margin-right: 0;
+}
+
+.thread-journal-checkpoint-form-field .setting-item-control {
+	justify-content: flex-start;
+	width: 100%;
+}
+
+.thread-journal-checkpoint-form-field input[type="text"],
+.thread-journal-checkpoint-form-field input[type="number"],
+.thread-journal-checkpoint-form-field input[type="date"],
+.thread-journal-checkpoint-form-field input[type="time"],
+.thread-journal-checkpoint-form-field select,
+.thread-journal-checkpoint-form-field textarea {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: none;
+}
+
+.thread-journal-checkpoint-form-field textarea {
+	min-height: 8.5rem;
 	resize: vertical;
+}
+
+.thread-journal-checkpoint-form-field.is-toggle .setting-item-control {
+	width: auto;
+}
+
+@media (max-width: 700px) {
+	.thread-journal-checkpoint-system-fields,
+	.thread-journal-checkpoint-custom-fields {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.thread-journal-checkpoint-form-field.is-wide {
+		grid-column: auto;
+	}
 }
 
 .thread-journal-checkpoint-actions .setting-item-info {

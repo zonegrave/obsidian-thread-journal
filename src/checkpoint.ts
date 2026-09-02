@@ -163,7 +163,12 @@ class CheckpointModal extends Modal {
 			text: this.threadFile.basename,
 		});
 
-		new Setting(this.contentEl)
+		const systemFields = this.contentEl.createDiv({
+			cls: 'thread-journal-checkpoint-system-fields',
+		});
+		new Setting(systemFields)
+			.setClass('thread-journal-checkpoint-form-field')
+			.setClass('is-compact')
 			.setName('日期')
 			.setDesc('Checkpoint 的发生日期。')
 			.addText((text) => {
@@ -173,7 +178,9 @@ class CheckpointModal extends Modal {
 				});
 			});
 
-		new Setting(this.contentEl)
+		new Setting(systemFields)
+			.setClass('thread-journal-checkpoint-form-field')
+			.setClass('is-compact')
 			.setName('时间')
 			.setDesc('Checkpoint 的发生时间。')
 			.addText((text) => {
@@ -184,8 +191,15 @@ class CheckpointModal extends Modal {
 			});
 
 		let focusTarget: HTMLInputElement | HTMLTextAreaElement | undefined;
+		const customFields = this.contentEl.createDiv({
+			cls: 'thread-journal-checkpoint-custom-fields',
+		});
 		for (const field of this.fields) {
-			const setting = new Setting(this.contentEl)
+			const wide = field.control === 'text' || field.control === 'textarea';
+			const setting = new Setting(customFields)
+				.setClass('thread-journal-checkpoint-form-field')
+				.setClass(wide ? 'is-wide' : 'is-compact')
+				.setClass(`is-${field.control}`)
 				.setName(`${field.label}${field.required ? ' *' : ''}`)
 				.setDesc(field.storage === 'inline'
 					? `可查询字段 · ${field.key}`
@@ -198,7 +212,7 @@ class CheckpointModal extends Modal {
 							.setPlaceholder(field.label).onChange((value) => {
 							this.values[field.key] = value;
 						});
-						text.inputEl.rows = 4;
+						text.inputEl.rows = 6;
 						focusTarget ??= field.required ? text.inputEl : undefined;
 					});
 					break;
