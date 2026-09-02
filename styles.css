@@ -242,12 +242,6 @@
 	border-style: dashed;
 }
 
-.thread-journal-checkpoint-deprecated-label {
-	margin-left: 0.25rem;
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-}
-
 .thread-journal-checkpoint-field-setting > .setting-item {
 	min-width: 0;
 	padding: 0.25rem 0;

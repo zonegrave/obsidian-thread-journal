@@ -145,20 +145,17 @@ export class CheckpointTemplateModal extends Modal {
 		const card = this.contentEl.createDiv({
 			cls: `thread-journal-checkpoint-field-setting is-summary${field.deprecated ? ' is-deprecated' : ''}`,
 		});
-		const setting = new Setting(card)
+		new Setting(card)
 			.setName(field.label || field.key)
-			.setDesc(details);
-		setting.controlEl.createSpan({
-			cls: 'thread-journal-checkpoint-deprecated-label',
-			text: '废弃',
-		});
-		setting
-			.addToggle((toggle) => toggle
-				.setTooltip('废弃字段')
-				.setValue(field.deprecated)
-				.onChange((value) => {
-					field.deprecated = value;
-					if (value) field.required = false;
+			.setDesc(details)
+			.addExtraButton((button) => button
+				.setIcon(field.deprecated ? 'eye-off' : 'eye')
+				.setTooltip(field.deprecated
+					? '已废弃：点击恢复用于新 checkpoint'
+					: '新 checkpoint 中可见：点击废弃')
+				.onClick(() => {
+					field.deprecated = !field.deprecated;
+					if (field.deprecated) field.required = false;
 					this.fields = placeDeprecatedFieldsLast(this.fields);
 					this.render();
 				}))
