@@ -145,9 +145,14 @@ export class CheckpointTemplateModal extends Modal {
 		const card = this.contentEl.createDiv({
 			cls: `thread-journal-checkpoint-field-setting is-summary${field.deprecated ? ' is-deprecated' : ''}`,
 		});
-		new Setting(card)
+		const setting = new Setting(card)
 			.setName(field.label || field.key)
-			.setDesc(details)
+			.setDesc(details);
+		setting.controlEl.createSpan({
+			cls: 'thread-journal-checkpoint-deprecated-label',
+			text: '废弃',
+		});
+		setting
 			.addToggle((toggle) => toggle
 				.setTooltip('废弃字段')
 				.setValue(field.deprecated)
