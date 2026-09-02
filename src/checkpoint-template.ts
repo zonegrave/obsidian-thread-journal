@@ -148,6 +148,15 @@ export class CheckpointTemplateModal extends Modal {
 		new Setting(card)
 			.setName(field.label || field.key)
 			.setDesc(details)
+			.addToggle((toggle) => toggle
+				.setTooltip('废弃字段')
+				.setValue(field.deprecated)
+				.onChange((value) => {
+					field.deprecated = value;
+					if (value) field.required = false;
+					this.fields = placeDeprecatedFieldsLast(this.fields);
+					this.render();
+				}))
 			.addButton((button) => button
 				.setButtonText('编辑')
 				.onClick(() => void this.openFieldForm(field, index)))

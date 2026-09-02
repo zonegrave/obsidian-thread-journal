@@ -1,6 +1,6 @@
 {
 	"name": "thread-journal",
-	"version": "0.20.1",
+	"version": "0.20.2",
 	"description": "Thread trees with free-form workspaces and structured checkpoints for Obsidian",
 	"main": "main.js",
 	"type": "module",

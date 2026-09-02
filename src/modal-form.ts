@@ -168,13 +168,6 @@ export function buildCheckpointTemplateFieldModalForm(
 				input: { type: 'toggle', hidden: false },
 			},
 			{
-				name: 'deprecated',
-				label: '废弃',
-				description: '不再用于新 checkpoint，但保留历史展示语义。',
-				isRequired: false,
-				input: { type: 'toggle', hidden: false },
-			},
-			{
 				name: 'options',
 				label: '选择项',
 				description: '仅选择项控件使用；每行一个选项，也支持英文逗号分隔。',
@@ -194,7 +187,6 @@ export function checkpointTemplateFieldValues(
 		control: field.control,
 		storage: field.storage,
 		required: field.required,
-		deprecated: field.deprecated,
 		options: field.options.join('\n'),
 	};
 }
@@ -226,7 +218,9 @@ export function checkpointFieldFromModalData(
 	const storage = rawStorage === 'body' || rawStorage === 'inline'
 		? rawStorage
 		: fallback.storage;
-	const deprecated = booleanValue(data.deprecated);
+	const deprecated = data.deprecated === undefined
+		? fallback.deprecated
+		: booleanValue(data.deprecated);
 	return {
 		key: checkpointFieldKey(data.key, fallback.key),
 		label: textValue(data.label) || fallback.label,

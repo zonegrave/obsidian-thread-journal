@@ -197,7 +197,6 @@ void test('builds a Modal Form checkpoint template field editor', () => {
 			['control', 'select'],
 			['storage', 'select'],
 			['required', 'toggle'],
-			['deprecated', 'toggle'],
 			['options', 'textarea'],
 		],
 	);
@@ -215,7 +214,6 @@ void test('builds a Modal Form checkpoint template field editor', () => {
 		control: 'select',
 		storage: 'inline',
 		required: true,
-		deprecated: false,
 		options: 'milestone\nreview',
 	});
 	assert.deepEqual(checkpointFieldFromModalData({
@@ -235,6 +233,16 @@ void test('builds a Modal Form checkpoint template field editor', () => {
 		deprecated: true,
 		options: ['milestone', 'review', 'archived'],
 	});
+	assert.equal(checkpointFieldFromModalData({
+		label: '旧字段',
+		key: 'old_field',
+		control: 'text',
+		storage: 'inline',
+		required: true,
+	}, {
+		...DEFAULT_CHECKPOINT_FIELDS[0]!,
+		deprecated: true,
+	}).deprecated, true);
 });
 
 void test('builds a Dataview-queryable checkpoint with a free-form body', () => {
