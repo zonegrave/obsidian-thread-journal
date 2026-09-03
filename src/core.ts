@@ -29,6 +29,10 @@ export function buildWorkspaceBody(threadTitle: string): string {
 	return `# ${title} · Thread 工作区\n`;
 }
 
+export function isContextHeading(value: string): boolean {
+	return /^(?:当前\s*)?context$/i.test(value.trim());
+}
+
 export function stripWikiLink(value: unknown): string | undefined {
 	if (Array.isArray(value)) return stripWikiLink(value[0]);
 	if (typeof value !== 'string') return undefined;

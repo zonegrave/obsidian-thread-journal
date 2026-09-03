@@ -7,7 +7,11 @@ import {
 	moment,
 	normalizePath,
 } from 'obsidian';
-import { buildWorkspaceBody, buildWorkspaceFileName } from './core';
+import {
+	buildWorkspaceBody,
+	buildWorkspaceFileName,
+	isContextHeading,
+} from './core';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadJournalSettings } from './types';
 
@@ -32,6 +36,10 @@ function leafFilePath(leaf: WorkspaceLeaf): string | undefined {
 	if (leaf.view instanceof MarkdownView) return leaf.view.file?.path;
 	const state = leaf.getViewState().state;
 	return typeof state?.file === 'string' ? state.file : undefined;
+}
+
+function leafContainer(leaf: WorkspaceLeaf): HTMLElement | undefined {
+	return (leaf as WorkspaceLeaf & { containerEl?: HTMLElement }).containerEl;
 }
 
 export class ThreadWorkspaceManager {
@@ -97,6 +105,43 @@ export class ThreadWorkspaceManager {
 		} else {
 			this.app.workspace.setActiveLeaf(sourceLeaf, { focus: true });
 		}
+	}
+
+	async openContextFromWorkspace(workspaceFile: TFile): Promise<void> {
+		const threadFile = this.index.getThreadForWorkspace(workspaceFile);
+		if (!threadFile) throw new Error('无法通过 thread_id 定位主 thread。');
+
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const sourceLeaf = activeView?.file?.path === workspaceFile.path
+			? activeView.leaf
+			: this.findLeafForFile(workspaceFile);
+		if (!sourceLeaf) throw new Error('无法定位当前 Thread 工作区窗口。');
+
+		const pair = this.getAttachedPair();
+		let target = pair?.workspaceLeaf === sourceLeaf && this.isLeafLeftOf(pair.mainLeaf, sourceLeaf)
+			? pair.mainLeaf
+			: undefined;
+		if (!target) {
+			const existing = this.findLeafForFile(threadFile, sourceLeaf);
+			if (existing && this.isLeafLeftOf(existing, sourceLeaf)) target = existing;
+		}
+		if (!target) target = this.app.workspace.createLeafBySplit(sourceLeaf, 'vertical', true);
+
+		this.pair = {
+			mainLeaf: target,
+			workspaceLeaf: sourceLeaf,
+			threadFile,
+			workspaceFile,
+		};
+		const heading = this.app.metadataCache.getFileCache(threadFile)?.headings
+			?.find((candidate) => isContextHeading(candidate.heading));
+		await target.openFile(threadFile, {
+			active: true,
+			...(heading ? { eState: { subpath: `#${heading.heading}` } } : {}),
+		});
+		await this.app.workspace.revealLeaf(target);
+		this.app.workspace.setActiveLeaf(target, { focus: true });
+		if (!heading) new Notice('未找到 context 标题，已打开主 thread。');
 	}
 
 	async handleFileOpen(file: TFile | null): Promise<void> {
@@ -247,13 +292,22 @@ export class ThreadWorkspaceManager {
 	}
 
 	private isLeafUsable(target: WorkspaceLeaf): boolean {
-		const container = (target as WorkspaceLeaf & { containerEl?: HTMLElement }).containerEl;
+		const container = leafContainer(target);
 		if (container?.isConnected) return true;
 		let found = false;
 		this.app.workspace.iterateAllLeaves((leaf) => {
 			if (leaf === target) found = true;
 		});
 		return found;
+	}
+
+	private isLeafLeftOf(target: WorkspaceLeaf, source: WorkspaceLeaf): boolean {
+		if (!this.isLeafUsable(target) || !this.isLeafUsable(source)) return false;
+		const targetContainer = leafContainer(target);
+		const sourceContainer = leafContainer(source);
+		if (!targetContainer?.isConnected || !sourceContainer?.isConnected) return false;
+		return targetContainer.getBoundingClientRect().left
+			< sourceContainer.getBoundingClientRect().left - 1;
 	}
 
 	private getAttachedPair(): CompanionPair | undefined {

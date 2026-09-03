@@ -17,6 +17,7 @@ import {
 	buildThreadFileName,
 	buildWorkspaceBody,
 	buildWorkspaceFileName,
+	isContextHeading,
 	normalizeWorkspaceSuffix,
 	stripWikiLink,
 	wikiLinkAlias,
@@ -38,6 +39,13 @@ void test('builds current thread and workspace file names', () => {
 	assert.equal(buildWorkspaceFileName('260831·睡眠管理', '草稿/区'), '260831·睡眠管理·草稿-区');
 	assert.equal(normalizeWorkspaceSuffix(' ·研究/空间. '), '研究-空间');
 	assert.equal(buildWorkspaceBody('睡眠\n管理'), '# 睡眠 管理 · Thread 工作区\n');
+});
+
+void test('recognizes current and legacy Context headings', () => {
+	assert.equal(isContextHeading('当前 Context'), true);
+	assert.equal(isContextHeading('context'), true);
+	assert.equal(isContextHeading('  CONTEXT  '), true);
+	assert.equal(isContextHeading('Context 说明'), false);
 });
 
 void test('pairs renamed thread workspaces by thread_id instead of file links', () => {

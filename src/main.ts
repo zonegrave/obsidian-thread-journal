@@ -113,6 +113,22 @@ export default class ThreadJournalPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'open-thread-context-left',
+			name: '在左侧打开 context',
+			checkCallback: (checking) => {
+				const file = this.currentWorkspaceFile();
+				if (!file) return false;
+				if (!checking) {
+					void this.workspaces.openContextFromWorkspace(file).catch((error: unknown) => {
+						console.error('Thread Journal failed to open thread context', error);
+						new Notice(`打开 Thread Context 失败：${String(error)}`);
+					});
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: 'new-thread',
 			name: '新建 thread',
 			callback: () => {
@@ -146,5 +162,12 @@ export default class ThreadJournalPlugin extends Plugin {
 		const file = view?.file;
 		if (!file) return undefined;
 		return this.index.getThreadFile(file);
+	}
+
+	private currentWorkspaceFile(): TFile | undefined {
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const file = view?.file;
+		if (!file || !this.index.getThreadForWorkspace(file)) return undefined;
+		return file;
 	}
 }

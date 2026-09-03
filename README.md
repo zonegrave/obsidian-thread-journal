@@ -140,6 +140,7 @@ SORT checkpoint.checkpoint_date DESC
 - 从工作区窗格打开其他笔记时，笔记转到主窗格。
 - 关闭主窗格时，同时关闭配套工作区；单独关闭工作区不关闭主窗格。
 - 命令执行后焦点进入工作区。
+- 在工作区运行 **在左侧打开 context**，会在左侧创建或复用主 thread 窗格，并直接定位到 `当前 Context`；旧笔记中的 `Context` 标题也可识别。
 
 窗格复用依据 leaf 是否仍连接在界面中，而不依赖特定布局插件或单一 leaf 枚举结果。显式打开时通过 Obsidian 的 `revealLeaf()` 显示并聚焦目标；从主 thread 或工作区执行命令都会通过 `thread_id` 定位同一对象。真正无法定位主窗格或工作区时会显示错误，不再静默失败。
 
@@ -147,6 +148,7 @@ SORT checkpoint.checkpoint_date DESC
 
 - 新建 thread
 - 打开 thread 工作区
+- 在左侧打开 context（仅在工作区可用）
 - 编辑 checkpoint 模板
 - 创建 checkpoint
 - 设置 thread 状态
