@@ -54,6 +54,10 @@ export class ThreadRenderers {
 			file: TFile,
 			entry: ParsedCheckpointEntry,
 		) => void,
+		private readonly onDeleteCheckpoint: (
+			file: TFile,
+			entry: ParsedCheckpointEntry,
+		) => void,
 	) {}
 
 	renderBreadcrumb(el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
@@ -220,6 +224,14 @@ export class ThreadRenderers {
 				});
 				edit.addEventListener('click', () => {
 					this.onEditCheckpoint(threadFile, entry);
+				});
+				const remove = controls.createEl('button', {
+					cls: 'thread-journal-checkpoint-delete',
+					text: '删除',
+					attr: { type: 'button', 'aria-label': '删除 checkpoint' },
+				});
+				remove.addEventListener('click', () => {
+					this.onDeleteCheckpoint(threadFile, entry);
 				});
 			}
 

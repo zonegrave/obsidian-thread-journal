@@ -39,6 +39,7 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.index,
 			getSettings,
 			(file, entry) => this.checkpoints.openCheckpointEditModal(file, entry),
+			(file, entry) => this.checkpoints.openCheckpointDeleteModal(file, entry),
 		);
 
 		this.registerCommands();

@@ -92,10 +92,15 @@
 	gap: 0.5rem;
 }
 
-.thread-journal-checkpoint-edit {
+.thread-journal-checkpoint-edit,
+.thread-journal-checkpoint-delete {
 	min-height: 1.75rem;
 	padding: 0.1rem 0.55rem;
 	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-checkpoint-delete {
+	color: var(--text-error);
 }
 
 .thread-journal-checkpoint-card-date {

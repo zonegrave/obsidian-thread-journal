@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	buildCheckpointEntry,
+	checkpointEditState,
 	checkpointEntriesForDate,
+	deleteCheckpointEntry,
 	insertCheckpointEntry,
 	parseCheckpointEntries,
 	replaceCheckpointEntry,
@@ -395,6 +397,54 @@ void test('replaces one checkpoint in place by block id', () => {
 	assert.doesNotMatch(result, /旧摘要|旧内容/);
 	assert.match(result, /保留.*\^cp-keep/);
 	assert.equal(parseCheckpointEntries(result).length, 2);
+});
+
+void test('adds active template fields when editing an older checkpoint', () => {
+	const fields = normalizeCheckpointFields([
+		{
+			key: 'checkpoint_summary', label: '摘要', control: 'text', storage: 'inline',
+			required: true,
+		},
+		{
+			key: 'new_note', label: '新增说明', control: 'textarea', storage: 'body',
+			required: false,
+		},
+		{
+			key: 'retired', label: '旧字段', control: 'text', storage: 'inline',
+			deprecated: true,
+		},
+	]);
+	const edit = checkpointEditState(fields, {
+		blockId: 'cp-old',
+		values: {
+			checkpoint: 'true',
+			checkpoint_date: '2026-09-01',
+			checkpoint_summary: '旧记录',
+			legacy_only: '保留',
+		},
+		body: [],
+	});
+	assert.deepEqual(edit.fields.map((field) => field.key), [
+		'checkpoint_summary', 'new_note', 'legacy_only',
+	]);
+	assert.equal(edit.values.new_note, undefined);
+	assert.equal(edit.fields.find((field) => field.key === 'new_note')?.required, false);
+	assert.equal(edit.fields.find((field) => field.key === 'legacy_only')?.deprecated, true);
+});
+
+void test('deletes one checkpoint in place by block id', () => {
+	const original = [
+		'> [!info]- 结构化数据',
+		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-02] [checkpoint_summary:: 删除] ^cp-delete',
+		'>   - **详情：** 一并删除',
+		'>',
+		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] [checkpoint_summary:: 保留] ^cp-keep',
+		'>',
+	].join('\n');
+	const result = deleteCheckpointEntry(original, 'cp-delete');
+	assert.doesNotMatch(result, /删除|一并删除|cp-delete/);
+	assert.match(result, /保留.*\^cp-keep/);
+	assert.equal(parseCheckpointEntries(result).length, 1);
 });
 
 void test('supports only the five current status values', () => {

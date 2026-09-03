@@ -9,6 +9,8 @@ import {
 } from 'obsidian';
 import {
 	buildCheckpointEntry,
+	checkpointEditState,
+	deleteCheckpointEntry,
 	insertCheckpointEntry,
 	replaceCheckpointEntry,
 	type CheckpointValue,
@@ -16,7 +18,6 @@ import {
 } from './checkpoint-core';
 import {
 	activeCheckpointFields,
-	checkpointFieldKey,
 	checkpointFieldsForThread,
 } from './checkpoint-model';
 import { CheckpointTemplateModal } from './checkpoint-template';
@@ -58,81 +59,6 @@ type CheckpointSubmit = (
 	time: string,
 	values: Record<string, CheckpointValue | undefined>,
 ) => Promise<void>;
-
-interface CheckpointEditState {
-	fields: CheckpointFieldSpec[];
-	values: Record<string, CheckpointValue | undefined>;
-}
-
-const CHECKPOINT_SYSTEM_KEYS = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
-
-function modalValue(field: CheckpointFieldSpec, value: string): CheckpointValue {
-	if (field.control === 'toggle') return value === 'true';
-	if (field.control === 'number') {
-		const number = Number(value);
-		if (Number.isFinite(number)) return number;
-	}
-	return value;
-}
-
-function checkpointEditState(
-	templateFields: CheckpointFieldSpec[],
-	entry: ParsedCheckpointEntry,
-): CheckpointEditState {
-	const fields: CheckpointFieldSpec[] = [];
-	const values: Record<string, CheckpointValue | undefined> = {};
-	const usedKeys = new Set<string>();
-	const usedBodyLabels = new Set<string>();
-
-	for (const field of templateFields) {
-		const inlineValue = entry.values[field.key];
-		const bodyValue = entry.body.find((item) => item.label === field.label);
-		if (inlineValue === undefined && !bodyValue) continue;
-		const storage = inlineValue !== undefined ? 'inline' : 'body';
-		fields.push({ ...field, storage, required: false, options: [...field.options] });
-		values[field.key] = modalValue(field, inlineValue ?? bodyValue?.value ?? '');
-		usedKeys.add(field.key);
-		if (bodyValue) usedBodyLabels.add(bodyValue.label);
-	}
-
-	for (const [key, value] of Object.entries(entry.values)) {
-		if (CHECKPOINT_SYSTEM_KEYS.has(key) || usedKeys.has(key)) continue;
-		fields.push({
-			key,
-			label: key,
-			control: 'text',
-			storage: 'inline',
-			required: false,
-			deprecated: true,
-			options: [],
-		});
-		values[key] = value;
-		usedKeys.add(key);
-	}
-
-	entry.body.forEach((body, index) => {
-		if (usedBodyLabels.has(body.label)) return;
-		let key = checkpointFieldKey(body.label, `checkpoint_body_${index + 1}`);
-		let suffix = 2;
-		while (usedKeys.has(key)) {
-			key = `${key}_${suffix}`;
-			suffix += 1;
-		}
-		fields.push({
-			key,
-			label: body.label,
-			control: 'textarea',
-			storage: 'body',
-			required: false,
-			deprecated: true,
-			options: [],
-		});
-		values[key] = body.value;
-		usedKeys.add(key);
-	});
-
-	return { fields, values };
-}
 
 function checkpointFormValues(
 	fields: CheckpointFieldSpec[],
@@ -324,6 +250,58 @@ class CheckpointModal extends Modal {
 	}
 }
 
+class CheckpointDeleteModal extends Modal {
+	private deleting = false;
+
+	constructor(
+		app: App,
+		private readonly threadFile: TFile,
+		private readonly entry: ParsedCheckpointEntry,
+		private readonly onConfirm: () => Promise<void>,
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.setTitle('删除 checkpoint');
+		const date = this.entry.values.checkpoint_date || '未填写日期';
+		const time = this.entry.values.checkpoint_time;
+		this.contentEl.createEl('p', {
+			text: `确定删除 ${date}${time ? ` ${time}` : ''} 的 checkpoint 吗？`,
+		});
+		this.contentEl.createEl('p', {
+			cls: 'mod-warning',
+			text: `只会删除 ${this.threadFile.basename} 中这条 checkpoint 的记录块。`,
+		});
+		const actions = new Setting(this.contentEl)
+			.setClass('thread-journal-checkpoint-actions');
+		actions.addButton((button) => button
+			.setButtonText('取消')
+			.onClick(() => this.close()));
+		actions.addButton((button) => button
+			.setButtonText('删除 checkpoint')
+			.setWarning()
+			.onClick(async () => {
+				if (this.deleting) return;
+				this.deleting = true;
+				button.setDisabled(true);
+				try {
+					await this.onConfirm();
+					this.close();
+				} catch (error) {
+					console.error('Thread Journal failed to delete checkpoint', error);
+					new Notice(`删除 checkpoint 失败：${String(error)}`);
+					this.deleting = false;
+					button.setDisabled(false);
+				}
+			}));
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+	}
+}
+
 export class CheckpointManager {
 	constructor(
 		private readonly app: App,
@@ -484,5 +462,17 @@ export class CheckpointManager {
 				values: editState.values,
 			},
 		);
+	}
+
+	openCheckpointDeleteModal(threadFile: TFile, entry: ParsedCheckpointEntry): void {
+		if (!entry.blockId) {
+			new Notice('这条 checkpoint 没有块 ID，无法安全删除。');
+			return;
+		}
+		new CheckpointDeleteModal(this.app, threadFile, entry, async () => {
+			await this.app.vault.process(threadFile, (content) =>
+				deleteCheckpointEntry(content, entry.blockId ?? ''));
+			new Notice(`已删除 ${threadFile.basename} 的 checkpoint。`);
+		}).open();
 	}
 }

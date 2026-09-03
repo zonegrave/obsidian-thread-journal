@@ -1,3 +1,4 @@
+import { checkpointFieldKey } from './checkpoint-model';
 import type { CheckpointFieldSpec } from './types';
 
 export type CheckpointValue = string | number | boolean;
@@ -42,6 +43,84 @@ export interface ParsedCheckpointEntry {
 	blockId?: string;
 	values: Record<string, string>;
 	body: ParsedCheckpointBodyField[];
+}
+
+export interface CheckpointEditState {
+	fields: CheckpointFieldSpec[];
+	values: Record<string, CheckpointValue | undefined>;
+}
+
+const CHECKPOINT_SYSTEM_KEYS = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
+
+function modalValue(field: CheckpointFieldSpec, value: string): CheckpointValue {
+	if (field.control === 'toggle') return value === 'true';
+	if (field.control === 'number') {
+		const number = Number(value);
+		if (Number.isFinite(number)) return number;
+	}
+	return value;
+}
+
+export function checkpointEditState(
+	templateFields: CheckpointFieldSpec[],
+	entry: ParsedCheckpointEntry,
+): CheckpointEditState {
+	const fields: CheckpointFieldSpec[] = [];
+	const values: Record<string, CheckpointValue | undefined> = {};
+	const usedKeys = new Set<string>();
+	const usedBodyLabels = new Set<string>();
+
+	for (const field of templateFields) {
+		const inlineValue = entry.values[field.key];
+		const bodyValue = entry.body.find((item) => item.label === field.label);
+		const present = inlineValue !== undefined || bodyValue !== undefined;
+		if (!present && field.deprecated) continue;
+		const storage = inlineValue !== undefined
+			? 'inline'
+			: bodyValue ? 'body' : field.storage;
+		fields.push({ ...field, storage, required: false, options: [...field.options] });
+		if (present) values[field.key] = modalValue(field, inlineValue ?? bodyValue?.value ?? '');
+		usedKeys.add(field.key);
+		if (bodyValue) usedBodyLabels.add(bodyValue.label);
+	}
+
+	for (const [key, value] of Object.entries(entry.values)) {
+		if (CHECKPOINT_SYSTEM_KEYS.has(key) || usedKeys.has(key)) continue;
+		fields.push({
+			key,
+			label: key,
+			control: 'text',
+			storage: 'inline',
+			required: false,
+			deprecated: true,
+			options: [],
+		});
+		values[key] = value;
+		usedKeys.add(key);
+	}
+
+	entry.body.forEach((body, index) => {
+		if (usedBodyLabels.has(body.label)) return;
+		let key = checkpointFieldKey(body.label, `checkpoint_body_${index + 1}`);
+		let suffix = 2;
+		while (usedKeys.has(key)) {
+			key = `${key}_${suffix}`;
+			suffix += 1;
+		}
+		fields.push({
+			key,
+			label: body.label,
+			control: 'textarea',
+			storage: 'body',
+			required: false,
+			deprecated: true,
+			options: [],
+		});
+		values[key] = body.value;
+		usedKeys.add(key);
+	});
+
+	return { fields, values };
 }
 
 export function buildCheckpointEntry(input: CheckpointEntryInput): string {
@@ -222,12 +301,12 @@ function escapedPattern(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export function replaceCheckpointEntry(
-	content: string,
-	blockId: string,
-	entry: string,
-): string {
-	const lines = content.split(/\r?\n/);
+interface CheckpointEntryRange {
+	start: number;
+	end: number;
+}
+
+function checkpointEntryRange(lines: string[], blockId: string): CheckpointEntryRange {
 	const blockPattern = new RegExp(`\\^${escapedPattern(blockId)}\\s*$`, 'u');
 	const start = lines.findIndex((line) => {
 		const unquoted = unquote(line);
@@ -241,8 +320,28 @@ export function replaceCheckpointEntry(
 		if (!/^\s{2,}\S/.test(next)) break;
 		end += 1;
 	}
+	return { start, end };
+}
+
+export function replaceCheckpointEntry(
+	content: string,
+	blockId: string,
+	entry: string,
+): string {
+	const lines = content.split(/\r?\n/);
+	const { start, end } = checkpointEntryRange(lines, blockId);
 	const quotePrefix = /^(?:> ?)+/.exec(lines[start] ?? '')?.[0] ?? '';
 	const replacement = entry.split('\n').map((line) => `${quotePrefix}${line}`);
 	lines.splice(start, end - start, ...replacement);
+	return withTrailingNewline(lines);
+}
+
+export function deleteCheckpointEntry(content: string, blockId: string): string {
+	const lines = content.split(/\r?\n/);
+	const { start, end } = checkpointEntryRange(lines, blockId);
+	let deleteEnd = end;
+	const separator = lines[deleteEnd] ?? '';
+	if (/^(?:> ?)+$/.test(separator)) deleteEnd += 1;
+	lines.splice(start, deleteEnd - start);
 	return withTrailingNewline(lines);
 }
