@@ -4,6 +4,7 @@ import {
 	appendCheckpointEntry,
 	buildCheckpointEntry,
 	checkpointEditState,
+	checkpointEntryAroundLine,
 	checkpointEntriesForDate,
 	deleteCheckpointEntry,
 	insertCheckpointEntryAtLine,
@@ -384,6 +385,21 @@ void test('parses checkpoint data from a workspace callout', () => {
 			value: '可以自由配置字段。\n长文字保留在正文。',
 		}],
 	}]);
+});
+
+void test('finds the checkpoint around a Live Preview source line', () => {
+	const content = [
+		'# Thread 工作区',
+		'',
+		'> [!thread-checkpoint] milestone · 08-31 14:35',
+		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_summary:: 完成] ^cp-live',
+		'>   - **阶段成果：** 可见',
+		'',
+		'后续内容',
+	].join('\n');
+	assert.equal(checkpointEntryAroundLine(content, 2)?.blockId, 'cp-live');
+	assert.equal(checkpointEntryAroundLine(content, 4)?.values.checkpoint_summary, '完成');
+	assert.equal(checkpointEntryAroundLine(content, 6), undefined);
 });
 
 void test('filters checkpoint entries by daily note date', () => {

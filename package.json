@@ -1,6 +1,6 @@
 {
 	"name": "thread-journal",
-	"version": "0.28.1",
+	"version": "0.28.2",
 	"description": "Thread trees with free-form workspaces and structured checkpoints for Obsidian",
 	"main": "main.js",
 	"type": "module",
@@ -23,6 +23,7 @@
 	},
 	"homepage": "https://github.com/zonegrave/obsidian-thread-journal#readme",
 	"devDependencies": {
+		"@codemirror/view": "6.38.6",
 		"@eslint/js": "^9.39.4",
 		"@types/node": "^22.15.17",
 		"esbuild": "0.25.5",

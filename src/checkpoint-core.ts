@@ -212,6 +212,23 @@ export function checkpointEntriesForDate(
 		entry.values.checkpoint_date === date);
 }
 
+export function checkpointEntryAroundLine(
+	content: string,
+	line: number,
+): ParsedCheckpointEntry | undefined {
+	const lines = content.split(/\r?\n/);
+	let start = Math.max(0, Math.min(Math.trunc(line), Math.max(0, lines.length - 1)));
+	for (; start >= 0; start -= 1) {
+		const source = lines[start] ?? '';
+		if (/^\s*>\s*\[!thread-checkpoint\]/u.test(source)) break;
+		if (!/^\s*>/u.test(source)) return undefined;
+	}
+	if (start < 0) return undefined;
+	let end = start + 1;
+	while (end < lines.length && /^\s*>/u.test(lines[end] ?? '')) end += 1;
+	return parseCheckpointEntries(lines.slice(start, end).join('\n'))[0];
+}
+
 function withTrailingNewline(lines: string[]): string {
 	while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
 	return `${lines.join('\n')}\n`;

@@ -5,6 +5,7 @@ import {
 	TFile,
 } from 'obsidian';
 import { CheckpointManager } from './checkpoint';
+import { checkpointEditorExtension } from './checkpoint-editor';
 import {
 	CHECKPOINT_PANEL_VIEW_TYPE,
 	CheckpointPanelView,
@@ -54,6 +55,10 @@ export default class ThreadJournalPlugin extends Plugin {
 			(file, entry) => this.checkpoints.openCheckpointEditModal(file, entry),
 			(file, entry) => this.checkpoints.openCheckpointDeleteModal(file, entry),
 		);
+		this.registerEditorExtension(checkpointEditorExtension(
+			(file) => Boolean(this.index.getThreadForWorkspace(file)),
+			(file, entry) => this.checkpoints.openCheckpointEditModal(file, entry),
+		));
 
 		this.registerCommands();
 		this.registerRenderers();
