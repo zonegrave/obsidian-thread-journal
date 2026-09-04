@@ -1,14 +1,14 @@
 # Thread Journal
 
-一个本地优先的 Obsidian 插件：用主 thread 保存可恢复状态，用配套工作区承载自由探索，并在 milestone 或 review 时创建结构化 checkpoint。
+一个本地优先的 Obsidian 插件：用主 thread 保存可恢复状态与汇总视图，用配套工作区承载完整执行切片，并在 milestone 或 review 时创建结构化 checkpoint。
 
 > 当前处于探索测试阶段。笔记 schema、术语和交互会直接演进；每次变化采用一次性迁移，然后只保留最新结构，不提供历史结构兼容。
 
 ## 当前模型
 
-- **主 thread**：保存身份、状态、父子关系、milestones、当前 Context 和 checkpoints。
-- **Thread 工作区**：自由记录、草拟和重组，不要求时间顺序。
-- **Checkpoint**：阶段性、结构化、可查询的状态存档，不要求每日创建。
+- **主 thread**：保存身份、状态、父子关系、milestones、当前 Context、字段模板和 checkpoint 汇总视图。
+- **Thread 工作区**：自由记录、草拟和重组，并保存 inline log 与 checkpoint 的原始 callout。
+- **Checkpoint**：工作区中的阶段性、结构化、可查询状态存档，不要求每日创建。
 
 插件不修改日记，不读取旧日记表单，也不解析历史执行记录结构。
 
@@ -20,6 +20,7 @@
 - 在 `active`、`paused`、`review`、`completed`、`closed` 五种状态间自由切换。
 - 从主 thread 或工作区在右侧打开非模态 checkpoint 表单。
 - 直接从 checkpoint 卡片编辑该条记录的日期、时间与实际保存字段。
+- 从汇总卡片定位到工作区原始 checkpoint，并可从原始 callout 直接编辑。
 - 在 Thread 工作区光标处插入带时间戳、可查询的醒目 inline log。
 - 在日记中按日期动态汇总当天产生 checkpoint 的 thread。
 - 为每个 thread 单独增删、排序和配置 checkpoint 字段。
@@ -56,11 +57,11 @@ created: 2026-08-31
 ---
 ```
 
-`thread_id` 是稳定身份，也是主 thread 与工作区配对的唯一依据。主文件不保存 `workspace` 属性；`thread-breadcrumb` 会按 `thread_id` 动态显示工作区入口，因此文件改名后无需同步字段。工作区的 `thread` 只作为可读的返回链接。工作区不保存 `parent`、`kind`、`status`、milestones 或 checkpoints。
+`thread_id` 是稳定身份，也是主 thread 与工作区配对的唯一依据。主文件不保存 `workspace` 属性；`thread-breadcrumb` 会按 `thread_id` 动态显示工作区入口，因此文件改名后无需同步字段。工作区的 `thread` 只作为可读的返回链接。工作区不保存 `parent`、`kind`、`status` 或 milestones，但保存 inline log 与 checkpoint 原始记录。
 
 ## Checkpoint 模板与表单
 
-在主 thread 或工作区运行命令 **创建 checkpoint**。插件自动找到主文件，优先读取这个 thread 自己的模板，并把结果写入主文件 Context 下的 `Checkpoints` 小节。
+在主 thread 或工作区运行命令 **创建 checkpoint**。插件自动找到主文件并读取这个 thread 自己的模板，但把 checkpoint 原始 callout 写入配套工作区。从工作区运行时插入到命令触发时的光标位置；从主 thread 运行时追加到工作区末尾。
 
 创建与编辑 checkpoint 时，插件在右侧边栏打开非模态表单。填写期间主笔记仍可滚动、选择和复制，表单也不会替换当前笔记标签；保存成功后侧栏表单自动关闭。若侧栏视图无法加载，才回退到 Modal Form 或内置弹窗。
 
@@ -84,23 +85,16 @@ created: 2026-08-31
 
 不再需要追踪的字段可以标为 **废弃**。废弃字段会统一排列在模板底部，不再出现在新 checkpoint 表单中；历史卡片仍只根据每条记录当时实际保存的字段展示，有旧值时继续使用原显示名称，没有值时不会补空字段。若仍需解释历史数据，建议废弃而不是删除字段。
 
-默认输出：
+工作区中的默认输出：
 
 ````markdown
-### Checkpoints
-
-```thread-checkpoints
-```
-
-> [!info]- 结构化数据
+> [!thread-checkpoint] milestone · 08-31 14:35
 > - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成工作区模型设计] [version:: 0.16.0] ^cp-20260831-143500-a1b2c
 ````
 
-`thread-checkpoints` 动态读取折叠区中的唯一一份结构化数据并生成卡片：日期、时间和类型显示在标题，摘要直接显示，自定义字段按“名称：值”排列。修改结构化字段后，卡片随预览刷新，不保存重复的展示文本。
+原始 checkpoint 可以像其他 Markdown 一样在工作区任意移动；阅读模式中的 callout 提供“编辑”按钮。主 thread 的 Context 下保留 `thread-checkpoints` 代码块，它按 `thread_id` 读取配套工作区并生成汇总卡片：日期、时间和类型显示在标题，摘要直接显示，自定义字段按“名称：值”排列。
 
-每张带块 ID 的 checkpoint 卡片都有“编辑”和“删除”按钮。编辑表单会合并当前模板中所有未废弃字段与该条记录实际保存的历史字段：新增字段可以补录，后来废弃或已从模板删除但已有值的字段仍可维护；空字段不会写回，也不会出现在卡片中。保存后按原块 ID 原位替换，不会新增重复记录，也不会重新触发 `status_after` 状态流转。删除需要二次确认，并且只移除该块 ID 对应的 checkpoint。
-
-Checkpoint 存储区通过 `thread-checkpoints` 代码块定位，不依赖小节标题。可以直接把 `### Checkpoints` 改成“阶段存档”“复盘记录”等任意标题，后续 checkpoint 仍会写入同一位置。
+每张带块 ID 的汇总卡片都有“定位”“编辑”和“删除”入口。“定位”打开工作区并跳到原始块；编辑会合并当前模板中所有未废弃字段与该条记录实际保存的历史字段，保存后按原块 ID 在工作区原位替换。删除需要二次确认，并且只移除工作区中该块 ID 对应的 checkpoint。
 
 如果自行添加键为 `status_after` 的选择字段，并使用有效状态值，保存 checkpoint 时会同时更新主 thread 的 `status`。
 
@@ -114,7 +108,7 @@ TABLE WITHOUT ID
   checkpoint.checkpoint_time AS 时间,
   checkpoint.checkpoint_kind AS 类型,
   checkpoint.checkpoint_summary AS 摘要
-FROM "50-行动系统"
+FROM "50-行动系统/工作区"
 FLATTEN file.lists AS checkpoint
 WHERE checkpoint.checkpoint = true
 SORT checkpoint.checkpoint_date DESC
@@ -130,7 +124,7 @@ SORT checkpoint.checkpoint_date DESC
 ```
 ````
 
-插件优先读取日记的 `date` 属性，否则使用 `YYYY-MM-DD` 文件名作为日期。视图只展示当天实际存在 checkpoint 的 thread，按 thread 分组并默认展开；其中的卡片仍可直接编辑。这里只动态查询主 thread，不向日记复制 checkpoint 数据。
+插件优先读取日记的 `date` 属性，否则使用 `YYYY-MM-DD` 文件名作为日期。视图查询各 Thread 工作区，只展示当天实际存在 checkpoint 的 thread，按 thread 分组并默认展开；其中的卡片可以定位、编辑和删除原始 callout，不向日记复制 checkpoint 数据。
 
 ## Thread 与工作区切换
 

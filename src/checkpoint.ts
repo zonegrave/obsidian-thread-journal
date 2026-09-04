@@ -8,10 +8,11 @@ import {
 	moment,
 } from 'obsidian';
 import {
+	appendCheckpointEntry,
 	buildCheckpointEntry,
 	checkpointEditState,
 	deleteCheckpointEntry,
-	insertCheckpointEntry,
+	insertCheckpointEntryAtLine,
 	replaceCheckpointEntry,
 	type CheckpointValue,
 	type ParsedCheckpointEntry,
@@ -312,6 +313,7 @@ export class CheckpointManager {
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 		private readonly getSettings: () => ThreadJournalSettings,
+		private readonly ensureWorkspace: (threadFile: TFile) => Promise<TFile | undefined>,
 	) {}
 
 	getCurrentThreadFile(): TFile | undefined {
@@ -437,9 +439,41 @@ export class CheckpointManager {
 	}
 
 	openCurrentCheckpointModal(): void {
-		const threadFile = this.getCurrentThreadFile();
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const activeFile = activeView?.file;
+		const threadFile = activeFile ? this.index.getThreadFile(activeFile) : undefined;
 		if (!threadFile) {
 			new Notice('当前文件不属于 thread。');
+			return;
+		}
+		const originWorkspace = activeFile && this.index.getThreadForWorkspace(activeFile)
+			? activeFile
+			: undefined;
+		const frontmatter = originWorkspace
+			? this.app.metadataCache.getFileCache(originWorkspace)?.frontmatterPosition
+			: undefined;
+		const cursorLine = originWorkspace && activeView
+			&& (!frontmatter || activeView.editor.getCursor().line > frontmatter.end.line)
+			? activeView.editor.getCursor().line
+			: undefined;
+		void this.openNewCheckpointForm(threadFile, originWorkspace, cursorLine);
+	}
+
+	private async openNewCheckpointForm(
+		threadFile: TFile,
+		originWorkspace?: TFile,
+		cursorLine?: number,
+	): Promise<void> {
+		let workspace: TFile | undefined;
+		try {
+			workspace = await this.ensureWorkspace(threadFile);
+		} catch (error) {
+			console.error('Thread Journal failed to prepare checkpoint workspace', error);
+			new Notice(`无法准备 Thread 工作区：${String(error)}`);
+			return;
+		}
+		if (!workspace) {
+			new Notice('无法通过线程 ID 定位配套工作区。');
 			return;
 		}
 		const ownTemplate = threadCheckpointFields(this.app, threadFile);
@@ -455,8 +489,10 @@ export class CheckpointManager {
 				fields,
 				values,
 			});
-			await this.app.vault.process(threadFile, (content) =>
-				insertCheckpointEntry(content, entry));
+			await this.app.vault.process(workspace, (content) =>
+				originWorkspace?.path === workspace.path && cursorLine !== undefined
+					? insertCheckpointEntryAtLine(content, entry, cursorLine)
+					: appendCheckpointEntry(content, entry));
 			const nextStatus = checkpointStatus(values.status_after);
 			if (nextStatus) {
 				try {
@@ -474,9 +510,14 @@ export class CheckpointManager {
 		});
 	}
 
-	openCheckpointEditModal(threadFile: TFile, entry: ParsedCheckpointEntry): void {
+	openCheckpointEditModal(sourceFile: TFile, entry: ParsedCheckpointEntry): void {
 		if (!entry.blockId) {
 			new Notice('这条 checkpoint 没有块 ID，无法安全编辑。');
+			return;
+		}
+		const threadFile = this.index.getThreadForWorkspace(sourceFile);
+		if (!threadFile) {
+			new Notice('无法通过工作区线程 ID 定位主 thread。');
 			return;
 		}
 		const ownTemplate = threadCheckpointFields(this.app, threadFile);
@@ -496,7 +537,7 @@ export class CheckpointManager {
 					fields: editState.fields,
 					values,
 				});
-				await this.app.vault.process(threadFile, (content) =>
+				await this.app.vault.process(sourceFile, (content) =>
 					replaceCheckpointEntry(content, entry.blockId ?? '', replacement));
 				new Notice(`已更新 ${threadFile.basename} 的 checkpoint。`);
 			},
@@ -508,13 +549,18 @@ export class CheckpointManager {
 		);
 	}
 
-	openCheckpointDeleteModal(threadFile: TFile, entry: ParsedCheckpointEntry): void {
+	openCheckpointDeleteModal(sourceFile: TFile, entry: ParsedCheckpointEntry): void {
 		if (!entry.blockId) {
 			new Notice('这条 checkpoint 没有块 ID，无法安全删除。');
 			return;
 		}
-		new CheckpointDeleteModal(this.app, threadFile, entry, async () => {
-			await this.app.vault.process(threadFile, (content) =>
+		const threadFile = this.index.getThreadForWorkspace(sourceFile);
+		if (!threadFile) {
+			new Notice('无法通过工作区线程 ID 定位主 thread。');
+			return;
+		}
+		new CheckpointDeleteModal(this.app, sourceFile, entry, async () => {
+			await this.app.vault.process(sourceFile, (content) =>
 				deleteCheckpointEntry(content, entry.blockId ?? ''));
 			new Notice(`已删除 ${threadFile.basename} 的 checkpoint。`);
 		}).open();

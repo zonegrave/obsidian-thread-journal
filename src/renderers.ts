@@ -31,6 +31,10 @@ function dailyNoteDate(app: App, file: TFile): string | undefined {
 	return fileMatch?.[1];
 }
 
+function checkpointTimestamp(entry: ParsedCheckpointEntry): string {
+	return `${entry.values.checkpoint_date ?? ''}T${entry.values.checkpoint_time ?? ''}`;
+}
+
 function addFileLink(
 	app: App,
 	container: HTMLElement,
@@ -105,15 +109,60 @@ export class ThreadRenderers {
 		}
 	}
 
+	enhanceCheckpointCallouts(
+		el: HTMLElement,
+		ctx: MarkdownPostProcessorContext,
+	): void {
+		const current = sourceFile(this.app, ctx);
+		if (!current || !this.index.getThreadForWorkspace(current)) return;
+		const callouts = Array.from(el.querySelectorAll<HTMLElement>(
+			'.callout[data-callout="thread-checkpoint"]',
+		));
+		if (callouts.length === 0) return;
+		const section = ctx.getSectionInfo(el);
+		if (!section) return;
+		const entries = parseCheckpointEntries(section.text);
+		callouts.forEach((callout, index) => {
+			if (callout.querySelector('.thread-journal-source-checkpoint-controls')) return;
+			const entry = entries[index];
+			if (!entry?.blockId) return;
+			const title = callout.querySelector<HTMLElement>('.callout-title');
+			if (!title) return;
+			const controls = title.createDiv({
+				cls: 'thread-journal-source-checkpoint-controls',
+			});
+			const edit = controls.createEl('button', {
+				text: '编辑',
+				attr: { type: 'button', 'aria-label': '编辑当前 checkpoint' },
+			});
+			edit.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				this.onEditCheckpoint(current, entry);
+			});
+		});
+	}
+
 	async renderCheckpoints(
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext,
 	): Promise<void> {
 		const current = sourceFile(this.app, ctx);
 		if (!current) return;
-		const content = await this.app.vault.cachedRead(current);
-		const entries = parseCheckpointEntries(content);
 		el.addClass('thread-journal-checkpoints');
+		const thread = this.index.getThread(current);
+		if (!thread) {
+			el.createDiv({ cls: 'thread-journal-empty', text: '当前代码块不在主 thread 中。' });
+			return;
+		}
+		const workspace = this.index.getWorkspace(current);
+		if (!workspace) {
+			el.createDiv({ cls: 'thread-journal-empty', text: '尚未找到配套工作区。' });
+			return;
+		}
+		const content = await this.app.vault.cachedRead(workspace);
+		const entries = parseCheckpointEntries(content)
+			.sort((a, b) => checkpointTimestamp(b).localeCompare(checkpointTimestamp(a)));
 		if (entries.length === 0) {
 			el.createDiv({ cls: 'thread-journal-empty', text: '暂无 checkpoint。' });
 			return;
@@ -127,7 +176,7 @@ export class ThreadRenderers {
 			ownFields,
 			this.getSettings().checkpointFields,
 		);
-		this.renderCheckpointCards(el, current, entries, fields);
+		this.renderCheckpointCards(el, workspace, entries, fields, ctx.sourcePath);
 	}
 
 	async renderDailyCheckpoints(
@@ -144,8 +193,11 @@ export class ThreadRenderers {
 		}
 
 		const candidates = await Promise.all(this.index.getAllThreads().map(async (thread) => {
-			const content = await this.app.vault.cachedRead(thread.file);
-			const entries = checkpointEntriesForDate(content, date);
+			const workspace = this.index.getWorkspace(thread.file);
+			if (!workspace) return undefined;
+			const content = await this.app.vault.cachedRead(workspace);
+			const entries = checkpointEntriesForDate(content, date)
+				.sort((a, b) => checkpointTimestamp(a).localeCompare(checkpointTimestamp(b)));
 			if (entries.length === 0) return undefined;
 			const rawFrontmatter: unknown = this.app.metadataCache
 				.getFileCache(thread.file)?.frontmatter;
@@ -154,6 +206,7 @@ export class ThreadRenderers {
 				: undefined;
 			return {
 				thread,
+				workspace,
 				entries,
 				fields: checkpointFieldsForThread(
 					ownFields,
@@ -191,9 +244,10 @@ export class ThreadRenderers {
 			const cards = section.createDiv({ cls: 'thread-journal-daily-checkpoint-cards' });
 			this.renderCheckpointCards(
 				cards,
-				group.thread.file,
+				group.workspace,
 				group.entries,
 				group.fields,
+				ctx.sourcePath,
 			);
 		}
 	}
@@ -281,9 +335,10 @@ export class ThreadRenderers {
 
 	private renderCheckpointCards(
 		container: HTMLElement,
-		threadFile: TFile,
+		sourceFile: TFile,
 		entries: ParsedCheckpointEntry[],
 		fields: ThreadJournalSettings['checkpointFields'],
+		renderSourcePath: string,
 	): void {
 		const knownKeys = new Set(fields.map((field) => field.key));
 		const systemKeys = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
@@ -301,13 +356,30 @@ export class ThreadRenderers {
 			const kind = entry.values.checkpoint_kind;
 			if (kind) controls.createSpan({ cls: 'thread-journal-checkpoint-card-kind', text: kind });
 			if (entry.blockId) {
+				const blockId = entry.blockId;
+				const locate = controls.createEl('a', {
+					cls: 'thread-journal-checkpoint-locate',
+					text: '定位',
+					attr: {
+						href: `${sourceFile.path}#^${blockId}`,
+						'aria-label': '在工作区中定位 checkpoint',
+					},
+				});
+				locate.addEventListener('click', (event) => {
+					event.preventDefault();
+					void this.app.workspace.openLinkText(
+						`${sourceFile.path}#^${blockId}`,
+						renderSourcePath,
+						event.metaKey || event.ctrlKey,
+					);
+				});
 				const edit = controls.createEl('button', {
 					cls: 'thread-journal-checkpoint-edit',
 					text: '编辑',
 					attr: { type: 'button', 'aria-label': '编辑 checkpoint' },
 				});
 				edit.addEventListener('click', () => {
-					this.onEditCheckpoint(threadFile, entry);
+					this.onEditCheckpoint(sourceFile, entry);
 				});
 				const remove = controls.createEl('button', {
 					cls: 'thread-journal-checkpoint-delete',
@@ -315,7 +387,7 @@ export class ThreadRenderers {
 					attr: { type: 'button', 'aria-label': '删除 checkpoint' },
 				});
 				remove.addEventListener('click', () => {
-					this.onDeleteCheckpoint(threadFile, entry);
+					this.onDeleteCheckpoint(sourceFile, entry);
 				});
 			}
 

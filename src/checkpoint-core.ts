@@ -137,9 +137,16 @@ export function buildCheckpointEntry(input: CheckpointEntryInput): string {
 		else fields.push(`[${field.key}:: ${inlineValue(value)}]`);
 	}
 	const blockId = input.blockId.replace(/[^\p{Letter}\p{Number}_-]+/gu, '-');
+	const kind = valueIsPresent(input.values.checkpoint_kind)
+		? inlineValue(input.values.checkpoint_kind)
+		: 'checkpoint';
+	const title = `${kind} · ${input.date.slice(5)} ${input.time}`;
 	return [
-		`- ${fields.join(' ')} ^${blockId}`,
-		...body,
+		`> [!thread-checkpoint] ${title}`,
+		...[
+			`- ${fields.join(' ')} ^${blockId}`,
+			...body,
+		].map((line) => `> ${line}`),
 	].join('\n');
 }
 
@@ -205,95 +212,36 @@ export function checkpointEntriesForDate(
 		entry.values.checkpoint_date === date);
 }
 
-interface HeadingLocation {
-	index: number;
-	level: number;
-}
-
-function headingLocation(
-	lines: string[],
-	pattern: RegExp,
-	maximumLevel = 6,
-): HeadingLocation | undefined {
-	for (let index = 0; index < lines.length; index += 1) {
-		const match = /^(#{1,6})\s+(.+?)\s*$/.exec(lines[index] ?? '');
-		if (!match || (match[1]?.length ?? 0) > maximumLevel) continue;
-		if (pattern.test(match[2] ?? '')) {
-			return { index, level: match[1]?.length ?? 1 };
-		}
-	}
-	return undefined;
-}
-
-function sectionEnd(lines: string[], heading: HeadingLocation): number {
-	for (let index = heading.index + 1; index < lines.length; index += 1) {
-		const match = /^(#{1,6})\s+/.exec(lines[index] ?? '');
-		if (match && (match[1]?.length ?? 7) <= heading.level) return index;
-	}
-	return lines.length;
-}
-
-function headingBefore(lines: string[], index: number): HeadingLocation | undefined {
-	for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-		const match = /^(#{1,6})\s+/.exec(lines[cursor] ?? '');
-		if (match) return { index: cursor, level: match[1]?.length ?? 1 };
-	}
-	return undefined;
-}
-
 function withTrailingNewline(lines: string[]): string {
 	while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
 	return `${lines.join('\n')}\n`;
 }
 
-export function insertCheckpointEntry(content: string, entry: string): string {
+export function appendCheckpointEntry(content: string, entry: string): string {
 	const lines = content.split(/\r?\n/);
-	const existingRenderer = lines.findIndex((line) =>
-		line.trim() === '```thread-checkpoints');
-	const checkpoints = existingRenderer >= 0
-		? headingBefore(lines, existingRenderer)
-		: headingLocation(lines, /^checkpoints?$/i);
-	if (checkpoints) {
-		let end = sectionEnd(lines, checkpoints);
-		let renderer = existingRenderer > checkpoints.index && existingRenderer < end
-			? existingRenderer
-			: -1;
-		if (renderer < 0) {
-			lines.splice(checkpoints.index + 1, 0, '', '```thread-checkpoints', '```', '');
-			renderer = checkpoints.index + 2;
-			end = sectionEnd(lines, checkpoints);
-		}
-		let data = lines.findIndex((line, index) =>
-			index > renderer && index < end && line.trim() === '> [!info]- 结构化数据');
-		if (data < 0) {
-			const close = lines.findIndex((line, index) =>
-				index > renderer && index < end && line.trim() === '```');
-			data = close >= 0 ? close + 1 : renderer + 1;
-			lines.splice(data, 0, '', '> [!info]- 结构化数据');
-			data += 1;
-		}
-		const quoted = entry.split('\n').map((line) => `> ${line}`);
-		lines.splice(data + 1, 0, ...quoted, '>');
-		return withTrailingNewline(lines);
-	}
-
-	const context = headingLocation(lines, /^(?:当前\s*)?context$/i, 5);
-	if (context) {
-		const insertAt = sectionEnd(lines, context);
-		const hashes = '#'.repeat(context.level + 1);
-		lines.splice(insertAt, 0,
-			`${hashes} Checkpoints`, '',
-			'```thread-checkpoints', '```', '',
-			'> [!info]- 结构化数据',
-			...entry.split('\n').map((line) => `> ${line}`), '>', '');
-		return withTrailingNewline(lines);
-	}
-
 	while (lines.length > 0 && !(lines[lines.length - 1] ?? '').trim()) lines.pop();
-	lines.push('', '## 当前 Context', '', '### Checkpoints', '',
-		'```thread-checkpoints', '```', '',
-		'> [!info]- 结构化数据',
-		...entry.split('\n').map((line) => `> ${line}`), '>', '');
+	if (lines.length > 0) lines.push('');
+	lines.push(...entry.split('\n'), '');
+	return withTrailingNewline(lines);
+}
+
+export function insertCheckpointEntryAtLine(
+	content: string,
+	entry: string,
+	line: number,
+): string {
+	const lines = content.split(/\r?\n/);
+	const index = Math.max(0, Math.min(Math.trunc(line), Math.max(0, lines.length - 1)));
+	const entryLines = entry.split('\n');
+	if (!(lines[index] ?? '').trim()) {
+		lines.splice(index, 1, ...entryLines, '');
+	} else {
+		let nextContent = index + 1;
+		while (nextContent < lines.length && !(lines[nextContent] ?? '').trim()) {
+			nextContent += 1;
+		}
+		lines.splice(index + 1, nextContent - index - 1, '', ...entryLines, '');
+	}
 	return withTrailingNewline(lines);
 }
 
@@ -308,19 +256,25 @@ interface CheckpointEntryRange {
 
 function checkpointEntryRange(lines: string[], blockId: string): CheckpointEntryRange {
 	const blockPattern = new RegExp(`\\^${escapedPattern(blockId)}\\s*$`, 'u');
-	const start = lines.findIndex((line) => {
+	const marker = lines.findIndex((line) => {
 		const unquoted = unquote(line);
 		return /\[checkpoint::\s*true\]/.test(unquoted) && blockPattern.test(unquoted);
 	});
-	if (start < 0) throw new Error(`Checkpoint 不存在：${blockId}`);
+	if (marker < 0) throw new Error(`Checkpoint 不存在：${blockId}`);
+	const calloutStart = marker > 0
+		&& /^\s*>\s*\[!thread-checkpoint\]/u.test(lines[marker - 1] ?? '')
+		? marker - 1
+		: marker;
 
-	let end = start + 1;
+	let end = marker + 1;
 	while (end < lines.length) {
-		const next = unquote(lines[end] ?? '');
-		if (!/^\s{2,}\S/.test(next)) break;
+		const source = lines[end] ?? '';
+		if (calloutStart < marker) {
+			if (/^\s*>\s*\[!/u.test(source) || !/^\s*>/u.test(source)) break;
+		} else if (!/^\s{2,}\S/u.test(unquote(source))) break;
 		end += 1;
 	}
-	return { start, end };
+	return { start: calloutStart, end };
 }
 
 export function replaceCheckpointEntry(
@@ -330,18 +284,17 @@ export function replaceCheckpointEntry(
 ): string {
 	const lines = content.split(/\r?\n/);
 	const { start, end } = checkpointEntryRange(lines, blockId);
-	const quotePrefix = /^(?:> ?)+/.exec(lines[start] ?? '')?.[0] ?? '';
-	const replacement = entry.split('\n').map((line) => `${quotePrefix}${line}`);
-	lines.splice(start, end - start, ...replacement);
+	lines.splice(start, end - start, ...entry.split('\n'));
 	return withTrailingNewline(lines);
 }
 
 export function deleteCheckpointEntry(content: string, blockId: string): string {
 	const lines = content.split(/\r?\n/);
 	const { start, end } = checkpointEntryRange(lines, blockId);
+	let deleteStart = start;
 	let deleteEnd = end;
-	const separator = lines[deleteEnd] ?? '';
-	if (/^(?:> ?)+$/.test(separator)) deleteEnd += 1;
-	lines.splice(start, deleteEnd - start);
+	if (!(lines[deleteEnd] ?? '').trim()) deleteEnd += 1;
+	else if (deleteStart > 0 && !(lines[deleteStart - 1] ?? '').trim()) deleteStart -= 1;
+	lines.splice(deleteStart, deleteEnd - deleteStart);
 	return withTrailingNewline(lines);
 }

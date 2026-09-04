@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+	appendCheckpointEntry,
 	buildCheckpointEntry,
 	checkpointEditState,
 	checkpointEntriesForDate,
 	deleteCheckpointEntry,
-	insertCheckpointEntry,
+	insertCheckpointEntryAtLine,
 	parseCheckpointEntries,
 	replaceCheckpointEntry,
 } from '../src/checkpoint-core';
@@ -353,16 +354,17 @@ void test('builds a Dataview-queryable checkpoint with a free-form body', () => 
 			checkpoint_result: '可以自由配置字段。\n长文字保留在正文。',
 		},
 	}), [
-		'- [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成表单设计] ^cp-20260831-01',
-		'  - **阶段成果：**',
-		'    可以自由配置字段。',
-		'    长文字保留在正文。',
+		'> [!thread-checkpoint] milestone · 08-31 14:35',
+		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成表单设计] ^cp-20260831-01',
+		'>   - **阶段成果：**',
+		'>     可以自由配置字段。',
+		'>     长文字保留在正文。',
 	].join('\n'));
 });
 
-void test('parses checkpoint data from a folded blockquote source', () => {
+void test('parses checkpoint data from a workspace callout', () => {
 	const parsed = parseCheckpointEntries([
-		'> [!info]- 结构化数据',
+		'> [!thread-checkpoint] milestone · 08-31 14:35',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成表单设计] ^cp-01',
 		'>   - **阶段成果：**',
 		'>     可以自由配置字段。',
@@ -386,8 +388,10 @@ void test('parses checkpoint data from a folded blockquote source', () => {
 
 void test('filters checkpoint entries by daily note date', () => {
 	const content = [
+		'> [!thread-checkpoint] milestone · 09-01 09:00',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] [checkpoint_summary:: 今天] ^cp-today',
-		'>',
+		'',
+		'> [!thread-checkpoint] milestone · 08-31 09:00',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_summary:: 昨天] ^cp-yesterday',
 	].join('\n');
 	assert.deepEqual(
@@ -396,74 +400,59 @@ void test('filters checkpoint entries by daily note date', () => {
 	);
 });
 
-void test('inserts checkpoints under Context and puts the newest insertion first', () => {
-	const entry = '- [checkpoint:: true] [checkpoint_date:: 2026-08-31] ^cp-new';
+void test('appends checkpoint callouts to the workspace', () => {
+	const entry = [
+		'> [!thread-checkpoint] milestone · 08-31 14:35',
+		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] ^cp-new',
+	].join('\n');
 	const original = [
-		'# Thread',
+		'# Thread 工作区',
 		'',
-		'## 当前 Context',
-		'',
-		'**继续：** 下一步',
-		'',
-		'## 子线程',
+		'自由记录',
 		'',
 	].join('\n');
-	const first = insertCheckpointEntry(original, entry);
-	assert.match(first, /### Checkpoints\n\n```thread-checkpoints\n```\n\n> \[!info\]- 结构化数据\n> - \[checkpoint:: true\]/);
-	assert.ok(first.indexOf('### Checkpoints') < first.indexOf('## 子线程'));
-
-	const next = '- [checkpoint:: true] [checkpoint_date:: 2026-09-01] ^cp-next';
-	const second = insertCheckpointEntry(first, next);
-	assert.ok(second.indexOf('^cp-next') < second.indexOf('^cp-new'));
-
-	const missing = insertCheckpointEntry('# Thread\n', entry);
-	assert.match(missing, /## 当前 Context\n\n### Checkpoints\n\n```thread-checkpoints\n```\n\n> \[!info\]- 结构化数据/);
+	const result = appendCheckpointEntry(original, entry);
+	assert.match(result, /自由记录\n\n> \[!thread-checkpoint\].*\n> - \[checkpoint:: true\]/);
+	assert.ok(result.indexOf('自由记录') < result.indexOf('^cp-new'));
 });
 
-void test('uses the thread-checkpoints block under a custom storage heading', () => {
+void test('inserts checkpoint callouts at a workspace cursor line', () => {
 	const original = [
-		'# Thread',
+		'# Thread 工作区',
 		'',
-		'## 当前 Context',
+		'第一段',
 		'',
-		'### 阶段存档',
-		'',
-		'```thread-checkpoints',
-		'```',
-		'',
-		'> [!info]- 结构化数据',
-		'>',
-		'',
-		'## 子线程',
+		'第二段',
 	].join('\n');
-	const result = insertCheckpointEntry(
+	const result = insertCheckpointEntryAtLine(
 		original,
-		'- [checkpoint:: true] [checkpoint_date:: 2026-09-01] ^cp-custom',
+		[
+			'> [!thread-checkpoint] review · 09-01 10:30',
+			'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] ^cp-custom',
+		].join('\n'),
+		2,
 	);
-	assert.match(result, /### 阶段存档[\s\S]*\^cp-custom/);
-	assert.doesNotMatch(result, /### Checkpoints/);
-	assert.ok(result.indexOf('^cp-custom') < result.indexOf('## 子线程'));
+	assert.match(result, /第一段\n\n> \[!thread-checkpoint\][\s\S]*\^cp-custom\n\n第二段/);
 });
 
 void test('replaces one checkpoint in place by block id', () => {
 	const original = [
-		'### 阶段存档',
+		'# Thread 工作区',
 		'',
-		'```thread-checkpoints',
-		'```',
-		'',
-		'> [!info]- 结构化数据',
+		'> [!thread-checkpoint] milestone · 09-01 09:00',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] [checkpoint_summary:: 旧摘要] ^cp-edit',
 		'>   - **详情：** 旧内容',
-		'>',
+		'',
+		'> [!thread-checkpoint] milestone · 08-31 09:00',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_summary:: 保留] ^cp-keep',
-		'>',
 	].join('\n');
 	const replacement = [
-		'- [checkpoint:: true] [checkpoint_date:: 2026-09-02] [checkpoint_time:: 10:30] [checkpoint_summary:: 新摘要] ^cp-edit',
-		'  - **详情：** 新内容',
+		'> [!thread-checkpoint] review · 09-02 10:30',
+		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-02] [checkpoint_time:: 10:30] [checkpoint_summary:: 新摘要] ^cp-edit',
+		'>   - **详情：** 新内容',
 	].join('\n');
 	const result = replaceCheckpointEntry(original, 'cp-edit', replacement);
+	assert.match(result, /> \[!thread-checkpoint\] review · 09-02 10:30/);
 	assert.match(result, /> - \[checkpoint:: true\].*新摘要.*\^cp-edit/);
 	assert.match(result, /> {3}- \*\*详情：\*\* 新内容/);
 	assert.doesNotMatch(result, /旧摘要|旧内容/);
@@ -506,12 +495,14 @@ void test('adds active template fields when editing an older checkpoint', () => 
 
 void test('deletes one checkpoint in place by block id', () => {
 	const original = [
-		'> [!info]- 结构化数据',
+		'# Thread 工作区',
+		'',
+		'> [!thread-checkpoint] review · 09-02 10:30',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-02] [checkpoint_summary:: 删除] ^cp-delete',
 		'>   - **详情：** 一并删除',
-		'>',
+		'',
+		'> [!thread-checkpoint] milestone · 09-01 09:00',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] [checkpoint_summary:: 保留] ^cp-keep',
-		'>',
 	].join('\n');
 	const result = deleteCheckpointEntry(original, 'cp-delete');
 	assert.doesNotMatch(result, /删除|一并删除|cp-delete/);

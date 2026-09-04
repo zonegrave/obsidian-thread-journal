@@ -40,7 +40,12 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.index = new ThreadIndex(this.app);
 		this.workspaces = new ThreadWorkspaceManager(this.app, this.index, getSettings);
 		this.statuses = new ThreadStatusManager(this.app, this.index);
-		this.checkpoints = new CheckpointManager(this.app, this.index, getSettings);
+		this.checkpoints = new CheckpointManager(
+			this.app,
+			this.index,
+			getSettings,
+			(file) => this.workspaces.ensureForThread(file),
+		);
 		this.creator = new ThreadCreator(this.app, this.index, this.workspaces, getSettings);
 		this.renderers = new ThreadRenderers(
 			this.app,
@@ -142,6 +147,9 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerRenderers(): void {
+		this.registerMarkdownPostProcessor((el, ctx) => {
+			this.renderers.enhanceCheckpointCallouts(el, ctx);
+		});
 		this.registerMarkdownCodeBlockProcessor('thread-checkpoints', async (_source, el, ctx) => {
 			await this.renderers.renderCheckpoints(el, ctx);
 		});
