@@ -20,6 +20,11 @@ import {
 	activeCheckpointFields,
 	checkpointFieldsForThread,
 } from './checkpoint-model';
+import {
+	CHECKPOINT_PANEL_VIEW_TYPE,
+	CheckpointPanelView,
+	type CheckpointPanelRequest,
+} from './checkpoint-panel';
 import { CheckpointTemplateModal } from './checkpoint-template';
 import { buildCheckpointModalForm, getModalFormApi } from './modal-form';
 import type { ThreadIndex } from './thread-index';
@@ -316,6 +321,45 @@ export class CheckpointManager {
 	}
 
 	private openCheckpointForm(
+		threadFile: TFile,
+		fields: CheckpointFieldSpec[],
+		onSubmit: CheckpointSubmit,
+		initial?: CheckpointModalInitialState,
+	): void {
+		const date = initial?.date || moment().format('YYYY-MM-DD');
+		const time = initial?.time || moment().format('HH:mm');
+		const values = checkpointFormValues(fields, date, time, initial?.values);
+		const request: CheckpointPanelRequest = {
+			mode: initial ? 'edit' : 'create',
+			threadFile,
+			fields,
+			date,
+			time,
+			values,
+			onSubmit,
+		};
+		void this.openCheckpointPanel(request).catch((error: unknown) => {
+			console.error('Thread Journal failed to open checkpoint side panel', error);
+			new Notice('Checkpoint 侧栏打开失败，已使用原表单。');
+			this.openFallbackCheckpointForm(threadFile, fields, onSubmit, initial);
+		});
+	}
+
+	private async openCheckpointPanel(request: CheckpointPanelRequest): Promise<void> {
+		const leaf = await this.app.workspace.ensureSideLeaf(
+			CHECKPOINT_PANEL_VIEW_TYPE,
+			'right',
+			{ active: true, reveal: true },
+		);
+		await leaf.loadIfDeferred();
+		if (!(leaf.view instanceof CheckpointPanelView)) {
+			throw new Error('Checkpoint 侧栏视图未正确加载。');
+		}
+		leaf.view.setForm(request);
+		await this.app.workspace.revealLeaf(leaf);
+	}
+
+	private openFallbackCheckpointForm(
 		threadFile: TFile,
 		fields: CheckpointFieldSpec[],
 		onSubmit: CheckpointSubmit,

@@ -5,6 +5,10 @@ import {
 	TFile,
 } from 'obsidian';
 import { CheckpointManager } from './checkpoint';
+import {
+	CHECKPOINT_PANEL_VIEW_TYPE,
+	CheckpointPanelView,
+} from './checkpoint-panel';
 import { ThreadRenderers } from './renderers';
 import {
 	DEFAULT_SETTINGS,
@@ -28,6 +32,10 @@ export default class ThreadJournalPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		this.registerView(
+			CHECKPOINT_PANEL_VIEW_TYPE,
+			(leaf) => new CheckpointPanelView(leaf),
+		);
 		const getSettings = () => this.settings;
 		this.index = new ThreadIndex(this.app);
 		this.workspaces = new ThreadWorkspaceManager(this.app, this.index, getSettings);

@@ -18,7 +18,7 @@
 - 使用单一 `parent` 字段维护 thread 树。
 - 按需打开并切换配套 Thread 工作区标签页。
 - 在 `active`、`paused`、`review`、`completed`、`closed` 五种状态间自由切换。
-- 从主 thread 或工作区打开内置 checkpoint 表单。
+- 从主 thread 或工作区在右侧打开非模态 checkpoint 表单。
 - 直接从 checkpoint 卡片编辑该条记录的日期、时间与实际保存字段。
 - 在 Thread 工作区光标处插入带时间戳、可查询的醒目 inline log。
 - 在日记中按日期动态汇总当天产生 checkpoint 的 thread。
@@ -62,9 +62,9 @@ created: 2026-08-31
 
 在主 thread 或工作区运行命令 **创建 checkpoint**。插件自动找到主文件，优先读取这个 thread 自己的模板，并把结果写入主文件 Context 下的 `Checkpoints` 小节。
 
-创建与编辑 checkpoint 时，如果已启用 [Modal Form](https://github.com/danielo515/obsidian-modal-form)，插件会把当前 thread 的字段动态转换成内联 Modal Form，并传入创建默认值或历史值。关闭 Modal Form、取消填写或提交失败都不会产生记录；Modal Form 不可用时才回退到内置表单。
+创建与编辑 checkpoint 时，插件在右侧边栏打开非模态表单。填写期间主笔记仍可滚动、选择和复制，表单也不会替换当前笔记标签；保存成功后侧栏表单自动关闭。若侧栏视图无法加载，才回退到 Modal Form 或内置弹窗。
 
-内置回退表单使用紧凑的响应式布局：日期、时间、选择项、数字和开关等短字段双列排列；单行文本与多行文本独占整行并使用完整内容宽度。在窄屏上自动退回单列。
+侧栏采用紧凑单列布局，日期和时间并排；文本、多行文本、选择项等控件使用完整侧栏宽度。按 `Cmd/Ctrl + Enter` 可以保存。侧栏中已有未保存内容时，不会被新的创建或编辑请求覆盖。
 
 在主 thread 或工作区运行 **编辑 checkpoint 模板**，可以为它单独增删、排序和配置字段。启用 Modal Form 时，模板窗口显示紧凑字段列表，眼睛按钮直接控制字段是否用于新 checkpoint，“添加字段”和“编辑”会调用 Modal Form；未启用时使用内置字段编辑器。新增、编辑、排序、删除和废弃状态都会自动保存，不再需要二次点击保存按钮。独立模板保存在主 thread 的 `checkpoint_fields` 属性中；选择“使用全局默认模板”会删除该属性，重新继承 **设置 → Thread Journal → 默认 Checkpoint 模板**。
 
