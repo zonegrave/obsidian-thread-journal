@@ -45,14 +45,6 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.registerCommands();
 		this.registerRenderers();
 		this.addSettingTab(new ThreadJournalSettingTab(this.app, this));
-		this.app.workspace.onLayoutReady(() => {
-			this.registerEvent(this.app.workspace.on('file-open', (file) => {
-				void this.workspaces.handleFileOpen(file);
-			}));
-			this.registerEvent(this.app.workspace.on('layout-change', () => {
-				this.workspaces.handleLayoutChange();
-			}));
-		});
 	}
 
 	async loadSettings(): Promise<void> {
@@ -99,30 +91,14 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'open-thread-workspace',
-			name: '打开 thread 工作区',
+			name: '切换 thread 与工作区',
 			checkCallback: (checking) => {
-				const file = this.currentThreadFile();
+				const file = this.currentThreadOrWorkspaceFile();
 				if (!file) return false;
 				if (!checking) {
-					void this.workspaces.openWorkspace(file, true).catch((error: unknown) => {
-						console.error('Thread Journal failed to open workspace', error);
-						new Notice(`打开 Thread 工作区失败：${String(error)}`);
-					});
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: 'open-thread-context-left',
-			name: '在左侧打开 context',
-			checkCallback: (checking) => {
-				const file = this.currentWorkspaceFile();
-				if (!file) return false;
-				if (!checking) {
-					void this.workspaces.openContextFromWorkspace(file).catch((error: unknown) => {
-						console.error('Thread Journal failed to open thread context', error);
-						new Notice(`打开 Thread Context 失败：${String(error)}`);
+					void this.workspaces.toggleThreadWorkspace(file).catch((error: unknown) => {
+						console.error('Thread Journal failed to toggle thread workspace', error);
+						new Notice(`切换 Thread 与工作区失败：${String(error)}`);
 					});
 				}
 				return true;
@@ -158,17 +134,11 @@ export default class ThreadJournalPlugin extends Plugin {
 		});
 	}
 
-	private currentThreadFile(): TFile | undefined {
+	private currentThreadOrWorkspaceFile(): TFile | undefined {
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		const file = view?.file;
 		if (!file) return undefined;
-		return this.index.getThreadFile(file);
-	}
-
-	private currentWorkspaceFile(): TFile | undefined {
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		const file = view?.file;
-		if (!file || !this.index.getThreadForWorkspace(file)) return undefined;
-		return file;
+		if (this.index.getThread(file) || this.index.getThreadForWorkspace(file)) return file;
+		return undefined;
 	}
 }

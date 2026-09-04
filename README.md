@@ -16,7 +16,7 @@
 
 - 使用一个命令新建 thread；当前文件属于 thread 或工作区时，默认将对应主 thread 作为父节点。
 - 使用单一 `parent` 字段维护 thread 树。
-- 按需在绑定窗格中打开并复用配套 Thread 工作区。
+- 在当前标签组内按需打开并切换配套 Thread 工作区。
 - 在 `active`、`paused`、`review`、`completed`、`closed` 五种状态间自由切换。
 - 从主 thread 或工作区打开内置 checkpoint 表单。
 - 直接从 checkpoint 卡片编辑该条记录的日期、时间与实际保存字段。
@@ -131,24 +131,22 @@ SORT checkpoint.checkpoint_date DESC
 
 插件优先读取日记的 `date` 属性，否则使用 `YYYY-MM-DD` 文件名作为日期。视图只展示当天实际存在 checkpoint 的 thread，按 thread 分组并默认展开；其中的卡片仍可直接编辑。这里只动态查询主 thread，不向日记复制 checkpoint 数据。
 
-## 绑定工作区窗格
+## Thread 与工作区切换
 
-插件不再因打开主 thread 自动创建工作区窗格。需要时运行 **打开 thread 工作区**：
+插件不自动打开、绑定或关闭窗格。需要时运行 **切换 thread 与工作区**：
 
-- 首次调用时在相邻窗格显示工作区；已有合适窗格时直接绑定，避免重复创建。
-- 对其他 thread 再次调用时复用同一个受控工作区窗格。
-- 从工作区窗格打开其他笔记时，笔记转到主窗格。
-- 关闭主窗格时，同时关闭配套工作区；单独关闭工作区不关闭主窗格。
-- 命令执行后焦点进入工作区。
-- 在工作区运行 **在左侧打开 context**，会在左侧创建或复用主 thread 窗格，并直接定位到 `当前 Context`；旧笔记中的 `Context` 标题也可识别。
+- 当前文件是主 thread 时切换到配套工作区；当前文件是工作区时切换回主 thread。
+- 配套文件已在当前标签组打开时，直接显示并聚焦已有标签页。
+- 配套文件未在当前标签组打开时，在该组新建标签页、打开并切换过去。
+- 其他分栏中已打开的同一文件不会被抢走或复用；需要分栏时可使用 Obsidian 自带操作手动排列。
+- 切换只依赖 `thread_id` 配对，不维护长期窗格绑定，也不拦截普通笔记的打开行为。
 
-窗格复用依据 leaf 是否仍连接在界面中，而不依赖特定布局插件或单一 leaf 枚举结果。显式打开时通过 Obsidian 的 `revealLeaf()` 显示并聚焦目标；从主 thread 或工作区执行命令都会通过 `thread_id` 定位同一对象。真正无法定位主窗格或工作区时会显示错误，不再静默失败。
+命令保留原来的 `open-thread-workspace` ID，因此已有快捷键无需重新绑定。实现使用 Obsidian 的标准标签页与聚焦接口，不依赖 Vertical Tabs 等布局插件。
 
 ## 命令
 
 - 新建 thread
-- 打开 thread 工作区
-- 在左侧打开 context（仅在工作区可用）
+- 切换 thread 与工作区
 - 编辑 checkpoint 模板
 - 创建 checkpoint
 - 设置 thread 状态
