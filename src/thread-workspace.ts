@@ -63,7 +63,7 @@ export class ThreadWorkspaceManager {
 		if (!targetFile) throw new Error('无法通过 thread_id 定位配套 thread 或工作区。');
 
 		const sourceLeaf = sourceView.leaf;
-		const existing = this.findLeafForFileInGroup(targetFile, sourceLeaf);
+		const existing = this.findLeafForFile(targetFile);
 		if (existing) {
 			await this.app.workspace.revealLeaf(existing);
 			this.app.workspace.setActiveLeaf(existing, { focus: true });
@@ -161,18 +161,10 @@ export class ThreadWorkspaceManager {
 		}
 	}
 
-	private findLeafForFileInGroup(
-		file: TFile,
-		sourceLeaf: WorkspaceLeaf,
-	): WorkspaceLeaf | undefined {
+	private findLeafForFile(file: TFile): WorkspaceLeaf | undefined {
 		let result: WorkspaceLeaf | undefined;
 		this.app.workspace.iterateAllLeaves((leaf) => {
-			if (
-				!result
-				&& leaf !== sourceLeaf
-				&& leaf.parent === sourceLeaf.parent
-				&& leafFilePath(leaf) === file.path
-			) result = leaf;
+			if (!result && leafFilePath(leaf) === file.path) result = leaf;
 		});
 		return result;
 	}
