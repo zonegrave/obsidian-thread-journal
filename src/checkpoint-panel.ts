@@ -37,6 +37,11 @@ export class CheckpointPanelView extends ItemView {
 	private dirty = false;
 	private saving = false;
 	private saveButton?: HTMLButtonElement;
+	private sidebarResize?: {
+		element: HTMLElement;
+		previousWidth: string;
+		appliedWidth: string;
+	};
 	private readonly inputPrefix = `thread-journal-checkpoint-${Math.random()
 		.toString(36).slice(2, 8)}`;
 
@@ -67,6 +72,7 @@ export class CheckpointPanelView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
+		this.restoreSidebarWidth();
 		this.request = undefined;
 		this.values = {};
 		this.contentEl.empty();
@@ -84,7 +90,38 @@ export class CheckpointPanelView extends ItemView {
 		this.dirty = false;
 		this.saving = false;
 		this.renderForm();
+		this.expandSidebar();
 		return true;
+	}
+
+	private expandSidebar(): void {
+		if (this.sidebarResize) return;
+		const sidebar = this.contentEl.closest<HTMLElement>(
+			'.workspace-split.mod-right-split',
+		);
+		const viewportWidth = sidebar?.ownerDocument.defaultView?.innerWidth ?? 0;
+		if (!sidebar || viewportWidth <= 0) return;
+		const availableWidth = Math.max(280, viewportWidth - 520);
+		const preferredWidth = Math.min(440, Math.max(360, viewportWidth * 0.34));
+		const targetWidth = Math.round(Math.min(availableWidth, preferredWidth));
+		if (sidebar.getBoundingClientRect().width >= targetWidth - 1) return;
+		const appliedWidth = `${targetWidth}px`;
+		this.sidebarResize = {
+			element: sidebar,
+			previousWidth: sidebar.style.width,
+			appliedWidth,
+		};
+		sidebar.style.width = appliedWidth;
+		window.setTimeout(() => this.app.workspace.trigger('resize'), 0);
+	}
+
+	private restoreSidebarWidth(): void {
+		const resized = this.sidebarResize;
+		this.sidebarResize = undefined;
+		if (!resized?.element.isConnected) return;
+		if (resized.element.style.width !== resized.appliedWidth) return;
+		resized.element.style.width = resized.previousWidth;
+		window.setTimeout(() => this.app.workspace.trigger('resize'), 0);
 	}
 
 	private renderEmpty(): void {
