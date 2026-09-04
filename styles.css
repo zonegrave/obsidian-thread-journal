@@ -55,9 +55,10 @@
 	padding-inline-start: 1.25rem;
 }
 
-.markdown-reading-view
-	.callout[data-callout="thread-log"]
-	.dataview.inline-field:has(> .dataview.inline-field-key[data-dv-key="thread_log"]) {
+.callout[data-callout="thread-log"]
+	.dataview.inline-field:has(> .dataview.inline-field-key[data-dv-key="thread_log"]),
+.callout[data-callout="thread-log"]
+	.dataview.inline-field:has(> .dataview.inline-field-standalone-value[data-dv-key="thread_log"]) {
 	display: none;
 }
 

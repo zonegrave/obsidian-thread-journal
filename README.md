@@ -146,11 +146,11 @@ SORT checkpoint.checkpoint_date DESC
 
 ## Inline log
 
-在 Thread 工作区的编辑视图运行 **插入 inline log**，插件会在光标处插入一个紧凑的时间戳 callout，并把光标留在正文末尾继续输入。当前行已有内容时先留出空行；空白行则原位替换。日志内容不放进 inline field，因此仍可自由输入双链和普通 Markdown。
+在 Thread 工作区的编辑视图运行 **插入 inline log**，插件会在光标处插入一个紧凑的进度 callout，并把光标留在正文末尾继续输入。当前行已有内容时先留出空行；空白行则原位替换。标题只显示 `MM-DD HH:mm`，完整时间戳保存在 `thread_log` 字段中供查询和排序但不重复渲染；日志内容不放进 inline field，因此仍可自由输入双链和普通 Markdown。
 
 ```markdown
-> [!thread-log] 2026-09-04 14:35
-> - [thread_log:: 2026-09-04T14:35:27] 完成了第一轮接口验证
+> [!thread-log] 进度 · 09-04 14:35
+> - (thread_log:: 2026-09-04T14:35:27) 完成了第一轮接口验证
 ```
 
 `thread_log` 同时是日志标记和精确时间戳。它位于 list item 上，可以用 Dataview 汇总：

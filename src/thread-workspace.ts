@@ -92,7 +92,7 @@ export class ThreadWorkspaceManager {
 		const timestamp = moment();
 		const edit = buildInlineLogEdit(
 			line,
-			timestamp.format('YYYY-MM-DD HH:mm'),
+			timestamp.format('MM-DD HH:mm'),
 			timestamp.format('YYYY-MM-DDTHH:mm:ss'),
 		);
 		editor.replaceRange(

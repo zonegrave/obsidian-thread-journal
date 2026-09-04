@@ -12,8 +12,8 @@ export function buildInlineLogEdit(
 	storedTimestamp: string,
 ): InlineLogEdit {
 	const indentation = /^\s*/u.exec(line)?.[0] ?? '';
-	const title = `${indentation}> [!thread-log] ${displayTimestamp}`;
-	const body = `${indentation}> - [thread_log:: ${storedTimestamp}] `;
+	const title = `${indentation}> [!thread-log] 进度 · ${displayTimestamp}`;
+	const body = `${indentation}> - (thread_log:: ${storedTimestamp}) `;
 	const callout = `${title}\n${body}`;
 	if (!line.trim()) {
 		return {

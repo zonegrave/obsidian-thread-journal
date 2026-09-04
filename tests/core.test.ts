@@ -46,11 +46,11 @@ void test('builds current thread and workspace file names', () => {
 
 void test('builds a queryable inline log callout at the cursor line', () => {
 	assert.deepEqual(
-		buildInlineLogEdit('  ', '2026-09-04 14:35', '2026-09-04T14:35:27'),
+		buildInlineLogEdit('  ', '09-04 14:35', '2026-09-04T14:35:27'),
 		{
 			replacement: [
-				'  > [!thread-log] 2026-09-04 14:35',
-				'  > - [thread_log:: 2026-09-04T14:35:27] ',
+				'  > [!thread-log] 进度 · 09-04 14:35',
+				'  > - (thread_log:: 2026-09-04T14:35:27) ',
 			].join('\n'),
 			fromCh: 0,
 			toCh: 2,
@@ -59,13 +59,13 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 		},
 	);
 	assert.deepEqual(
-		buildInlineLogEdit('已有内容', '2026-09-04 14:35', '2026-09-04T14:35:27'),
+		buildInlineLogEdit('已有内容', '09-04 14:35', '2026-09-04T14:35:27'),
 		{
 			replacement: [
 				'',
 				'',
-				'> [!thread-log] 2026-09-04 14:35',
-				'> - [thread_log:: 2026-09-04T14:35:27] ',
+				'> [!thread-log] 进度 · 09-04 14:35',
+				'> - (thread_log:: 2026-09-04T14:35:27) ',
 			].join('\n'),
 			fromCh: 4,
 			toCh: 4,
