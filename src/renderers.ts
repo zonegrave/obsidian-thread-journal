@@ -115,9 +115,11 @@ export class ThreadRenderers {
 	): void {
 		const current = sourceFile(this.app, ctx);
 		if (!current || !this.index.getThreadForWorkspace(current)) return;
-		const callouts = Array.from(el.querySelectorAll<HTMLElement>(
-			'.callout[data-callout="thread-checkpoint"]',
-		));
+		const selector = '.callout[data-callout="thread-checkpoint"]';
+		const callouts = [
+			...(el.matches(selector) ? [el] : []),
+			...Array.from(el.querySelectorAll<HTMLElement>(selector)),
+		];
 		if (callouts.length === 0) return;
 		const section = ctx.getSectionInfo(el);
 		if (!section) return;
