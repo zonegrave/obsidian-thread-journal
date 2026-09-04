@@ -97,6 +97,72 @@
 	margin-top: 0.65rem;
 }
 
+.thread-journal-daily-logs {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.thread-journal-daily-log-thread {
+	padding: 0.6rem 0.75rem 0.75rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary-alt);
+}
+
+.thread-journal-daily-log-thread > summary {
+	cursor: pointer;
+	font-weight: var(--font-semibold);
+}
+
+.thread-journal-daily-log-source,
+.thread-journal-daily-log-count {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-normal);
+}
+
+.thread-journal-daily-log-count {
+	margin-left: 0.55rem;
+}
+
+.thread-journal-daily-log-cards {
+	display: grid;
+	gap: 0.45rem;
+	margin-top: 0.65rem;
+}
+
+.thread-journal-daily-log-card {
+	display: grid;
+	grid-template-columns: 4.25rem minmax(0, 1fr);
+	gap: 0.75rem;
+	align-items: start;
+	padding: 0.55rem 0.7rem;
+	border: 1px solid rgba(245, 158, 11, 0.28);
+	border-inline-start: 3px solid rgb(245, 158, 11);
+	border-radius: var(--radius-s);
+	background: rgba(245, 158, 11, 0.07);
+}
+
+.thread-journal-daily-log-time {
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+.thread-journal-daily-log-content {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.thread-journal-daily-log-content > :first-child {
+	margin-top: 0;
+}
+
+.thread-journal-daily-log-content > :last-child {
+	margin-bottom: 0;
+}
+
 .thread-journal-checkpoint-card {
 	padding: 0.9rem 1rem;
 	border: 1px solid rgba(92, 124, 250, 0.35);

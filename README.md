@@ -168,6 +168,17 @@ SORT log.thread_log DESC
 ```
 ````
 
+## 日记中的 Inline log 汇总
+
+在日记模板中加入：
+
+````markdown
+```thread-daily-logs
+```
+````
+
+插件优先读取日记的 `date` 属性，否则使用 `YYYY-MM-DD` 文件名作为日期。视图动态读取各 Thread 工作区里的 `thread_log`，按 thread 分组、按时间正序排列并默认展开，不向日记复制日志数据。thread 名称链接主文件，“工作区”链接日志来源；日志正文中的双链和 Markdown 会正常渲染。
+
 ## 命令
 
 - 新建 thread

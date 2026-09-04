@@ -1,5 +1,7 @@
 import {
 	App,
+	MarkdownRenderChild,
+	MarkdownRenderer,
 	TFile,
 	type MarkdownPostProcessorContext,
 } from 'obsidian';
@@ -9,6 +11,7 @@ import {
 	type ParsedCheckpointEntry,
 } from './checkpoint-core';
 import { checkpointFieldsForThread } from './checkpoint-model';
+import { inlineLogEntriesForDate } from './inline-log';
 import type { ThreadIndex } from './thread-index';
 import { threadStatusLabel } from './thread-status-model';
 import type { ThreadJournalSettings } from './types';
@@ -192,6 +195,87 @@ export class ThreadRenderers {
 				group.entries,
 				group.fields,
 			);
+		}
+	}
+
+	async renderDailyLogs(
+		el: HTMLElement,
+		ctx: MarkdownPostProcessorContext,
+	): Promise<void> {
+		const dailyFile = sourceFile(this.app, ctx);
+		if (!dailyFile) return;
+		el.addClass('thread-journal-daily-logs');
+		const date = dailyNoteDate(this.app, dailyFile);
+		if (!date) {
+			el.createDiv({ cls: 'thread-journal-empty', text: '无法确定当前日记日期。' });
+			return;
+		}
+
+		const candidates = await Promise.all(this.index.getAllThreads().map(async (thread) => {
+			const workspace = this.index.getWorkspace(thread.file);
+			if (!workspace) return undefined;
+			const content = await this.app.vault.cachedRead(workspace);
+			const entries = inlineLogEntriesForDate(content, date);
+			if (entries.length === 0) return undefined;
+			return { thread, workspace, entries };
+		}));
+		const groups = candidates
+			.filter((group): group is Exclude<(typeof candidates)[number], undefined> =>
+				Boolean(group))
+			.sort((a, b) => a.thread.title.localeCompare(b.thread.title));
+
+		if (groups.length === 0) {
+			el.createDiv({ cls: 'thread-journal-empty', text: '今天没有 inline log。' });
+			return;
+		}
+
+		for (const group of groups) {
+			const section = el.createEl('details', {
+				cls: 'thread-journal-daily-log-thread',
+			});
+			section.open = true;
+			const summary = section.createEl('summary');
+			addFileLink(
+				this.app,
+				summary,
+				group.thread.file,
+				ctx.sourcePath,
+				group.thread.title,
+			);
+			const workspaceLink = summary.createSpan({
+				cls: 'thread-journal-daily-log-source',
+			});
+			workspaceLink.createSpan({ text: ' · ' });
+			addFileLink(
+				this.app,
+				workspaceLink,
+				group.workspace,
+				ctx.sourcePath,
+				'工作区',
+			);
+			summary.createSpan({
+				cls: 'thread-journal-daily-log-count',
+				text: `${group.entries.length} 条`,
+			});
+
+			const cards = section.createDiv({ cls: 'thread-journal-daily-log-cards' });
+			for (const entry of group.entries) {
+				const card = cards.createDiv({ cls: 'thread-journal-daily-log-card' });
+				card.createSpan({
+					cls: 'thread-journal-daily-log-time',
+					text: entry.time || entry.timestamp,
+				});
+				const content = card.createDiv({ cls: 'thread-journal-daily-log-content' });
+				const child = new MarkdownRenderChild(content);
+				ctx.addChild(child);
+				await MarkdownRenderer.render(
+					this.app,
+					entry.text || '（空日志）',
+					content,
+					group.workspace.path,
+					child,
+				);
+			}
 		}
 	}
 

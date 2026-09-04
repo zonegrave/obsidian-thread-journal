@@ -26,7 +26,11 @@ import {
 } from '../src/core';
 import { DEFAULT_THREAD_TEMPLATE, renderThreadTemplate } from '../src/thread-template';
 import { ThreadIndex } from '../src/thread-index';
-import { buildInlineLogEdit } from '../src/inline-log';
+import {
+	buildInlineLogEdit,
+	inlineLogEntriesForDate,
+	parseInlineLogEntries,
+} from '../src/inline-log';
 import {
 	buildCheckpointModalForm,
 	buildCheckpointTemplateFieldModalForm,
@@ -72,6 +76,42 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 			cursorLineOffset: 3,
 			cursorCh: 39,
 		},
+	);
+});
+
+void test('parses current and legacy inline logs for a daily summary', () => {
+	const content = [
+		'> [!thread-log] 进度 · 09-04 14:35',
+		'> - (thread_log:: 2026-09-04T14:35:27) 完成了 [[接口验证]]',
+		'> [!thread-log] 2026-09-04T07:41:06',
+		'> - [thread_log:: 2026-09-04T07:41:06]  改成双向切换',
+		'- (thread_log:: 2026-09-03T23:10:00) 昨天的记录',
+		'普通文本 (thread_log:: 2026-09-04T12:00:00)',
+	].join('\n');
+
+	assert.deepEqual(parseInlineLogEntries(content), [
+		{
+			timestamp: '2026-09-04T14:35:27',
+			date: '2026-09-04',
+			time: '14:35',
+			text: '完成了 [[接口验证]]',
+		},
+		{
+			timestamp: '2026-09-04T07:41:06',
+			date: '2026-09-04',
+			time: '07:41',
+			text: '改成双向切换',
+		},
+		{
+			timestamp: '2026-09-03T23:10:00',
+			date: '2026-09-03',
+			time: '23:10',
+			text: '昨天的记录',
+		},
+	]);
+	assert.deepEqual(
+		inlineLogEntriesForDate(content, '2026-09-04').map((entry) => entry.time),
+		['07:41', '14:35'],
 	);
 });
 
