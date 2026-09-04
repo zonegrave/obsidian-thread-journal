@@ -20,6 +20,7 @@
 - 在 `active`、`paused`、`review`、`completed`、`closed` 五种状态间自由切换。
 - 从主 thread 或工作区打开内置 checkpoint 表单。
 - 直接从 checkpoint 卡片编辑该条记录的日期、时间与实际保存字段。
+- 在 Thread 工作区光标处插入带时间戳、可查询的醒目 inline log。
 - 在日记中按日期动态汇总当天产生 checkpoint 的 thread。
 - 为每个 thread 单独增删、排序和配置 checkpoint 字段。
 - 将不再追踪的 checkpoint 字段标为废弃，同时保留历史记录的显示语义。
@@ -143,10 +144,35 @@ SORT checkpoint.checkpoint_date DESC
 
 命令保留原来的 `open-thread-workspace` ID，因此已有快捷键无需重新绑定。标签复用不把 group 作为配对条件，实现使用 Obsidian 的标准标签页与聚焦接口，不依赖 Vertical Tabs 等布局插件。
 
+## Inline log
+
+在 Thread 工作区的编辑视图运行 **插入 inline log**，插件会在光标处插入一个紧凑的时间戳 callout，并把光标留在正文末尾继续输入。当前行已有内容时先留出空行；空白行则原位替换。日志内容不放进 inline field，因此仍可自由输入双链和普通 Markdown。
+
+```markdown
+> [!thread-log] 2026-09-04 14:35
+> - [thread_log:: 2026-09-04T14:35:27] 完成了第一轮接口验证
+```
+
+`thread_log` 同时是日志标记和精确时间戳。它位于 list item 上，可以用 Dataview 汇总：
+
+````markdown
+```dataview
+TABLE WITHOUT ID
+  thread AS Thread,
+  log.thread_log AS 时间,
+  log.text AS 记录
+FROM "50-行动系统/工作区"
+FLATTEN file.lists AS log
+WHERE log.thread_log
+SORT log.thread_log DESC
+```
+````
+
 ## 命令
 
 - 新建 thread
 - 切换 thread 与工作区
+- 插入 inline log（仅在工作区编辑视图可用）
 - 编辑 checkpoint 模板
 - 创建 checkpoint
 - 设置 thread 状态

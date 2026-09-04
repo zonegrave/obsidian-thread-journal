@@ -2,11 +2,13 @@ import {
 	App,
 	MarkdownView,
 	TFile,
+	type Editor,
 	type WorkspaceLeaf,
 	moment,
 	normalizePath,
 } from 'obsidian';
 import { buildWorkspaceBody, buildWorkspaceFileName } from './core';
+import { buildInlineLogEdit } from './inline-log';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadJournalSettings } from './types';
 
@@ -75,6 +77,34 @@ export class ThreadWorkspaceManager {
 		await target.openFile(targetFile, { active: true });
 		await this.app.workspace.revealLeaf(target);
 		this.app.workspace.setActiveLeaf(target, { focus: true });
+	}
+
+	insertInlineLog(editor: Editor, workspaceFile: TFile): void {
+		if (!this.index.getThreadForWorkspace(workspaceFile)) {
+			throw new Error('当前文件不是有效的 Thread 工作区。');
+		}
+		const cursor = editor.getCursor();
+		const frontmatter = this.app.metadataCache.getFileCache(workspaceFile)?.frontmatterPosition;
+		if (frontmatter && cursor.line <= frontmatter.end.line) {
+			throw new Error('请先把光标移到工作区正文。');
+		}
+		const line = editor.getLine(cursor.line);
+		const timestamp = moment();
+		const edit = buildInlineLogEdit(
+			line,
+			timestamp.format('YYYY-MM-DD HH:mm'),
+			timestamp.format('YYYY-MM-DDTHH:mm:ss'),
+		);
+		editor.replaceRange(
+			edit.replacement,
+			{ line: cursor.line, ch: edit.fromCh },
+			{ line: cursor.line, ch: edit.toCh },
+		);
+		editor.setCursor({
+			line: cursor.line + edit.cursorLineOffset,
+			ch: edit.cursorCh,
+		});
+		editor.focus();
 	}
 
 	private async createOrFindWorkspace(

@@ -106,6 +106,24 @@ export default class ThreadJournalPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'insert-inline-log',
+			name: '插入 inline log',
+			editorCheckCallback: (checking, editor, view) => {
+				const file = view.file;
+				if (!file || !this.index.getThreadForWorkspace(file)) return false;
+				if (!checking) {
+					try {
+						this.workspaces.insertInlineLog(editor, file);
+					} catch (error) {
+						console.error('Thread Journal failed to insert inline log', error);
+						new Notice(`插入 inline log 失败：${String(error)}`);
+					}
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: 'new-thread',
 			name: '新建 thread',
 			callback: () => {

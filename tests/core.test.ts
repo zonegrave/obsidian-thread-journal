@@ -26,6 +26,7 @@ import {
 } from '../src/core';
 import { DEFAULT_THREAD_TEMPLATE, renderThreadTemplate } from '../src/thread-template';
 import { ThreadIndex } from '../src/thread-index';
+import { buildInlineLogEdit } from '../src/inline-log';
 import {
 	buildCheckpointModalForm,
 	buildCheckpointTemplateFieldModalForm,
@@ -41,6 +42,37 @@ void test('builds current thread and workspace file names', () => {
 	assert.equal(buildWorkspaceFileName('260831·睡眠管理', '草稿/区'), '260831·睡眠管理·草稿-区');
 	assert.equal(normalizeWorkspaceSuffix(' ·研究/空间. '), '研究-空间');
 	assert.equal(buildWorkspaceBody('睡眠\n管理'), '# 睡眠 管理 · Thread 工作区\n');
+});
+
+void test('builds a queryable inline log callout at the cursor line', () => {
+	assert.deepEqual(
+		buildInlineLogEdit('  ', '2026-09-04 14:35', '2026-09-04T14:35:27'),
+		{
+			replacement: [
+				'  > [!thread-log] 2026-09-04 14:35',
+				'  > - [thread_log:: 2026-09-04T14:35:27] ',
+			].join('\n'),
+			fromCh: 0,
+			toCh: 2,
+			cursorLineOffset: 1,
+			cursorCh: 41,
+		},
+	);
+	assert.deepEqual(
+		buildInlineLogEdit('已有内容', '2026-09-04 14:35', '2026-09-04T14:35:27'),
+		{
+			replacement: [
+				'',
+				'',
+				'> [!thread-log] 2026-09-04 14:35',
+				'> - [thread_log:: 2026-09-04T14:35:27] ',
+			].join('\n'),
+			fromCh: 4,
+			toCh: 4,
+			cursorLineOffset: 3,
+			cursorCh: 39,
+		},
+	);
 });
 
 void test('recognizes current and legacy Context headings', () => {
