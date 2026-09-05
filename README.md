@@ -92,7 +92,7 @@ created: 2026-08-31
 > - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成工作区模型设计] [version:: 0.16.0] ^cp-20260831-143500-a1b2c
 ````
 
-原始 checkpoint 可以像其他 Markdown 一样在工作区任意移动；阅读模式与 Live Preview 中的 callout 都提供“编辑”按钮，按钮不写入 Markdown。主 thread 的 Context 下使用统一的 `thread-entries` 代码块，按当前 `thread_id` 汇总 checkpoint：日期、时间和类型显示在标题，摘要直接显示，自定义字段按“名称：值”排列。
+原始 checkpoint 可以像其他 Markdown 一样在工作区任意移动；阅读模式与 Live Preview 中的原地 callout 和 `thread-entries` 查询结果复用同一套卡片内容渲染，日期时间、类型、摘要及自定义字段具有一致布局。原地卡片提供“编辑”按钮，但省略已经没有意义的“定位”；界面元素均不写入 Markdown。主 thread 的 Context 下使用统一的 `thread-entries` 代码块，按实际 `thread_id` 汇总 checkpoint。
 
 每张带块 ID 的汇总卡片都有“定位”“编辑”和“删除”入口。“定位”打开工作区并跳到原始块；编辑会合并当前模板中所有未废弃字段与该条记录实际保存的历史字段，保存后按原块 ID 在工作区原位替换。删除需要二次确认，并且只移除工作区中该块 ID 对应的 checkpoint。
 

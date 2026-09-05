@@ -10,13 +10,16 @@ import {
 } from './checkpoint-core';
 
 const CALLOUT_SELECTOR = '.callout[data-callout="thread-checkpoint"]';
-const CONTROLS_SELECTOR = '.thread-journal-source-checkpoint-controls';
 
 export function checkpointEditorExtension(
 	isWorkspace: (file: TFile) => boolean,
-	onEdit: (file: TFile, entry: ParsedCheckpointEntry) => void,
+	onRender: (
+		callout: HTMLElement,
+		file: TFile,
+		entry: ParsedCheckpointEntry,
+	) => void,
 ) {
-	return ViewPlugin.fromClass(class CheckpointEditorButtons {
+	return ViewPlugin.fromClass(class CheckpointEditorCallouts {
 		private frame?: number;
 		private readonly observer?: MutationObserver;
 
@@ -59,16 +62,10 @@ export function checkpointEditorExtension(
 			const livePreview = this.view.state.field(editorLivePreviewField, false);
 			const info = this.view.state.field(editorInfoField, false);
 			const file = info?.file;
-			if (!livePreview || !file || !isWorkspace(file)) {
-				this.view.dom.querySelectorAll(CONTROLS_SELECTOR).forEach((element) => {
-					element.remove();
-				});
-				return;
-			}
+			if (!livePreview || !file || !isWorkspace(file)) return;
 
 			const source = this.view.state.doc.toString();
 			this.view.dom.querySelectorAll<HTMLElement>(CALLOUT_SELECTOR).forEach((callout) => {
-				if (callout.querySelector(CONTROLS_SELECTOR)) return;
 				let position: number;
 				try {
 					position = this.view.posAtDOM(callout);
@@ -78,24 +75,7 @@ export function checkpointEditorExtension(
 				const line = this.view.state.doc.lineAt(position).number - 1;
 				const entry = checkpointEntryAroundLine(source, line);
 				if (!entry?.blockId) return;
-				const title = callout.querySelector<HTMLElement>('.callout-title');
-				if (!title) return;
-				const controls = title.createDiv({
-					cls: 'thread-journal-source-checkpoint-controls',
-				});
-				const edit = controls.createEl('button', {
-					text: '编辑',
-					attr: { type: 'button', 'aria-label': '编辑当前 checkpoint' },
-				});
-				edit.addEventListener('mousedown', (event) => {
-					event.preventDefault();
-					event.stopPropagation();
-				});
-				edit.addEventListener('click', (event) => {
-					event.preventDefault();
-					event.stopPropagation();
-					onEdit(file, entry);
-				});
+				onRender(callout, file, entry);
 			});
 		}
 	});

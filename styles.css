@@ -89,6 +89,38 @@
 	font-size: var(--font-ui-smaller);
 }
 
+.callout[data-callout="thread-checkpoint"].thread-journal-source-checkpoint-card {
+	padding: 0.9rem 1rem;
+	border: 1px solid rgba(92, 124, 250, 0.35);
+	border-inline-start: 3px solid rgb(92, 124, 250);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.callout[data-callout="thread-checkpoint"].thread-journal-source-checkpoint-card
+	.callout-title {
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0;
+}
+
+.callout[data-callout="thread-checkpoint"].thread-journal-source-checkpoint-card
+	.callout-icon,
+.callout[data-callout="thread-checkpoint"].thread-journal-source-checkpoint-card
+	.callout-fold {
+	display: none;
+}
+
+.callout[data-callout="thread-checkpoint"].thread-journal-source-checkpoint-card
+	.callout-title-inner {
+	font-weight: var(--font-semibold);
+}
+
+.callout[data-callout="thread-checkpoint"].thread-journal-source-checkpoint-card
+	.callout-content {
+	padding: 0;
+}
+
 .callout[data-callout="thread-checkpoint"] .callout-content > ul {
 	margin-block: 0.45rem 0.2rem;
 	padding-inline-start: 0;

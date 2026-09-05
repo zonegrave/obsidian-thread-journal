@@ -69,6 +69,8 @@ function addFileLink(
 }
 
 export class ThreadRenderers {
+	private readonly sourceCheckpointSignatures = new WeakMap<HTMLElement, string>();
+
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
@@ -141,24 +143,60 @@ export class ThreadRenderers {
 		if (!section) return;
 		const entries = parseCheckpointEntries(section.text);
 		callouts.forEach((callout, index) => {
-			if (callout.querySelector('.thread-journal-source-checkpoint-controls')) return;
 			const entry = entries[index];
 			if (!entry?.blockId) return;
-			const title = callout.querySelector<HTMLElement>('.callout-title');
-			if (!title) return;
-			const controls = title.createDiv({
-				cls: 'thread-journal-source-checkpoint-controls',
-			});
-			const edit = controls.createEl('button', {
-				text: '编辑',
-				attr: { type: 'button', 'aria-label': '编辑当前 checkpoint' },
-			});
-			edit.addEventListener('click', (event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				this.onEditCheckpoint(current, entry);
-			});
+			this.renderSourceCheckpointCallout(callout, current, entry);
 		});
+	}
+
+	renderSourceCheckpointCallout(
+		callout: HTMLElement,
+		workspace: TFile,
+		entry: ParsedCheckpointEntry,
+	): void {
+		const thread = this.index.getThreadForWorkspace(workspace);
+		if (!thread) return;
+		const fields = this.checkpointFields(thread);
+		const signature = JSON.stringify([entry, fields]);
+		if (this.sourceCheckpointSignatures.get(callout) === signature) return;
+		const title = callout.querySelector<HTMLElement>('.callout-title');
+		const titleInner = title?.querySelector<HTMLElement>('.callout-title-inner');
+		const content = callout.querySelector<HTMLElement>('.callout-content');
+		if (!title || !titleInner || !content) return;
+		this.sourceCheckpointSignatures.set(callout, signature);
+		callout.addClass('thread-journal-source-checkpoint-card');
+
+		const date = entry.values.checkpoint_date || '未填写日期';
+		const time = entry.values.checkpoint_time;
+		titleInner.setText(time ? `${date} ${time}` : date);
+		title.querySelector('.thread-journal-source-checkpoint-controls')?.remove();
+		const controls = title.createDiv({
+			cls: [
+				'thread-journal-source-checkpoint-controls',
+				'thread-journal-checkpoint-card-controls',
+			],
+		});
+		const kind = entry.values.checkpoint_kind;
+		if (kind) {
+			controls.createSpan({ cls: 'thread-journal-checkpoint-card-kind', text: kind });
+		}
+		const edit = controls.createEl('button', {
+			cls: 'thread-journal-checkpoint-edit',
+			text: '编辑',
+			attr: { type: 'button', 'aria-label': '编辑当前 checkpoint' },
+		});
+		edit.addEventListener('mousedown', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+		});
+		edit.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.onEditCheckpoint(workspace, entry);
+		});
+
+		content.empty();
+		this.renderCheckpointContent(content, entry, fields);
 	}
 
 	async renderEntries(
@@ -201,15 +239,7 @@ export class ThreadRenderers {
 			const content = await this.app.vault.cachedRead(workspace);
 			const entries: ThreadEntryRecord[] = [];
 			if (parsed.query.types.includes('checkpoint')) {
-				const rawFrontmatter: unknown = this.app.metadataCache
-					.getFileCache(thread.file)?.frontmatter;
-				const ownFields = typeof rawFrontmatter === 'object' && rawFrontmatter !== null
-					? (rawFrontmatter as Record<string, unknown>).checkpoint_fields
-					: undefined;
-				const fields = checkpointFieldsForThread(
-					ownFields,
-					this.getSettings().checkpointFields,
-				);
+				const fields = this.checkpointFields(thread.file);
 				for (const entry of parseCheckpointEntries(content)) {
 					const entryDate = entry.values.checkpoint_date ?? '';
 					if (date && (entryDate < date.from || entryDate > date.to)) continue;
@@ -257,6 +287,18 @@ export class ThreadRenderers {
 			parsed.query.groupBy,
 			ctx,
 			Boolean(date && date.from === date.to),
+		);
+	}
+
+	private checkpointFields(thread: TFile): ThreadJournalSettings['checkpointFields'] {
+		const rawFrontmatter: unknown = this.app.metadataCache
+			.getFileCache(thread)?.frontmatter;
+		const ownFields = typeof rawFrontmatter === 'object' && rawFrontmatter !== null
+			? (rawFrontmatter as Record<string, unknown>).checkpoint_fields
+			: undefined;
+		return checkpointFieldsForThread(
+			ownFields,
+			this.getSettings().checkpointFields,
 		);
 	}
 
@@ -428,9 +470,6 @@ export class ThreadRenderers {
 		renderSourcePath: string,
 		thread?: ThreadInfo,
 	): void {
-		const knownKeys = new Set(fields.map((field) => field.key));
-		const systemKeys = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
-
 		for (const entry of entries) {
 			const card = container.createDiv({ cls: 'thread-journal-checkpoint-card' });
 			const header = card.createDiv({ cls: 'thread-journal-checkpoint-card-header' });
@@ -493,38 +532,48 @@ export class ThreadRenderers {
 				});
 			}
 
-			const summary = entry.values.checkpoint_summary;
-			if (summary) {
-				card.createDiv({
-					cls: 'thread-journal-checkpoint-card-summary',
-					text: summary,
-				});
-			}
-
-			const details = card.createDiv({ cls: 'thread-journal-checkpoint-card-fields' });
-			let detailCount = 0;
-			for (const field of fields) {
-				if (field.key === 'checkpoint_kind' || field.key === 'checkpoint_summary') continue;
-				const bodyValue = entry.body.find((item) => item.label === field.label)?.value;
-				const value = entry.values[field.key] || bodyValue;
-				if (!value) continue;
-				this.renderCheckpointField(details, field.label, value);
-				detailCount += 1;
-			}
-			for (const [key, value] of Object.entries(entry.values)) {
-				if (systemKeys.has(key) || knownKeys.has(key) || !value) continue;
-				this.renderCheckpointField(details, key, value);
-				detailCount += 1;
-			}
-			for (const body of entry.body) {
-				if (fields.some((field) => field.storage === 'body' && field.label === body.label)) {
-					continue;
-				}
-				this.renderCheckpointField(details, body.label, body.value);
-				detailCount += 1;
-			}
-			if (detailCount === 0) details.remove();
+			this.renderCheckpointContent(card, entry, fields);
 		}
+	}
+
+	private renderCheckpointContent(
+		container: HTMLElement,
+		entry: ParsedCheckpointEntry,
+		fields: ThreadJournalSettings['checkpointFields'],
+	): void {
+		const knownKeys = new Set(fields.map((field) => field.key));
+		const systemKeys = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
+		const summary = entry.values.checkpoint_summary;
+		if (summary) {
+			container.createDiv({
+				cls: 'thread-journal-checkpoint-card-summary',
+				text: summary,
+			});
+		}
+
+		const details = container.createDiv({ cls: 'thread-journal-checkpoint-card-fields' });
+		let detailCount = 0;
+		for (const field of fields) {
+			if (field.key === 'checkpoint_kind' || field.key === 'checkpoint_summary') continue;
+			const bodyValue = entry.body.find((item) => item.label === field.label)?.value;
+			const value = entry.values[field.key] || bodyValue;
+			if (!value) continue;
+			this.renderCheckpointField(details, field.label, value);
+			detailCount += 1;
+		}
+		for (const [key, value] of Object.entries(entry.values)) {
+			if (systemKeys.has(key) || knownKeys.has(key) || !value) continue;
+			this.renderCheckpointField(details, key, value);
+			detailCount += 1;
+		}
+		for (const body of entry.body) {
+			if (fields.some((field) => field.storage === 'body' && field.label === body.label)) {
+				continue;
+			}
+			this.renderCheckpointField(details, body.label, body.value);
+			detailCount += 1;
+		}
+		if (detailCount === 0) details.remove();
 	}
 
 	private renderCheckpointField(

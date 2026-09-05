@@ -57,7 +57,9 @@ export default class ThreadJournalPlugin extends Plugin {
 		);
 		this.registerEditorExtension(checkpointEditorExtension(
 			(file) => Boolean(this.index.getThreadForWorkspace(file)),
-			(file, entry) => this.checkpoints.openCheckpointEditModal(file, entry),
+			(callout, file, entry) => {
+				this.renderers.renderSourceCheckpointCallout(callout, file, entry);
+			},
 		));
 
 		this.registerCommands();
