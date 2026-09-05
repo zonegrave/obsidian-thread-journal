@@ -29,6 +29,7 @@ import { DEFAULT_THREAD_TEMPLATE, renderThreadTemplate } from '../src/thread-tem
 import { ThreadIndex } from '../src/thread-index';
 import {
 	buildInlineLogEdit,
+	inlineLogEntryAroundLine,
 	parseInlineLogEntries,
 } from '../src/inline-log';
 import { parseThreadEntriesQuery } from '../src/entry-query';
@@ -51,11 +52,16 @@ void test('builds current thread and workspace file names', () => {
 
 void test('builds a queryable inline log callout at the cursor line', () => {
 	assert.deepEqual(
-		buildInlineLogEdit('  ', '09-04 14:35', '2026-09-04T14:35:27'),
+		buildInlineLogEdit(
+			'  ',
+			'09-04 14:35',
+			'2026-09-04T14:35:27',
+			'log-20260904-143527-a1b2c',
+		),
 		{
 			replacement: [
-				'  > [!thread-log] 进度 · 09-04 14:35',
-				'  > - (thread_log:: 2026-09-04T14:35:27) ',
+				'  > [!thread-log] 09-04 14:35',
+				'  > - (thread_log:: 2026-09-04T14:35:27)  ^log-20260904-143527-a1b2c',
 			].join('\n'),
 			fromCh: 0,
 			toCh: 2,
@@ -64,13 +70,18 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 		},
 	);
 	assert.deepEqual(
-		buildInlineLogEdit('已有内容', '09-04 14:35', '2026-09-04T14:35:27'),
+		buildInlineLogEdit(
+			'已有内容',
+			'09-04 14:35',
+			'2026-09-04T14:35:27',
+			'log-20260904-143527-a1b2c',
+		),
 		{
 			replacement: [
 				'',
 				'',
-				'> [!thread-log] 进度 · 09-04 14:35',
-				'> - (thread_log:: 2026-09-04T14:35:27) ',
+				'> [!thread-log] 09-04 14:35',
+				'> - (thread_log:: 2026-09-04T14:35:27)  ^log-20260904-143527-a1b2c',
 			].join('\n'),
 			fromCh: 4,
 			toCh: 4,
@@ -80,13 +91,14 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 	);
 });
 
-void test('parses current and legacy inline logs for a daily summary', () => {
+void test('parses current inline logs for a daily summary', () => {
 	const content = [
-		'> [!thread-log] 进度 · 09-04 14:35',
-		'> - (thread_log:: 2026-09-04T14:35:27) 完成了 [[接口验证]]',
-		'> [!thread-log] 2026-09-04T07:41:06',
-		'> - [thread_log:: 2026-09-04T07:41:06]  改成双向切换',
-		'- (thread_log:: 2026-09-03T23:10:00) 昨天的记录',
+		'> [!thread-log] 09-04 14:35',
+		'> - (thread_log:: 2026-09-04T14:35:27) 完成了 [[接口验证]] ^log-20260904-143527-a1b2c',
+		'> [!thread-log] 09-03 23:10',
+		'> - (thread_log:: 2026-09-03T23:10:00) 昨天的记录 ^log-20260903-231000-d4e5f',
+		'> [!thread-log] 没有块 ID 的非当前格式',
+		'> - (thread_log:: 2026-09-04T07:41:06) 不应进入结果',
 		'普通文本 (thread_log:: 2026-09-04T12:00:00)',
 	].join('\n');
 
@@ -96,20 +108,36 @@ void test('parses current and legacy inline logs for a daily summary', () => {
 			date: '2026-09-04',
 			time: '14:35',
 			text: '完成了 [[接口验证]]',
-		},
-		{
-			timestamp: '2026-09-04T07:41:06',
-			date: '2026-09-04',
-			time: '07:41',
-			text: '改成双向切换',
+			blockId: 'log-20260904-143527-a1b2c',
 		},
 		{
 			timestamp: '2026-09-03T23:10:00',
 			date: '2026-09-03',
 			time: '23:10',
 			text: '昨天的记录',
+			blockId: 'log-20260903-231000-d4e5f',
 		},
 	]);
+});
+
+void test('finds the inline log around a Live Preview source line', () => {
+	const content = [
+		'# 工作区',
+		'',
+		'> [!thread-log] 09-04 14:35',
+		'> - (thread_log:: 2026-09-04T14:35:27) 完成了 [[接口验证]] ^log-20260904-143527-a1b2c',
+		'',
+		'后续内容',
+	].join('\n');
+
+	assert.deepEqual(inlineLogEntryAroundLine(content, 2), {
+		timestamp: '2026-09-04T14:35:27',
+		date: '2026-09-04',
+		time: '14:35',
+		text: '完成了 [[接口验证]]',
+		blockId: 'log-20260904-143527-a1b2c',
+	});
+	assert.equal(inlineLogEntryAroundLine(content, 5), undefined);
 });
 
 void test('parses the unified thread entries query', () => {

@@ -8,8 +8,13 @@ import {
 	checkpointEntryAroundLine,
 	type ParsedCheckpointEntry,
 } from './checkpoint-core';
+import {
+	inlineLogEntryAroundLine,
+	type ParsedInlineLogEntry,
+} from './inline-log';
 
-const CALLOUT_SELECTOR = '.callout[data-callout="thread-checkpoint"]';
+const CHECKPOINT_CALLOUT_SELECTOR = '.callout[data-callout="thread-checkpoint"]';
+const LOG_CALLOUT_SELECTOR = '.callout[data-callout="thread-log"]';
 
 export function checkpointEditorExtension(
 	isWorkspace: (file: TFile) => boolean,
@@ -17,6 +22,11 @@ export function checkpointEditorExtension(
 		callout: HTMLElement,
 		file: TFile,
 		entry: ParsedCheckpointEntry,
+	) => void,
+	onRenderLog: (
+		callout: HTMLElement,
+		file: TFile,
+		entry: ParsedInlineLogEntry,
 	) => void,
 ) {
 	return ViewPlugin.fromClass(class CheckpointEditorCallouts {
@@ -65,7 +75,7 @@ export function checkpointEditorExtension(
 			if (!livePreview || !file || !isWorkspace(file)) return;
 
 			const source = this.view.state.doc.toString();
-			this.view.dom.querySelectorAll<HTMLElement>(CALLOUT_SELECTOR).forEach((callout) => {
+			this.view.dom.querySelectorAll<HTMLElement>(CHECKPOINT_CALLOUT_SELECTOR).forEach((callout) => {
 				let position: number;
 				try {
 					position = this.view.posAtDOM(callout);
@@ -76,6 +86,18 @@ export function checkpointEditorExtension(
 				const entry = checkpointEntryAroundLine(source, line);
 				if (!entry?.blockId) return;
 				onRender(callout, file, entry);
+			});
+			this.view.dom.querySelectorAll<HTMLElement>(LOG_CALLOUT_SELECTOR).forEach((callout) => {
+				let position: number;
+				try {
+					position = this.view.posAtDOM(callout);
+				} catch {
+					return;
+				}
+				const line = this.view.state.doc.lineAt(position).number - 1;
+				const entry = inlineLogEntryAroundLine(source, line);
+				if (!entry) return;
+				onRenderLog(callout, file, entry);
 			});
 		}
 	});

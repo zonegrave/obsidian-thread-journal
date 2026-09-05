@@ -60,6 +60,9 @@ export default class ThreadJournalPlugin extends Plugin {
 			(callout, file, entry) => {
 				this.renderers.renderSourceCheckpointCallout(callout, file, entry);
 			},
+			(callout, file, entry) => {
+				this.renderers.renderSourceLogCallout(callout, file, entry);
+			},
 		));
 
 		this.registerCommands();
@@ -156,6 +159,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	private registerRenderers(): void {
 		this.registerMarkdownPostProcessor((el, ctx) => {
 			this.renderers.enhanceCheckpointCallouts(el, ctx);
+			this.renderers.enhanceLogCallouts(el, ctx);
 		});
 		this.registerMarkdownCodeBlockProcessor('thread-entries', async (source, el, ctx) => {
 			await this.renderers.renderEntries(source, el, ctx);

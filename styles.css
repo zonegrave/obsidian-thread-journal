@@ -50,6 +50,57 @@
 	font-weight: var(--font-semibold);
 }
 
+.thread-journal-source-log-controls {
+	display: flex;
+	align-items: center;
+	margin-left: auto;
+	padding-left: 0.5rem;
+}
+
+.callout[data-callout="thread-log"].thread-journal-source-log-card {
+	padding: 0.9rem 1rem;
+	border: 1px solid rgba(245, 158, 11, 0.35);
+	border-inline-start: 3px solid rgb(245, 158, 11);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.callout[data-callout="thread-log"].thread-journal-source-log-card
+	.callout-title {
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0;
+}
+
+.callout[data-callout="thread-log"].thread-journal-source-log-card
+	.callout-icon,
+.callout[data-callout="thread-log"].thread-journal-source-log-card
+	.callout-fold {
+	display: none;
+}
+
+.callout[data-callout="thread-log"].thread-journal-source-log-card
+	.callout-title-inner {
+	font-weight: var(--font-semibold);
+}
+
+.callout[data-callout="thread-log"].thread-journal-source-log-card
+	.callout-content {
+	padding: 0;
+}
+
+.callout[data-callout="thread-log"].thread-journal-source-log-card
+	.callout-content > ul {
+	margin-block: 0.55rem 0;
+	padding-inline-start: 0;
+	list-style: none;
+}
+
+.callout[data-callout="thread-log"].thread-journal-source-log-card
+	.callout-content > ul > li {
+	list-style: none;
+}
+
 .callout[data-callout="thread-log"] .callout-content > ul {
 	margin-block: 0.35rem 0.15rem;
 	padding-inline-start: 1.25rem;
@@ -201,35 +252,59 @@
 }
 
 .thread-journal-log-card {
-	display: grid;
-	grid-template-columns: minmax(5rem, auto) minmax(0, 1fr);
-	gap: 0.75rem;
-	align-items: start;
-	padding: 0.55rem 0.7rem;
-	border: 1px solid rgba(245, 158, 11, 0.28);
+	padding: 0.9rem 1rem;
+	border: 1px solid rgba(245, 158, 11, 0.35);
 	border-inline-start: 3px solid rgb(245, 158, 11);
-	border-radius: var(--radius-s);
-	background: rgba(245, 158, 11, 0.07);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
 }
 
-.thread-journal-log-meta {
+.thread-journal-log-card-header {
 	display: flex;
-	flex-direction: column;
-	align-items: flex-start;
-	gap: 0.15rem;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+.thread-journal-log-card-identity {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.4rem;
 	min-width: 0;
 }
 
-.thread-journal-log-time {
-	color: var(--text-muted);
-	font-family: var(--font-monospace);
-	font-size: var(--font-ui-smaller);
+.thread-journal-log-card-controls {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.thread-journal-log-card-date {
+	font-weight: var(--font-semibold);
 	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
+}
+
+.thread-journal-log-card-kind {
+	padding: 0.12rem 0.45rem;
+	border-radius: 999px;
+	background: rgba(245, 158, 11, 0.16);
+	color: var(--color-orange);
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-log-locate {
+	display: inline-flex;
+	align-items: center;
+	min-height: 1.75rem;
+	padding: 0.1rem 0.55rem;
+	font-size: var(--font-ui-smaller);
+	text-decoration: none;
 }
 
 .thread-journal-log-content {
 	min-width: 0;
+	margin-top: 0.55rem;
 	overflow-wrap: anywhere;
 }
 

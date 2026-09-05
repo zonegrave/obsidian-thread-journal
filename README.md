@@ -143,7 +143,7 @@ group_by: thread
 ```
 ````
 
-按 thread 分组时，各组默认展开，标题链接主 thread 与工作区。Checkpoint 卡片可以定位、编辑和删除原始 callout；log 正文中的双链和 Markdown 正常渲染。所有数据仍只保存在 Thread 工作区，不复制到展示笔记。
+按 thread 分组时，各组默认展开，标题链接主 thread 与工作区。Checkpoint 与 log 使用一致的卡片头和正文布局，并分别以蓝色类型、橙色 `log` 标签区分；两者都可以从汇总卡片精确定位到工作区原始 callout。Checkpoint 另有编辑和删除入口，log 正文中的双链和 Markdown 正常渲染。所有数据仍只保存在 Thread 工作区，不复制到展示笔记。
 
 ## Thread 与工作区切换
 
@@ -159,11 +159,11 @@ group_by: thread
 
 ## Inline log
 
-在 Thread 工作区的编辑视图运行 **插入 inline log**，插件会在光标处插入一个紧凑的进度 callout，并把光标留在正文末尾继续输入。当前行已有内容时先留出空行；空白行则原位替换。标题只显示 `MM-DD HH:mm`，完整时间戳保存在 `thread_log` 字段中供查询和排序但不重复渲染；日志内容不放进 inline field，因此仍可自由输入双链和普通 Markdown。
+在 Thread 工作区的编辑视图运行 **插入 inline log**，插件会在光标处插入一个中性的自由记录 callout，并把光标留在正文末尾继续输入。当前行已有内容时先留出空行；空白行则原位替换。标题只显示 `MM-DD HH:mm`，不预设“进度”等内容类型；完整时间戳保存在 `thread_log` 字段中供查询和排序但不重复渲染。日志内容不放进 inline field，因此仍可自由输入双链和普通 Markdown。每条新 log 还会带稳定块 ID，用于汇总卡片的“定位”按钮。
 
 ```markdown
-> [!thread-log] 进度 · 09-04 14:35
-> - (thread_log:: 2026-09-04T14:35:27) 完成了第一轮接口验证
+> [!thread-log] 09-04 14:35
+> - (thread_log:: 2026-09-04T14:35:27) 完成了第一轮接口验证 ^log-20260904-143527-a1b2c
 ```
 
 `thread_log` 同时是日志标记和精确时间戳。它位于 list item 上，可以用 Dataview 汇总：

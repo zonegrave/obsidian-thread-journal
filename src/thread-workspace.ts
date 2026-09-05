@@ -90,10 +90,14 @@ export class ThreadWorkspaceManager {
 		}
 		const line = editor.getLine(cursor.line);
 		const timestamp = moment();
+		const blockId = `log-${timestamp.format('YYYYMMDD-HHmmss')}-${Math.random()
+			.toString(36)
+			.slice(2, 7)}`;
 		const edit = buildInlineLogEdit(
 			line,
 			timestamp.format('MM-DD HH:mm'),
 			timestamp.format('YYYY-MM-DDTHH:mm:ss'),
+			blockId,
 		);
 		editor.replaceRange(
 			edit.replacement,

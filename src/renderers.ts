@@ -70,6 +70,7 @@ function addFileLink(
 
 export class ThreadRenderers {
 	private readonly sourceCheckpointSignatures = new WeakMap<HTMLElement, string>();
+	private readonly sourceLogSignatures = new WeakMap<HTMLElement, string>();
 
 	constructor(
 		private readonly app: App,
@@ -149,6 +150,28 @@ export class ThreadRenderers {
 		});
 	}
 
+	enhanceLogCallouts(
+		el: HTMLElement,
+		ctx: MarkdownPostProcessorContext,
+	): void {
+		const current = sourceFile(this.app, ctx);
+		if (!current || !this.index.getThreadForWorkspace(current)) return;
+		const selector = '.callout[data-callout="thread-log"]';
+		const callouts = [
+			...(el.matches(selector) ? [el] : []),
+			...Array.from(el.querySelectorAll<HTMLElement>(selector)),
+		];
+		if (callouts.length === 0) return;
+		const section = ctx.getSectionInfo(el);
+		if (!section) return;
+		const entries = parseInlineLogEntries(section.text);
+		callouts.forEach((callout, index) => {
+			const entry = entries[index];
+			if (!entry) return;
+			this.renderSourceLogCallout(callout, current, entry);
+		});
+	}
+
 	renderSourceCheckpointCallout(
 		callout: HTMLElement,
 		workspace: TFile,
@@ -197,6 +220,32 @@ export class ThreadRenderers {
 
 		content.empty();
 		this.renderCheckpointContent(content, entry, fields);
+	}
+
+	renderSourceLogCallout(
+		callout: HTMLElement,
+		_workspace: TFile,
+		entry: ParsedInlineLogEntry,
+	): void {
+		const signature = JSON.stringify(entry);
+		if (this.sourceLogSignatures.get(callout) === signature) return;
+		const title = callout.querySelector<HTMLElement>('.callout-title');
+		const titleInner = title?.querySelector<HTMLElement>('.callout-title-inner');
+		const content = callout.querySelector<HTMLElement>('.callout-content');
+		if (!title || !titleInner || !content) return;
+		this.sourceLogSignatures.set(callout, signature);
+		callout.addClass('thread-journal-source-log-card');
+
+		const compactDate = entry.date.slice(5) || entry.date;
+		titleInner.setText(entry.time ? `${compactDate} ${entry.time}` : compactDate);
+		title.querySelector('.thread-journal-source-log-controls')?.remove();
+		const controls = title.createDiv({
+			cls: [
+				'thread-journal-source-log-controls',
+				'thread-journal-log-card-controls',
+			],
+		});
+		controls.createSpan({ cls: 'thread-journal-log-card-kind', text: 'log' });
 	}
 
 	async renderEntries(
@@ -348,7 +397,7 @@ export class ThreadRenderers {
 				);
 				this.addEntryCount(summary, group.length);
 				const cards = section.createDiv({ cls: 'thread-journal-entry-cards' });
-				await this.renderEntryCards(cards, group, ctx, dateFiltered, false, false);
+				await this.renderEntryCards(cards, group, ctx, dateFiltered, false);
 			}
 			return;
 		}
@@ -363,14 +412,14 @@ export class ThreadRenderers {
 				});
 				this.addEntryCount(summary, group.length);
 				const cards = section.createDiv({ cls: 'thread-journal-entry-cards' });
-				await this.renderEntryCards(cards, group, ctx, dateFiltered, true, true);
+				await this.renderEntryCards(cards, group, ctx, dateFiltered, true);
 			}
 			return;
 		}
 
 		const cards = container.createDiv({ cls: 'thread-journal-entry-cards' });
 		const showThread = new Set(records.map((record) => record.thread.id)).size > 1;
-		await this.renderEntryCards(cards, records, ctx, dateFiltered, showThread, true);
+		await this.renderEntryCards(cards, records, ctx, dateFiltered, showThread);
 	}
 
 	private createEntryGroup(container: HTMLElement): HTMLDetailsElement {
@@ -389,7 +438,6 @@ export class ThreadRenderers {
 		ctx: MarkdownPostProcessorContext,
 		dateFiltered: boolean,
 		showThread: boolean,
-		showWorkspace: boolean,
 	): Promise<void> {
 		for (const record of records) {
 			if (record.type === 'checkpoint') {
@@ -409,7 +457,6 @@ export class ThreadRenderers {
 				ctx,
 				dateFiltered,
 				showThread,
-				showWorkspace,
 			);
 		}
 	}
@@ -420,18 +467,19 @@ export class ThreadRenderers {
 		ctx: MarkdownPostProcessorContext,
 		dateFiltered: boolean,
 		showThread: boolean,
-		showWorkspace: boolean,
 	): Promise<void> {
 		const card = container.createDiv({ cls: 'thread-journal-log-card' });
-		const meta = card.createDiv({ cls: 'thread-journal-log-meta' });
-		meta.createSpan({
-			cls: 'thread-journal-log-time',
+		const header = card.createDiv({ cls: 'thread-journal-log-card-header' });
+		const identity = header.createDiv({ cls: 'thread-journal-log-card-identity' });
+		identity.createSpan({
+			cls: 'thread-journal-log-card-date',
 			text: dateFiltered
 				? record.time || record.timestamp
 				: `${record.date}${record.time ? ` ${record.time}` : ''}`,
 		});
 		if (showThread) {
-			const thread = meta.createSpan({ cls: 'thread-journal-entry-thread' });
+			identity.createSpan({ cls: 'thread-journal-entry-separator', text: '·' });
+			const thread = identity.createSpan({ cls: 'thread-journal-entry-thread' });
 			addFileLink(
 				this.app,
 				thread,
@@ -440,16 +488,25 @@ export class ThreadRenderers {
 				record.thread.title,
 			);
 		}
-		if (showWorkspace) {
-			const source = meta.createSpan({ cls: 'thread-journal-entry-source' });
-			addFileLink(
-				this.app,
-				source,
-				record.workspace,
+		const controls = header.createDiv({ cls: 'thread-journal-log-card-controls' });
+		controls.createSpan({ cls: 'thread-journal-log-card-kind', text: 'log' });
+		const blockId = record.entry.blockId;
+		const locate = controls.createEl('a', {
+			cls: 'thread-journal-log-locate',
+			text: '定位',
+			attr: {
+				href: `${record.workspace.path}#^${blockId}`,
+				'aria-label': '在工作区中定位 log',
+			},
+		});
+		locate.addEventListener('click', (event) => {
+			event.preventDefault();
+			void this.app.workspace.openLinkText(
+				`${record.workspace.path}#^${blockId}`,
 				ctx.sourcePath,
-				'工作区',
+				event.metaKey || event.ctrlKey,
 			);
-		}
+		});
 		const content = card.createDiv({ cls: 'thread-journal-log-content' });
 		const child = new MarkdownRenderChild(content);
 		ctx.addChild(child);
