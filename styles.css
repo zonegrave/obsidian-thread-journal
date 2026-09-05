@@ -115,78 +115,62 @@
 	display: none;
 }
 
-.thread-journal-checkpoints {
+.thread-journal-entries {
 	display: grid;
 	gap: 0.75rem;
 }
 
-.thread-journal-daily-checkpoints {
-	display: grid;
-	gap: 0.75rem;
+.thread-journal-entry-query-error {
+	padding: 0.65rem 0.8rem;
+	border: 1px solid var(--text-error);
+	border-radius: var(--radius-s);
+	color: var(--text-error);
 }
 
-.thread-journal-daily-checkpoint-thread {
+.thread-journal-entry-query-error ul {
+	margin-block: 0.4rem 0;
+}
+
+.thread-journal-entry-group {
 	padding: 0.6rem 0.75rem 0.75rem;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
 	background: var(--background-primary-alt);
 }
 
-.thread-journal-daily-checkpoint-thread > summary {
+.thread-journal-entry-group > summary {
 	cursor: pointer;
 	font-weight: var(--font-semibold);
 }
 
-.thread-journal-daily-checkpoint-count {
-	margin-left: 0.55rem;
+.thread-journal-entry-source,
+.thread-journal-entry-count,
+.thread-journal-entry-thread {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	font-weight: var(--font-normal);
 }
 
-.thread-journal-daily-checkpoint-cards {
+.thread-journal-entry-count {
+	margin-left: 0.55rem;
+}
+
+.thread-journal-entry-separator {
+	color: var(--text-faint);
+}
+
+.thread-journal-entry-cards {
 	display: grid;
 	gap: 0.6rem;
+}
+
+.thread-journal-entry-group > .thread-journal-entry-cards {
 	margin-top: 0.65rem;
 }
 
-.thread-journal-daily-logs {
+.thread-journal-log-card {
 	display: grid;
-	gap: 0.75rem;
-}
-
-.thread-journal-daily-log-thread {
-	padding: 0.6rem 0.75rem 0.75rem;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m);
-	background: var(--background-primary-alt);
-}
-
-.thread-journal-daily-log-thread > summary {
-	cursor: pointer;
-	font-weight: var(--font-semibold);
-}
-
-.thread-journal-daily-log-source,
-.thread-journal-daily-log-count {
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-	font-weight: var(--font-normal);
-}
-
-.thread-journal-daily-log-count {
-	margin-left: 0.55rem;
-}
-
-.thread-journal-daily-log-cards {
-	display: grid;
-	gap: 0.45rem;
-	margin-top: 0.65rem;
-}
-
-.thread-journal-daily-log-card {
-	display: grid;
-	grid-template-columns: 4.25rem minmax(0, 1fr);
+	grid-template-columns: minmax(5rem, auto) minmax(0, 1fr);
 	gap: 0.75rem;
 	align-items: start;
 	padding: 0.55rem 0.7rem;
@@ -196,23 +180,32 @@
 	background: rgba(245, 158, 11, 0.07);
 }
 
-.thread-journal-daily-log-time {
+.thread-journal-log-meta {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.15rem;
+	min-width: 0;
+}
+
+.thread-journal-log-time {
 	color: var(--text-muted);
 	font-family: var(--font-monospace);
 	font-size: var(--font-ui-smaller);
 	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
 }
 
-.thread-journal-daily-log-content {
+.thread-journal-log-content {
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
 
-.thread-journal-daily-log-content > :first-child {
+.thread-journal-log-content > :first-child {
 	margin-top: 0;
 }
 
-.thread-journal-daily-log-content > :last-child {
+.thread-journal-log-content > :last-child {
 	margin-bottom: 0;
 }
 
@@ -229,6 +222,14 @@
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.75rem;
+}
+
+.thread-journal-checkpoint-card-identity {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	min-width: 0;
 }
 
 .thread-journal-checkpoint-card-controls {

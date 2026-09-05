@@ -92,7 +92,7 @@ created: 2026-08-31
 > - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成工作区模型设计] [version:: 0.16.0] ^cp-20260831-143500-a1b2c
 ````
 
-原始 checkpoint 可以像其他 Markdown 一样在工作区任意移动；阅读模式与 Live Preview 中的 callout 都提供“编辑”按钮，按钮不写入 Markdown。主 thread 的 Context 下保留 `thread-checkpoints` 代码块，它按 `thread_id` 读取配套工作区并生成汇总卡片：日期、时间和类型显示在标题，摘要直接显示，自定义字段按“名称：值”排列。
+原始 checkpoint 可以像其他 Markdown 一样在工作区任意移动；阅读模式与 Live Preview 中的 callout 都提供“编辑”按钮，按钮不写入 Markdown。主 thread 的 Context 下使用统一的 `thread-entries` 代码块，按当前 `thread_id` 汇总 checkpoint：日期、时间和类型显示在标题，摘要直接显示，自定义字段按“名称：值”排列。
 
 每张带块 ID 的汇总卡片都有“定位”“编辑”和“删除”入口。“定位”打开工作区并跳到原始块；编辑会合并当前模板中所有未废弃字段与该条记录实际保存的历史字段，保存后按原块 ID 在工作区原位替换。删除需要二次确认，并且只移除工作区中该块 ID 对应的 checkpoint。
 
@@ -115,16 +115,35 @@ SORT checkpoint.checkpoint_date DESC
 ```
 ````
 
-## 日记中的 Checkpoint 汇总
+## 统一记录查询
 
-在日记模板中加入：
+Checkpoint 与 inline log 都是 Thread 工作区中的记录条目。它们保留各自的原始 callout 和字段结构，但统一通过 `thread-entries` 查询与展示。代码块支持四个可选条件：
+
+- `thread_id`：单个 ID 或 ID 列表；省略表示全部 thread。
+- `date`：单日 `YYYY-MM-DD`，或闭区间 `YYYY-MM-DD..YYYY-MM-DD`；省略表示全部日期。
+- `type`：`checkpoint`、`log` 或列表；省略表示两种记录。
+- `group_by`：`thread`、`type` 或 `none`；默认 `none`。
+
+条件之间使用“并且”关系。指定日期时按时间正序显示，未指定日期时按时间倒序显示。模板中的 `{{thread_id}}` 与 `{{date:YYYY-MM-DD}}` 会在创建笔记时解析为实际值，不依赖展示笔记的类型。主 thread 默认使用：
 
 ````markdown
-```thread-daily-checkpoints
+```thread-entries
+thread_id: {{thread_id}}
+type: checkpoint
 ```
 ````
 
-插件优先读取日记的 `date` 属性，否则使用 `YYYY-MM-DD` 文件名作为日期。视图查询各 Thread 工作区，只展示当天实际存在 checkpoint 的 thread，按 thread 分组并默认展开；其中的卡片可以定位、编辑和删除原始 callout，不向日记复制 checkpoint 数据。
+日记模板使用一个代码块同时展示当天 checkpoint 和 log：
+
+````markdown
+```thread-entries
+date: {{date:YYYY-MM-DD}}
+type: [checkpoint, log]
+group_by: thread
+```
+````
+
+按 thread 分组时，各组默认展开，标题链接主 thread 与工作区。Checkpoint 卡片可以定位、编辑和删除原始 callout；log 正文中的双链和 Markdown 正常渲染。所有数据仍只保存在 Thread 工作区，不复制到展示笔记。
 
 ## Thread 与工作区切换
 
@@ -161,17 +180,6 @@ WHERE log.thread_log
 SORT log.thread_log DESC
 ```
 ````
-
-## 日记中的 Inline log 汇总
-
-在日记模板中加入：
-
-````markdown
-```thread-daily-logs
-```
-````
-
-插件优先读取日记的 `date` 属性，否则使用 `YYYY-MM-DD` 文件名作为日期。视图动态读取各 Thread 工作区里的 `thread_log`，按 thread 分组、按时间正序排列并默认展开，不向日记复制日志数据。thread 名称链接主文件，“工作区”链接日志来源；日志正文中的双链和 Markdown 会正常渲染。
 
 ## 命令
 

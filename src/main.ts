@@ -155,21 +155,9 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.registerMarkdownPostProcessor((el, ctx) => {
 			this.renderers.enhanceCheckpointCallouts(el, ctx);
 		});
-		this.registerMarkdownCodeBlockProcessor('thread-checkpoints', async (_source, el, ctx) => {
-			await this.renderers.renderCheckpoints(el, ctx);
+		this.registerMarkdownCodeBlockProcessor('thread-entries', async (source, el, ctx) => {
+			await this.renderers.renderEntries(source, el, ctx);
 		});
-		this.registerMarkdownCodeBlockProcessor(
-			'thread-daily-checkpoints',
-			async (_source, el, ctx) => {
-				await this.renderers.renderDailyCheckpoints(el, ctx);
-			},
-		);
-		this.registerMarkdownCodeBlockProcessor(
-			'thread-daily-logs',
-			async (_source, el, ctx) => {
-				await this.renderers.renderDailyLogs(el, ctx);
-			},
-		);
 
 		this.registerMarkdownCodeBlockProcessor('thread-breadcrumb', (_source, el, ctx) => {
 			this.renderers.renderBreadcrumb(el, ctx);

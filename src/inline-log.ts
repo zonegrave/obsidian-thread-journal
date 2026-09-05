@@ -36,15 +36,6 @@ export function parseInlineLogEntries(content: string): ParsedInlineLogEntry[] {
 	return entries;
 }
 
-export function inlineLogEntriesForDate(
-	content: string,
-	date: string,
-): ParsedInlineLogEntry[] {
-	return parseInlineLogEntries(content)
-		.filter((entry) => entry.date === date)
-		.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-}
-
 export function buildInlineLogEdit(
 	line: string,
 	displayTimestamp: string,

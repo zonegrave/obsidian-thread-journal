@@ -6,29 +6,45 @@ import {
 	type MarkdownPostProcessorContext,
 } from 'obsidian';
 import {
-	checkpointEntriesForDate,
 	parseCheckpointEntries,
 	type ParsedCheckpointEntry,
 } from './checkpoint-core';
 import { checkpointFieldsForThread } from './checkpoint-model';
-import { inlineLogEntriesForDate } from './inline-log';
+import {
+	parseThreadEntriesQuery,
+	type ThreadEntryGroupBy,
+} from './entry-query';
+import { parseInlineLogEntries, type ParsedInlineLogEntry } from './inline-log';
 import type { ThreadIndex } from './thread-index';
 import { threadStatusLabel } from './thread-status-model';
-import type { ThreadJournalSettings } from './types';
+import type { ThreadInfo, ThreadJournalSettings } from './types';
+
+interface CheckpointEntryRecord {
+	type: 'checkpoint';
+	thread: ThreadInfo;
+	workspace: TFile;
+	date: string;
+	time: string;
+	timestamp: string;
+	entry: ParsedCheckpointEntry;
+	fields: ThreadJournalSettings['checkpointFields'];
+}
+
+interface LogEntryRecord {
+	type: 'log';
+	thread: ThreadInfo;
+	workspace: TFile;
+	date: string;
+	time: string;
+	timestamp: string;
+	entry: ParsedInlineLogEntry;
+}
+
+type ThreadEntryRecord = CheckpointEntryRecord | LogEntryRecord;
 
 function sourceFile(app: App, ctx: MarkdownPostProcessorContext): TFile | undefined {
 	const file = app.vault.getAbstractFileByPath(ctx.sourcePath);
 	return file instanceof TFile ? file : undefined;
-}
-
-function dailyNoteDate(app: App, file: TFile): string | undefined {
-	const rawDate: unknown = app.metadataCache.getFileCache(file)?.frontmatter?.date;
-	if (typeof rawDate === 'string') {
-		const match = /\d{4}-\d{2}-\d{2}/.exec(rawDate);
-		if (match) return match[0];
-	}
-	const fileMatch = /^(\d{4}-\d{2}-\d{2})$/.exec(file.basename);
-	return fileMatch?.[1];
 }
 
 function checkpointTimestamp(entry: ParsedCheckpointEntry): string {
@@ -145,194 +161,263 @@ export class ThreadRenderers {
 		});
 	}
 
-	async renderCheckpoints(
+	async renderEntries(
+		source: string,
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext,
 	): Promise<void> {
 		const current = sourceFile(this.app, ctx);
 		if (!current) return;
-		el.addClass('thread-journal-checkpoints');
-		const thread = this.index.getThread(current);
-		if (!thread) {
-			el.createDiv({ cls: 'thread-journal-empty', text: '当前代码块不在主 thread 中。' });
-			return;
-		}
-		const workspace = this.index.getWorkspace(current);
-		if (!workspace) {
-			el.createDiv({ cls: 'thread-journal-empty', text: '尚未找到配套工作区。' });
-			return;
-		}
-		const content = await this.app.vault.cachedRead(workspace);
-		const entries = parseCheckpointEntries(content)
-			.sort((a, b) => checkpointTimestamp(b).localeCompare(checkpointTimestamp(a)));
-		if (entries.length === 0) {
-			el.createDiv({ cls: 'thread-journal-empty', text: '暂无 checkpoint。' });
-			return;
-		}
-		const rawFrontmatter: unknown = this.app.metadataCache
-			.getFileCache(current)?.frontmatter;
-		const ownFields = typeof rawFrontmatter === 'object' && rawFrontmatter !== null
-			? (rawFrontmatter as Record<string, unknown>).checkpoint_fields
-			: undefined;
-		const fields = checkpointFieldsForThread(
-			ownFields,
-			this.getSettings().checkpointFields,
-		);
-		this.renderCheckpointCards(el, workspace, entries, fields, ctx.sourcePath);
-	}
-
-	async renderDailyCheckpoints(
-		el: HTMLElement,
-		ctx: MarkdownPostProcessorContext,
-	): Promise<void> {
-		const dailyFile = sourceFile(this.app, ctx);
-		if (!dailyFile) return;
-		el.addClass('thread-journal-daily-checkpoints');
-		const date = dailyNoteDate(this.app, dailyFile);
-		if (!date) {
-			el.createDiv({ cls: 'thread-journal-empty', text: '无法确定当前日记日期。' });
+		el.addClass('thread-journal-entries');
+		const parsed = parseThreadEntriesQuery(source);
+		if (parsed.errors.length > 0) {
+			this.renderEntryQueryErrors(el, parsed.errors);
 			return;
 		}
 
-		const candidates = await Promise.all(this.index.getAllThreads().map(async (thread) => {
+		const errors: string[] = [];
+		let threads = this.index.getAllThreads();
+		if (parsed.query.threadIds) {
+			const uniqueIds = [...new Set(parsed.query.threadIds)];
+			threads = uniqueIds.flatMap((id) => {
+				const thread = this.index.getThreadById(id);
+				if (!thread) {
+					errors.push(`找不到 thread_id: ${id}。`);
+					return [];
+				}
+				return [thread];
+			});
+		}
+
+		const date = parsed.query.date;
+		if (errors.length > 0) {
+			this.renderEntryQueryErrors(el, errors);
+			return;
+		}
+
+		const records = (await Promise.all(threads.map(async (thread) => {
 			const workspace = this.index.getWorkspace(thread.file);
-			if (!workspace) return undefined;
+			if (!workspace) return [];
 			const content = await this.app.vault.cachedRead(workspace);
-			const entries = checkpointEntriesForDate(content, date)
-				.sort((a, b) => checkpointTimestamp(a).localeCompare(checkpointTimestamp(b)));
-			if (entries.length === 0) return undefined;
-			const rawFrontmatter: unknown = this.app.metadataCache
-				.getFileCache(thread.file)?.frontmatter;
-			const ownFields = typeof rawFrontmatter === 'object' && rawFrontmatter !== null
-				? (rawFrontmatter as Record<string, unknown>).checkpoint_fields
-				: undefined;
-			return {
-				thread,
-				workspace,
-				entries,
-				fields: checkpointFieldsForThread(
+			const entries: ThreadEntryRecord[] = [];
+			if (parsed.query.types.includes('checkpoint')) {
+				const rawFrontmatter: unknown = this.app.metadataCache
+					.getFileCache(thread.file)?.frontmatter;
+				const ownFields = typeof rawFrontmatter === 'object' && rawFrontmatter !== null
+					? (rawFrontmatter as Record<string, unknown>).checkpoint_fields
+					: undefined;
+				const fields = checkpointFieldsForThread(
 					ownFields,
 					this.getSettings().checkpointFields,
-				),
-			};
-		}));
-		const groups = candidates
-			.filter((group): group is Exclude<(typeof candidates)[number], undefined> =>
-				Boolean(group))
-			.sort((a, b) => a.thread.title.localeCompare(b.thread.title));
+				);
+				for (const entry of parseCheckpointEntries(content)) {
+					const entryDate = entry.values.checkpoint_date ?? '';
+					if (date && (entryDate < date.from || entryDate > date.to)) continue;
+					entries.push({
+						type: 'checkpoint',
+						thread,
+						workspace,
+						date: entryDate,
+						time: entry.values.checkpoint_time ?? '',
+						timestamp: checkpointTimestamp(entry),
+						entry,
+						fields,
+					});
+				}
+			}
+			if (parsed.query.types.includes('log')) {
+				for (const entry of parseInlineLogEntries(content)) {
+					if (date && (entry.date < date.from || entry.date > date.to)) continue;
+					entries.push({
+						type: 'log',
+						thread,
+						workspace,
+						date: entry.date,
+						time: entry.time,
+						timestamp: entry.timestamp,
+						entry,
+					});
+				}
+			}
+			return entries;
+		}))).flat();
 
-		if (groups.length === 0) {
-			el.createDiv({ cls: 'thread-journal-empty', text: '今天没有 checkpoint。' });
+		const direction = date ? 1 : -1;
+		records.sort((a, b) => {
+			const timestamp = direction * a.timestamp.localeCompare(b.timestamp);
+			return timestamp || a.thread.title.localeCompare(b.thread.title);
+		});
+		if (records.length === 0) {
+			el.createDiv({ cls: 'thread-journal-empty', text: '没有符合条件的记录。' });
+			return;
+		}
+		await this.renderEntryResults(
+			el,
+			records,
+			parsed.query.groupBy,
+			ctx,
+			Boolean(date && date.from === date.to),
+		);
+	}
+
+	private renderEntryQueryErrors(container: HTMLElement, errors: string[]): void {
+		const warning = container.createDiv({ cls: 'thread-journal-entry-query-error' });
+		warning.createDiv({ text: '记录查询无法执行：' });
+		const list = warning.createEl('ul');
+		for (const error of errors) list.createEl('li', { text: error });
+	}
+
+	private async renderEntryResults(
+		container: HTMLElement,
+		records: ThreadEntryRecord[],
+		groupBy: ThreadEntryGroupBy,
+		ctx: MarkdownPostProcessorContext,
+		dateFiltered: boolean,
+	): Promise<void> {
+		if (groupBy === 'thread') {
+			const groups = new Map<string, ThreadEntryRecord[]>();
+			for (const record of records) {
+				const group = groups.get(record.thread.id) ?? [];
+				group.push(record);
+				groups.set(record.thread.id, group);
+			}
+			const sorted = [...groups.values()].sort((a, b) =>
+				(a[0]?.thread.title ?? '').localeCompare(b[0]?.thread.title ?? ''));
+			for (const group of sorted) {
+				const first = group[0];
+				if (!first) continue;
+				const section = this.createEntryGroup(container);
+				const summary = section.createEl('summary');
+				addFileLink(
+					this.app,
+					summary,
+					first.thread.file,
+					ctx.sourcePath,
+					first.thread.title,
+				);
+				const source = summary.createSpan({ cls: 'thread-journal-entry-source' });
+				source.createSpan({ text: ' · ' });
+				addFileLink(
+					this.app,
+					source,
+					first.workspace,
+					ctx.sourcePath,
+					'工作区',
+				);
+				this.addEntryCount(summary, group.length);
+				const cards = section.createDiv({ cls: 'thread-journal-entry-cards' });
+				await this.renderEntryCards(cards, group, ctx, dateFiltered, false, false);
+			}
 			return;
 		}
 
-		for (const group of groups) {
-			const section = el.createEl('details', {
-				cls: 'thread-journal-daily-checkpoint-thread',
-			});
-			section.open = true;
-			const summary = section.createEl('summary');
-			addFileLink(
-				this.app,
-				summary,
-				group.thread.file,
-				ctx.sourcePath,
-				group.thread.title,
-			);
-			summary.createSpan({
-				cls: 'thread-journal-daily-checkpoint-count',
-				text: `${group.entries.length} 条`,
-			});
-			const cards = section.createDiv({ cls: 'thread-journal-daily-checkpoint-cards' });
-			this.renderCheckpointCards(
-				cards,
-				group.workspace,
-				group.entries,
-				group.fields,
-				ctx.sourcePath,
+		if (groupBy === 'type') {
+			for (const type of ['checkpoint', 'log'] as const) {
+				const group = records.filter((record) => record.type === type);
+				if (group.length === 0) continue;
+				const section = this.createEntryGroup(container);
+				const summary = section.createEl('summary', {
+					text: type === 'checkpoint' ? 'Checkpoint' : 'Log',
+				});
+				this.addEntryCount(summary, group.length);
+				const cards = section.createDiv({ cls: 'thread-journal-entry-cards' });
+				await this.renderEntryCards(cards, group, ctx, dateFiltered, true, true);
+			}
+			return;
+		}
+
+		const cards = container.createDiv({ cls: 'thread-journal-entry-cards' });
+		const showThread = new Set(records.map((record) => record.thread.id)).size > 1;
+		await this.renderEntryCards(cards, records, ctx, dateFiltered, showThread, true);
+	}
+
+	private createEntryGroup(container: HTMLElement): HTMLDetailsElement {
+		const section = container.createEl('details', { cls: 'thread-journal-entry-group' });
+		section.open = true;
+		return section;
+	}
+
+	private addEntryCount(container: HTMLElement, count: number): void {
+		container.createSpan({ cls: 'thread-journal-entry-count', text: `${count} 条` });
+	}
+
+	private async renderEntryCards(
+		container: HTMLElement,
+		records: ThreadEntryRecord[],
+		ctx: MarkdownPostProcessorContext,
+		dateFiltered: boolean,
+		showThread: boolean,
+		showWorkspace: boolean,
+	): Promise<void> {
+		for (const record of records) {
+			if (record.type === 'checkpoint') {
+				this.renderCheckpointCards(
+					container,
+					record.workspace,
+					[record.entry],
+					record.fields,
+					ctx.sourcePath,
+					showThread ? record.thread : undefined,
+				);
+				continue;
+			}
+			await this.renderLogCard(
+				container,
+				record,
+				ctx,
+				dateFiltered,
+				showThread,
+				showWorkspace,
 			);
 		}
 	}
 
-	async renderDailyLogs(
-		el: HTMLElement,
+	private async renderLogCard(
+		container: HTMLElement,
+		record: LogEntryRecord,
 		ctx: MarkdownPostProcessorContext,
+		dateFiltered: boolean,
+		showThread: boolean,
+		showWorkspace: boolean,
 	): Promise<void> {
-		const dailyFile = sourceFile(this.app, ctx);
-		if (!dailyFile) return;
-		el.addClass('thread-journal-daily-logs');
-		const date = dailyNoteDate(this.app, dailyFile);
-		if (!date) {
-			el.createDiv({ cls: 'thread-journal-empty', text: '无法确定当前日记日期。' });
-			return;
-		}
-
-		const candidates = await Promise.all(this.index.getAllThreads().map(async (thread) => {
-			const workspace = this.index.getWorkspace(thread.file);
-			if (!workspace) return undefined;
-			const content = await this.app.vault.cachedRead(workspace);
-			const entries = inlineLogEntriesForDate(content, date);
-			if (entries.length === 0) return undefined;
-			return { thread, workspace, entries };
-		}));
-		const groups = candidates
-			.filter((group): group is Exclude<(typeof candidates)[number], undefined> =>
-				Boolean(group))
-			.sort((a, b) => a.thread.title.localeCompare(b.thread.title));
-
-		if (groups.length === 0) {
-			el.createDiv({ cls: 'thread-journal-empty', text: '今天没有 inline log。' });
-			return;
-		}
-
-		for (const group of groups) {
-			const section = el.createEl('details', {
-				cls: 'thread-journal-daily-log-thread',
-			});
-			section.open = true;
-			const summary = section.createEl('summary');
+		const card = container.createDiv({ cls: 'thread-journal-log-card' });
+		const meta = card.createDiv({ cls: 'thread-journal-log-meta' });
+		meta.createSpan({
+			cls: 'thread-journal-log-time',
+			text: dateFiltered
+				? record.time || record.timestamp
+				: `${record.date}${record.time ? ` ${record.time}` : ''}`,
+		});
+		if (showThread) {
+			const thread = meta.createSpan({ cls: 'thread-journal-entry-thread' });
 			addFileLink(
 				this.app,
-				summary,
-				group.thread.file,
+				thread,
+				record.thread.file,
 				ctx.sourcePath,
-				group.thread.title,
+				record.thread.title,
 			);
-			const workspaceLink = summary.createSpan({
-				cls: 'thread-journal-daily-log-source',
-			});
-			workspaceLink.createSpan({ text: ' · ' });
+		}
+		if (showWorkspace) {
+			const source = meta.createSpan({ cls: 'thread-journal-entry-source' });
 			addFileLink(
 				this.app,
-				workspaceLink,
-				group.workspace,
+				source,
+				record.workspace,
 				ctx.sourcePath,
 				'工作区',
 			);
-			summary.createSpan({
-				cls: 'thread-journal-daily-log-count',
-				text: `${group.entries.length} 条`,
-			});
-
-			const cards = section.createDiv({ cls: 'thread-journal-daily-log-cards' });
-			for (const entry of group.entries) {
-				const card = cards.createDiv({ cls: 'thread-journal-daily-log-card' });
-				card.createSpan({
-					cls: 'thread-journal-daily-log-time',
-					text: entry.time || entry.timestamp,
-				});
-				const content = card.createDiv({ cls: 'thread-journal-daily-log-content' });
-				const child = new MarkdownRenderChild(content);
-				ctx.addChild(child);
-				await MarkdownRenderer.render(
-					this.app,
-					entry.text || '（空日志）',
-					content,
-					group.workspace.path,
-					child,
-				);
-			}
 		}
+		const content = card.createDiv({ cls: 'thread-journal-log-content' });
+		const child = new MarkdownRenderChild(content);
+		ctx.addChild(child);
+		await MarkdownRenderer.render(
+			this.app,
+			record.entry.text || '（空日志）',
+			content,
+			record.workspace.path,
+			child,
+		);
 	}
 
 	private renderCheckpointCards(
@@ -341,6 +426,7 @@ export class ThreadRenderers {
 		entries: ParsedCheckpointEntry[],
 		fields: ThreadJournalSettings['checkpointFields'],
 		renderSourcePath: string,
+		thread?: ThreadInfo,
 	): void {
 		const knownKeys = new Set(fields.map((field) => field.key));
 		const systemKeys = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
@@ -348,12 +434,26 @@ export class ThreadRenderers {
 		for (const entry of entries) {
 			const card = container.createDiv({ cls: 'thread-journal-checkpoint-card' });
 			const header = card.createDiv({ cls: 'thread-journal-checkpoint-card-header' });
+			const identity = header.createDiv({
+				cls: 'thread-journal-checkpoint-card-identity',
+			});
 			const date = entry.values.checkpoint_date || '未填写日期';
 			const time = entry.values.checkpoint_time;
-			header.createSpan({
+			identity.createSpan({
 				cls: 'thread-journal-checkpoint-card-date',
 				text: time ? `${date} ${time}` : date,
 			});
+			if (thread) {
+				identity.createSpan({ cls: 'thread-journal-entry-separator', text: '·' });
+				const threadLink = identity.createSpan({ cls: 'thread-journal-entry-thread' });
+				addFileLink(
+					this.app,
+					threadLink,
+					thread.file,
+					renderSourcePath,
+					thread.title,
+				);
+			}
 			const controls = header.createDiv({ cls: 'thread-journal-checkpoint-card-controls' });
 			const kind = entry.values.checkpoint_kind;
 			if (kind) controls.createSpan({ cls: 'thread-journal-checkpoint-card-kind', text: kind });

@@ -5,7 +5,6 @@ import {
 	buildCheckpointEntry,
 	checkpointEditState,
 	checkpointEntryAroundLine,
-	checkpointEntriesForDate,
 	deleteCheckpointEntry,
 	insertCheckpointEntryAtLine,
 	parseCheckpointEntries,
@@ -30,9 +29,9 @@ import { DEFAULT_THREAD_TEMPLATE, renderThreadTemplate } from '../src/thread-tem
 import { ThreadIndex } from '../src/thread-index';
 import {
 	buildInlineLogEdit,
-	inlineLogEntriesForDate,
 	parseInlineLogEntries,
 } from '../src/inline-log';
+import { parseThreadEntriesQuery } from '../src/entry-query';
 import {
 	buildCheckpointModalForm,
 	buildCheckpointTemplateFieldModalForm,
@@ -111,10 +110,50 @@ void test('parses current and legacy inline logs for a daily summary', () => {
 			text: '昨天的记录',
 		},
 	]);
-	assert.deepEqual(
-		inlineLogEntriesForDate(content, '2026-09-04').map((entry) => entry.time),
-		['07:41', '14:35'],
-	);
+});
+
+void test('parses the unified thread entries query', () => {
+	assert.deepEqual(parseThreadEntriesQuery([
+		'thread_id: 20e15ed8-5de0-44bc-919f-54d49294c14c',
+		'date: 2026-09-01..2026-09-04',
+		'type: [checkpoint, log]',
+		'group_by: thread',
+	].join('\n')), {
+		query: {
+			threadIds: ['20e15ed8-5de0-44bc-919f-54d49294c14c'],
+			date: { from: '2026-09-01', to: '2026-09-04' },
+			types: ['checkpoint', 'log'],
+			groupBy: 'thread',
+		},
+		errors: [],
+	});
+	assert.deepEqual(parseThreadEntriesQuery(''), {
+		query: {
+			threadIds: undefined,
+			date: undefined,
+			types: ['checkpoint', 'log'],
+			groupBy: 'none',
+		},
+		errors: [],
+	});
+	assert.deepEqual(parseThreadEntriesQuery('date: 2026-09-04').query.date, {
+		from: '2026-09-04',
+		to: '2026-09-04',
+	});
+});
+
+void test('reports invalid thread entries query values', () => {
+	const result = parseThreadEntriesQuery([
+		'date: 2026-09-05..2026-09-01',
+		'type: checkpoint, thought',
+		'group_by: day',
+		'unknown: value',
+	].join('\n'));
+	assert.equal(result.errors.length, 4);
+	assert.match(result.errors.join('\n'), /date/);
+	assert.match(result.errors.join('\n'), /thought/);
+	assert.match(result.errors.join('\n'), /group_by/);
+	assert.match(result.errors.join('\n'), /unknown/);
 });
 
 void test('recognizes current and legacy Context headings', () => {
@@ -160,7 +199,7 @@ void test('keeps only the current main thread structure in the default template'
 	assert.match(DEFAULT_THREAD_TEMPLATE, /## 当前 Context/);
 	assert.match(DEFAULT_THREAD_TEMPLATE, /\*\*继续：\*\*/);
 	assert.match(DEFAULT_THREAD_TEMPLATE, /### Checkpoints/);
-	assert.match(DEFAULT_THREAD_TEMPLATE, /```thread-checkpoints/);
+	assert.match(DEFAULT_THREAD_TEMPLATE, /```thread-entries\nthread_id: \{\{thread_id\}\}\ntype: checkpoint/);
 });
 
 void test('renders the current template placeholders', () => {
@@ -400,20 +439,6 @@ void test('finds the checkpoint around a Live Preview source line', () => {
 	assert.equal(checkpointEntryAroundLine(content, 2)?.blockId, 'cp-live');
 	assert.equal(checkpointEntryAroundLine(content, 4)?.values.checkpoint_summary, '完成');
 	assert.equal(checkpointEntryAroundLine(content, 6), undefined);
-});
-
-void test('filters checkpoint entries by daily note date', () => {
-	const content = [
-		'> [!thread-checkpoint] milestone · 09-01 09:00',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] [checkpoint_summary:: 今天] ^cp-today',
-		'',
-		'> [!thread-checkpoint] milestone · 08-31 09:00',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_summary:: 昨天] ^cp-yesterday',
-	].join('\n');
-	assert.deepEqual(
-		checkpointEntriesForDate(content, '2026-09-01').map((entry) => entry.blockId),
-		['cp-today'],
-	);
 });
 
 void test('appends checkpoint callouts to the workspace', () => {

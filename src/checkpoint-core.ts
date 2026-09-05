@@ -204,14 +204,6 @@ export function parseCheckpointEntries(content: string): ParsedCheckpointEntry[]
 	return result;
 }
 
-export function checkpointEntriesForDate(
-	content: string,
-	date: string,
-): ParsedCheckpointEntry[] {
-	return parseCheckpointEntries(content).filter((entry) =>
-		entry.values.checkpoint_date === date);
-}
-
 export function checkpointEntryAroundLine(
 	content: string,
 	line: number,
