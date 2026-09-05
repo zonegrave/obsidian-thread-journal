@@ -1,5 +1,6 @@
 export type ThreadEntryType = 'checkpoint' | 'log';
 export type ThreadEntryGroupBy = 'none' | 'thread' | 'type';
+export type ThreadEntryDetail = 'none' | 'name' | 'crumb';
 
 export interface ThreadEntryDateFilter {
 	from: string;
@@ -11,6 +12,7 @@ export interface ThreadEntriesQuery {
 	date?: ThreadEntryDateFilter;
 	types: ThreadEntryType[];
 	groupBy: ThreadEntryGroupBy;
+	threadDetail: ThreadEntryDetail;
 }
 
 export interface ParsedThreadEntriesQuery {
@@ -20,7 +22,14 @@ export interface ParsedThreadEntriesQuery {
 
 const ENTRY_TYPES = new Set<ThreadEntryType>(['checkpoint', 'log']);
 const GROUP_VALUES = new Set<ThreadEntryGroupBy>(['none', 'thread', 'type']);
-const QUERY_KEYS = new Set(['thread_id', 'date', 'type', 'group_by']);
+const THREAD_DETAIL_VALUES = new Set<ThreadEntryDetail>(['none', 'name', 'crumb']);
+const QUERY_KEYS = new Set([
+	'thread_id',
+	'date',
+	'type',
+	'group_by',
+	'thread_detail',
+]);
 
 function unquote(value: string): string {
 	const trimmed = value.trim();
@@ -123,8 +132,19 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 		}
 	}
 
+	let threadDetail: ThreadEntryDetail = 'none';
+	const rawThreadDetail = values.get('thread_detail');
+	if (rawThreadDetail !== undefined) {
+		const parsed = unquote(rawThreadDetail) as ThreadEntryDetail;
+		if (!THREAD_DETAIL_VALUES.has(parsed)) {
+			errors.push('thread_detail 只支持 none、name 或 crumb。');
+		} else {
+			threadDetail = parsed;
+		}
+	}
+
 	return {
-		query: { threadIds, date, types, groupBy },
+		query: { threadIds, date, types, groupBy, threadDetail },
 		errors,
 	};
 }

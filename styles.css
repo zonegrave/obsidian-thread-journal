@@ -242,6 +242,17 @@
 	color: var(--text-faint);
 }
 
+.thread-journal-entry-thread.is-crumb {
+	display: inline-flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.28rem;
+}
+
+.thread-journal-entry-thread.is-crumb .thread-journal-warning {
+	margin-left: 0;
+}
+
 .thread-journal-entry-cards {
 	display: grid;
 	gap: 0.6rem;

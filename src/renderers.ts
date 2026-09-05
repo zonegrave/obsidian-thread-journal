@@ -12,6 +12,7 @@ import {
 import { checkpointFieldsForThread } from './checkpoint-model';
 import {
 	parseThreadEntriesQuery,
+	type ThreadEntryDetail,
 	type ThreadEntryGroupBy,
 } from './entry-query';
 import { parseInlineLogEntries, type ParsedInlineLogEntry } from './inline-log';
@@ -334,6 +335,7 @@ export class ThreadRenderers {
 			el,
 			records,
 			parsed.query.groupBy,
+			parsed.query.threadDetail,
 			ctx,
 			Boolean(date && date.from === date.to),
 		);
@@ -362,6 +364,7 @@ export class ThreadRenderers {
 		container: HTMLElement,
 		records: ThreadEntryRecord[],
 		groupBy: ThreadEntryGroupBy,
+		threadDetail: ThreadEntryDetail,
 		ctx: MarkdownPostProcessorContext,
 		dateFiltered: boolean,
 	): Promise<void> {
@@ -379,12 +382,11 @@ export class ThreadRenderers {
 				if (!first) continue;
 				const section = this.createEntryGroup(container);
 				const summary = section.createEl('summary');
-				addFileLink(
-					this.app,
+				this.renderThreadDetail(
 					summary,
-					first.thread.file,
+					first.thread,
 					ctx.sourcePath,
-					first.thread.title,
+					threadDetail === 'crumb' ? 'crumb' : 'name',
 				);
 				const source = summary.createSpan({ cls: 'thread-journal-entry-source' });
 				source.createSpan({ text: ' · ' });
@@ -397,7 +399,7 @@ export class ThreadRenderers {
 				);
 				this.addEntryCount(summary, group.length);
 				const cards = section.createDiv({ cls: 'thread-journal-entry-cards' });
-				await this.renderEntryCards(cards, group, ctx, dateFiltered, false);
+				await this.renderEntryCards(cards, group, ctx, dateFiltered, 'none');
 			}
 			return;
 		}
@@ -412,14 +414,19 @@ export class ThreadRenderers {
 				});
 				this.addEntryCount(summary, group.length);
 				const cards = section.createDiv({ cls: 'thread-journal-entry-cards' });
-				await this.renderEntryCards(cards, group, ctx, dateFiltered, true);
+				await this.renderEntryCards(
+					cards,
+					group,
+					ctx,
+					dateFiltered,
+					threadDetail,
+				);
 			}
 			return;
 		}
 
 		const cards = container.createDiv({ cls: 'thread-journal-entry-cards' });
-		const showThread = new Set(records.map((record) => record.thread.id)).size > 1;
-		await this.renderEntryCards(cards, records, ctx, dateFiltered, showThread);
+		await this.renderEntryCards(cards, records, ctx, dateFiltered, threadDetail);
 	}
 
 	private createEntryGroup(container: HTMLElement): HTMLDetailsElement {
@@ -432,12 +439,49 @@ export class ThreadRenderers {
 		container.createSpan({ cls: 'thread-journal-entry-count', text: `${count} 条` });
 	}
 
+	private renderThreadDetail(
+		container: HTMLElement,
+		thread: ThreadInfo,
+		sourcePath: string,
+		detail: Exclude<ThreadEntryDetail, 'none'>,
+	): void {
+		const target = container.createSpan({
+			cls: [
+				'thread-journal-entry-thread',
+				detail === 'crumb' ? 'is-crumb' : 'is-name',
+			],
+		});
+		if (detail === 'name') {
+			addFileLink(this.app, target, thread.file, sourcePath, thread.title);
+			return;
+		}
+
+		const ancestry = this.index.getAncestors(thread.file);
+		const items = [
+			...ancestry.items,
+			{ file: thread.file, label: thread.title },
+		];
+		items.forEach((item, index) => {
+			if (index > 0) {
+				target.createSpan({ cls: 'thread-journal-entry-separator', text: '›' });
+			}
+			addFileLink(this.app, target, item.file, sourcePath, item.label);
+		});
+		if (ancestry.cycle) {
+			target.createSpan({
+				cls: 'thread-journal-warning',
+				text: '↻',
+				attr: { 'aria-label': '检测到父 thread 循环' },
+			});
+		}
+	}
+
 	private async renderEntryCards(
 		container: HTMLElement,
 		records: ThreadEntryRecord[],
 		ctx: MarkdownPostProcessorContext,
 		dateFiltered: boolean,
-		showThread: boolean,
+		threadDetail: ThreadEntryDetail,
 	): Promise<void> {
 		for (const record of records) {
 			if (record.type === 'checkpoint') {
@@ -447,7 +491,8 @@ export class ThreadRenderers {
 					[record.entry],
 					record.fields,
 					ctx.sourcePath,
-					showThread ? record.thread : undefined,
+					threadDetail,
+					record.thread,
 				);
 				continue;
 			}
@@ -456,7 +501,7 @@ export class ThreadRenderers {
 				record,
 				ctx,
 				dateFiltered,
-				showThread,
+				threadDetail,
 			);
 		}
 	}
@@ -466,7 +511,7 @@ export class ThreadRenderers {
 		record: LogEntryRecord,
 		ctx: MarkdownPostProcessorContext,
 		dateFiltered: boolean,
-		showThread: boolean,
+		threadDetail: ThreadEntryDetail,
 	): Promise<void> {
 		const card = container.createDiv({ cls: 'thread-journal-log-card' });
 		const header = card.createDiv({ cls: 'thread-journal-log-card-header' });
@@ -477,15 +522,13 @@ export class ThreadRenderers {
 				? record.time || record.timestamp
 				: `${record.date}${record.time ? ` ${record.time}` : ''}`,
 		});
-		if (showThread) {
+		if (threadDetail !== 'none') {
 			identity.createSpan({ cls: 'thread-journal-entry-separator', text: '·' });
-			const thread = identity.createSpan({ cls: 'thread-journal-entry-thread' });
-			addFileLink(
-				this.app,
-				thread,
-				record.thread.file,
+			this.renderThreadDetail(
+				identity,
+				record.thread,
 				ctx.sourcePath,
-				record.thread.title,
+				threadDetail,
 			);
 		}
 		const controls = header.createDiv({ cls: 'thread-journal-log-card-controls' });
@@ -525,7 +568,8 @@ export class ThreadRenderers {
 		entries: ParsedCheckpointEntry[],
 		fields: ThreadJournalSettings['checkpointFields'],
 		renderSourcePath: string,
-		thread?: ThreadInfo,
+		threadDetail: ThreadEntryDetail,
+		thread: ThreadInfo,
 	): void {
 		for (const entry of entries) {
 			const card = container.createDiv({ cls: 'thread-journal-checkpoint-card' });
@@ -539,15 +583,13 @@ export class ThreadRenderers {
 				cls: 'thread-journal-checkpoint-card-date',
 				text: time ? `${date} ${time}` : date,
 			});
-			if (thread) {
+			if (threadDetail !== 'none') {
 				identity.createSpan({ cls: 'thread-journal-entry-separator', text: '·' });
-				const threadLink = identity.createSpan({ cls: 'thread-journal-entry-thread' });
-				addFileLink(
-					this.app,
-					threadLink,
-					thread.file,
+				this.renderThreadDetail(
+					identity,
+					thread,
 					renderSourcePath,
-					thread.title,
+					threadDetail,
 				);
 			}
 			const controls = header.createDiv({ cls: 'thread-journal-checkpoint-card-controls' });

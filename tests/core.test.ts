@@ -146,12 +146,14 @@ void test('parses the unified thread entries query', () => {
 		'date: 2026-09-01..2026-09-04',
 		'type: [checkpoint, log]',
 		'group_by: thread',
+		'thread_detail: crumb',
 	].join('\n')), {
 		query: {
 			threadIds: ['20e15ed8-5de0-44bc-919f-54d49294c14c'],
 			date: { from: '2026-09-01', to: '2026-09-04' },
 			types: ['checkpoint', 'log'],
 			groupBy: 'thread',
+			threadDetail: 'crumb',
 		},
 		errors: [],
 	});
@@ -161,6 +163,7 @@ void test('parses the unified thread entries query', () => {
 			date: undefined,
 			types: ['checkpoint', 'log'],
 			groupBy: 'none',
+			threadDetail: 'none',
 		},
 		errors: [],
 	});
@@ -175,12 +178,14 @@ void test('reports invalid thread entries query values', () => {
 		'date: 2026-09-05..2026-09-01',
 		'type: checkpoint, thought',
 		'group_by: day',
+		'thread_detail: full',
 		'unknown: value',
 	].join('\n'));
-	assert.equal(result.errors.length, 4);
+	assert.equal(result.errors.length, 5);
 	assert.match(result.errors.join('\n'), /date/);
 	assert.match(result.errors.join('\n'), /thought/);
 	assert.match(result.errors.join('\n'), /group_by/);
+	assert.match(result.errors.join('\n'), /thread_detail/);
 	assert.match(result.errors.join('\n'), /unknown/);
 });
 

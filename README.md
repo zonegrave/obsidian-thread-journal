@@ -117,12 +117,13 @@ SORT checkpoint.checkpoint_date DESC
 
 ## 统一记录查询
 
-Checkpoint 与 inline log 都是 Thread 工作区中的记录条目。它们保留各自的原始 callout 和字段结构，但统一通过 `thread-entries` 查询与展示。代码块支持四个可选条件：
+Checkpoint 与 inline log 都是 Thread 工作区中的记录条目。它们保留各自的原始 callout 和字段结构，但统一通过 `thread-entries` 查询与展示。代码块支持五个可选条件：
 
 - `thread_id`：单个 ID 或 ID 列表；省略表示全部 thread。
 - `date`：单日 `YYYY-MM-DD`，或闭区间 `YYYY-MM-DD..YYYY-MM-DD`；省略表示全部日期。
 - `type`：`checkpoint`、`log` 或列表；省略表示两种记录。
 - `group_by`：`thread`、`type` 或 `none`；默认 `none`。
+- `thread_detail`：`none`、`name` 或 `crumb`；默认 `none`。`name` 显示当前 thread 名称链接，`crumb` 显示从根节点到当前 thread 的完整可点击路径。
 
 条件之间使用“并且”关系。指定日期时按时间正序显示，未指定日期时按时间倒序显示。模板中的 `{{thread_id}}` 与 `{{date:YYYY-MM-DD}}` 会在创建笔记时解析为实际值，不依赖展示笔记的类型。主 thread 默认使用：
 
@@ -143,7 +144,7 @@ group_by: thread
 ```
 ````
 
-按 thread 分组时，各组默认展开，标题链接主 thread 与工作区。Checkpoint 与 log 使用一致的卡片头和正文布局，并分别以蓝色类型、橙色 `log` 标签区分；两者都可以从汇总卡片精确定位到工作区原始 callout。Checkpoint 另有编辑和删除入口，log 正文中的双链和 Markdown 正常渲染。所有数据仍只保存在 Thread 工作区，不复制到展示笔记。
+按 thread 分组时，各组默认展开。分组本身必须可识别，因此即使 `thread_detail` 为 `none`，分组标题仍显示 thread 名称；设为 `crumb` 时，分组标题改为完整路径。Checkpoint 与 log 使用一致的卡片头和正文布局，并分别以蓝色类型、橙色 `log` 标签区分；两者都可以从汇总卡片精确定位到工作区原始 callout。Checkpoint 另有编辑和删除入口，log 正文中的双链和 Markdown 正常渲染。所有数据仍只保存在 Thread 工作区，不复制到展示笔记。
 
 ## Thread 与工作区切换
 
