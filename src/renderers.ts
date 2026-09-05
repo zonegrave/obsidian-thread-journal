@@ -9,7 +9,11 @@ import {
 	parseCheckpointEntries,
 	type ParsedCheckpointEntry,
 } from './checkpoint-core';
-import { checkpointFieldsForThread } from './checkpoint-model';
+import {
+	checkpointFieldRenderMode,
+	checkpointFieldsForThread,
+	type CheckpointFieldRenderMode,
+} from './checkpoint-model';
 import {
 	parseThreadEntriesQuery,
 	type ThreadEntryDetail,
@@ -42,6 +46,7 @@ interface LogEntryRecord {
 }
 
 type ThreadEntryRecord = CheckpointEntryRecord | LogEntryRecord;
+type MarkdownChildRegistrar = (child: MarkdownRenderChild) => void;
 
 function sourceFile(app: App, ctx: MarkdownPostProcessorContext): TFile | undefined {
 	const file = app.vault.getAbstractFileByPath(ctx.sourcePath);
@@ -129,10 +134,10 @@ export class ThreadRenderers {
 		}
 	}
 
-	enhanceCheckpointCallouts(
+	async enhanceCheckpointCallouts(
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext,
-	): void {
+	): Promise<void> {
 		const current = sourceFile(this.app, ctx);
 		if (!current || !this.index.getThreadForWorkspace(current)) return;
 		const selector = '.callout[data-callout="thread-checkpoint"]';
@@ -144,11 +149,16 @@ export class ThreadRenderers {
 		const section = ctx.getSectionInfo(el);
 		if (!section) return;
 		const entries = parseCheckpointEntries(section.text);
-		callouts.forEach((callout, index) => {
+		await Promise.all(callouts.map(async (callout, index) => {
 			const entry = entries[index];
 			if (!entry?.blockId) return;
-			this.renderSourceCheckpointCallout(callout, current, entry);
-		});
+			await this.renderSourceCheckpointCallout(
+				callout,
+				current,
+				entry,
+				(child) => ctx.addChild(child),
+			);
+		}));
 	}
 
 	enhanceLogCallouts(
@@ -173,11 +183,12 @@ export class ThreadRenderers {
 		});
 	}
 
-	renderSourceCheckpointCallout(
+	async renderSourceCheckpointCallout(
 		callout: HTMLElement,
 		workspace: TFile,
 		entry: ParsedCheckpointEntry,
-	): void {
+		registerChild: MarkdownChildRegistrar,
+	): Promise<void> {
 		const thread = this.index.getThreadForWorkspace(workspace);
 		if (!thread) return;
 		const fields = this.checkpointFields(thread);
@@ -220,7 +231,13 @@ export class ThreadRenderers {
 		});
 
 		content.empty();
-		this.renderCheckpointContent(content, entry, fields);
+		await this.renderCheckpointContent(
+			content,
+			entry,
+			fields,
+			workspace.path,
+			registerChild,
+		);
 	}
 
 	renderSourceLogCallout(
@@ -485,7 +502,7 @@ export class ThreadRenderers {
 	): Promise<void> {
 		for (const record of records) {
 			if (record.type === 'checkpoint') {
-				this.renderCheckpointCards(
+				await this.renderCheckpointCards(
 					container,
 					record.workspace,
 					[record.entry],
@@ -493,6 +510,7 @@ export class ThreadRenderers {
 					ctx.sourcePath,
 					threadDetail,
 					record.thread,
+					(child) => ctx.addChild(child),
 				);
 				continue;
 			}
@@ -562,7 +580,7 @@ export class ThreadRenderers {
 		);
 	}
 
-	private renderCheckpointCards(
+	private async renderCheckpointCards(
 		container: HTMLElement,
 		sourceFile: TFile,
 		entries: ParsedCheckpointEntry[],
@@ -570,7 +588,8 @@ export class ThreadRenderers {
 		renderSourcePath: string,
 		threadDetail: ThreadEntryDetail,
 		thread: ThreadInfo,
-	): void {
+		registerChild: MarkdownChildRegistrar,
+	): Promise<void> {
 		for (const entry of entries) {
 			const card = container.createDiv({ cls: 'thread-journal-checkpoint-card' });
 			const header = card.createDiv({ cls: 'thread-journal-checkpoint-card-header' });
@@ -631,23 +650,37 @@ export class ThreadRenderers {
 				});
 			}
 
-			this.renderCheckpointContent(card, entry, fields);
+			await this.renderCheckpointContent(
+				card,
+				entry,
+				fields,
+				sourceFile.path,
+				registerChild,
+			);
 		}
 	}
 
-	private renderCheckpointContent(
+	private async renderCheckpointContent(
 		container: HTMLElement,
 		entry: ParsedCheckpointEntry,
 		fields: ThreadJournalSettings['checkpointFields'],
-	): void {
+		sourcePath: string,
+		registerChild: MarkdownChildRegistrar,
+	): Promise<void> {
 		const knownKeys = new Set(fields.map((field) => field.key));
 		const systemKeys = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
 		const summary = entry.values.checkpoint_summary;
 		if (summary) {
-			container.createDiv({
+			const summaryEl = container.createDiv({
 				cls: 'thread-journal-checkpoint-card-summary',
-				text: summary,
 			});
+			await this.renderMarkdownValue(
+				summaryEl,
+				summary,
+				sourcePath,
+				registerChild,
+				'inline-markdown',
+			);
 		}
 
 		const details = container.createDiv({ cls: 'thread-journal-checkpoint-card-fields' });
@@ -657,31 +690,74 @@ export class ThreadRenderers {
 			const bodyValue = entry.body.find((item) => item.label === field.label)?.value;
 			const value = entry.values[field.key] || bodyValue;
 			if (!value) continue;
-			this.renderCheckpointField(details, field.label, value);
+			await this.renderCheckpointField(
+				details,
+				field.label,
+				value,
+				checkpointFieldRenderMode(field),
+				sourcePath,
+				registerChild,
+			);
 			detailCount += 1;
 		}
 		for (const [key, value] of Object.entries(entry.values)) {
 			if (systemKeys.has(key) || knownKeys.has(key) || !value) continue;
-			this.renderCheckpointField(details, key, value);
+			await this.renderCheckpointField(
+				details,
+				key,
+				value,
+				'inline-markdown',
+				sourcePath,
+				registerChild,
+			);
 			detailCount += 1;
 		}
 		for (const body of entry.body) {
 			if (fields.some((field) => field.storage === 'body' && field.label === body.label)) {
 				continue;
 			}
-			this.renderCheckpointField(details, body.label, body.value);
+			await this.renderCheckpointField(
+				details,
+				body.label,
+				body.value,
+				'block-markdown',
+				sourcePath,
+				registerChild,
+			);
 			detailCount += 1;
 		}
 		if (detailCount === 0) details.remove();
 	}
 
-	private renderCheckpointField(
+	private async renderCheckpointField(
 		container: HTMLElement,
 		label: string,
 		value: string,
-	): void {
+		mode: CheckpointFieldRenderMode,
+		sourcePath: string,
+		registerChild: MarkdownChildRegistrar,
+	): Promise<void> {
 		const row = container.createDiv({ cls: 'thread-journal-checkpoint-card-field' });
 		row.createSpan({ cls: 'thread-journal-checkpoint-card-field-label', text: label });
-		row.createSpan({ cls: 'thread-journal-checkpoint-card-field-value', text: value });
+		if (mode === 'plain') {
+			row.createSpan({ cls: 'thread-journal-checkpoint-card-field-value', text: value });
+			return;
+		}
+		if (mode === 'block-markdown') row.addClass('is-block');
+		const valueEl = row.createDiv({ cls: 'thread-journal-checkpoint-card-field-value' });
+		await this.renderMarkdownValue(valueEl, value, sourcePath, registerChild, mode);
+	}
+
+	private async renderMarkdownValue(
+		container: HTMLElement,
+		value: string,
+		sourcePath: string,
+		registerChild: MarkdownChildRegistrar,
+		mode: Exclude<CheckpointFieldRenderMode, 'plain'>,
+	): Promise<void> {
+		container.addClass(`thread-journal-${mode}`);
+		const child = new MarkdownRenderChild(container);
+		registerChild(child);
+		await MarkdownRenderer.render(this.app, value, container, sourcePath, child);
 	}
 }

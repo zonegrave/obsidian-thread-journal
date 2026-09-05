@@ -57,9 +57,13 @@ export default class ThreadJournalPlugin extends Plugin {
 		);
 		this.registerEditorExtension(checkpointEditorExtension(
 			(file) => Boolean(this.index.getThreadForWorkspace(file)),
-			(callout, file, entry) => {
-				this.renderers.renderSourceCheckpointCallout(callout, file, entry);
-			},
+			(callout, file, entry, registerChild) =>
+				this.renderers.renderSourceCheckpointCallout(
+					callout,
+					file,
+					entry,
+					registerChild,
+				),
 			(callout, file, entry) => {
 				this.renderers.renderSourceLogCallout(callout, file, entry);
 			},
@@ -157,8 +161,8 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerRenderers(): void {
-		this.registerMarkdownPostProcessor((el, ctx) => {
-			this.renderers.enhanceCheckpointCallouts(el, ctx);
+		this.registerMarkdownPostProcessor(async (el, ctx) => {
+			await this.renderers.enhanceCheckpointCallouts(el, ctx);
 			this.renderers.enhanceLogCallouts(el, ctx);
 		});
 		this.registerMarkdownCodeBlockProcessor('thread-entries', async (source, el, ctx) => {

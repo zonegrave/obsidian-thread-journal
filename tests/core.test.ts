@@ -12,6 +12,7 @@ import {
 } from '../src/checkpoint-core';
 import {
 	activeCheckpointFields,
+	checkpointFieldRenderMode,
 	checkpointFieldsForThread,
 	DEFAULT_CHECKPOINT_FIELDS,
 	normalizeCheckpointFields,
@@ -565,6 +566,17 @@ void test('adds active template fields when editing an older checkpoint', () => 
 	assert.equal(edit.values.new_note, undefined);
 	assert.equal(edit.fields.find((field) => field.key === 'new_note')?.required, false);
 	assert.equal(edit.fields.find((field) => field.key === 'legacy_only')?.deprecated, true);
+});
+
+void test('chooses markdown rendering by checkpoint field shape', () => {
+	assert.equal(checkpointFieldRenderMode({ control: 'text', storage: 'inline' }), 'inline-markdown');
+	assert.equal(checkpointFieldRenderMode({ control: 'textarea', storage: 'body' }), 'block-markdown');
+	assert.equal(checkpointFieldRenderMode({ control: 'textarea', storage: 'inline' }), 'block-markdown');
+	assert.equal(checkpointFieldRenderMode({ control: 'text', storage: 'body' }), 'block-markdown');
+	assert.equal(checkpointFieldRenderMode({ control: 'select', storage: 'inline' }), 'plain');
+	assert.equal(checkpointFieldRenderMode({ control: 'number', storage: 'inline' }), 'plain');
+	assert.equal(checkpointFieldRenderMode({ control: 'toggle', storage: 'inline' }), 'plain');
+	assert.equal(checkpointFieldRenderMode({ control: 'date', storage: 'inline' }), 'plain');
 });
 
 void test('deletes one checkpoint in place by block id', () => {

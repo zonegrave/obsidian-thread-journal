@@ -391,6 +391,21 @@
 	font-size: var(--font-text-size);
 }
 
+.thread-journal-inline-markdown > p {
+	display: inline;
+	margin: 0;
+}
+
+.thread-journal-inline-markdown > :first-child,
+.thread-journal-block-markdown > :first-child {
+	margin-top: 0;
+}
+
+.thread-journal-inline-markdown > :last-child,
+.thread-journal-block-markdown > :last-child {
+	margin-bottom: 0;
+}
+
 .thread-journal-checkpoint-card-fields {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -405,6 +420,13 @@
 	gap: 0.5rem;
 	min-width: 0;
 	white-space: pre-wrap;
+}
+
+.thread-journal-checkpoint-card-field.is-block {
+	grid-column: 1 / -1;
+	flex-direction: column;
+	gap: 0.25rem;
+	white-space: normal;
 }
 
 .thread-journal-checkpoint-card-field-label {

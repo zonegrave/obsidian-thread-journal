@@ -2,6 +2,7 @@ import { ViewPlugin, type EditorView, type ViewUpdate } from '@codemirror/view';
 import {
 	editorInfoField,
 	editorLivePreviewField,
+	type MarkdownRenderChild,
 	type TFile,
 } from 'obsidian';
 import {
@@ -22,7 +23,8 @@ export function checkpointEditorExtension(
 		callout: HTMLElement,
 		file: TFile,
 		entry: ParsedCheckpointEntry,
-	) => void,
+		registerChild: (child: MarkdownRenderChild) => void,
+	) => Promise<void>,
 	onRenderLog: (
 		callout: HTMLElement,
 		file: TFile,
@@ -32,6 +34,7 @@ export function checkpointEditorExtension(
 	return ViewPlugin.fromClass(class CheckpointEditorCallouts {
 		private frame?: number;
 		private readonly observer?: MutationObserver;
+		private readonly renderChildren = new Set<MarkdownRenderChild>();
 
 		constructor(private readonly view: EditorView) {
 			const Observer = view.dom.ownerDocument.defaultView?.MutationObserver;
@@ -57,6 +60,8 @@ export function checkpointEditorExtension(
 			this.observer?.disconnect();
 			const win = this.view.dom.ownerDocument.defaultView;
 			if (win && this.frame !== undefined) win.cancelAnimationFrame(this.frame);
+			for (const child of this.renderChildren) child.unload();
+			this.renderChildren.clear();
 		}
 
 		private schedule(): void {
@@ -69,6 +74,11 @@ export function checkpointEditorExtension(
 		}
 
 		private enhance(): void {
+			for (const child of this.renderChildren) {
+				if (child.containerEl.isConnected) continue;
+				child.unload();
+				this.renderChildren.delete(child);
+			}
 			const livePreview = this.view.state.field(editorLivePreviewField, false);
 			const info = this.view.state.field(editorInfoField, false);
 			const file = info?.file;
@@ -85,7 +95,12 @@ export function checkpointEditorExtension(
 				const line = this.view.state.doc.lineAt(position).number - 1;
 				const entry = checkpointEntryAroundLine(source, line);
 				if (!entry?.blockId) return;
-				onRender(callout, file, entry);
+				void onRender(callout, file, entry, (child) => {
+					child.load();
+					this.renderChildren.add(child);
+				}).catch((error: unknown) => {
+					console.error('Thread Journal failed to render checkpoint Markdown', error);
+				});
 			});
 			this.view.dom.querySelectorAll<HTMLElement>(LOG_CALLOUT_SELECTOR).forEach((callout) => {
 				let position: number;

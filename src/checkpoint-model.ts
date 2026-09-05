@@ -4,6 +4,8 @@ import type {
 	CheckpointFieldStorage,
 } from './types';
 
+export type CheckpointFieldRenderMode = 'plain' | 'inline-markdown' | 'block-markdown';
+
 const FIELD_CONTROLS = new Set<CheckpointFieldControl>([
 	'text',
 	'textarea',
@@ -97,6 +99,15 @@ export function activeCheckpointFields(
 	fields: CheckpointFieldSpec[],
 ): CheckpointFieldSpec[] {
 	return fields.filter((field) => !field.deprecated);
+}
+
+export function checkpointFieldRenderMode(
+	field: Pick<CheckpointFieldSpec, 'control' | 'storage'>,
+): CheckpointFieldRenderMode {
+	if (field.control === 'textarea' || field.storage === 'body') {
+		return 'block-markdown';
+	}
+	return field.control === 'text' ? 'inline-markdown' : 'plain';
 }
 
 export function normalizeCheckpointFields(value: unknown): CheckpointFieldSpec[] {
