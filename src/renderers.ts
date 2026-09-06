@@ -15,6 +15,7 @@ import {
 	type CheckpointFieldRenderMode,
 } from './checkpoint-model';
 import {
+	formatThreadEntryTimestamp,
 	parseThreadEntriesQuery,
 	type ThreadEntryDetail,
 	type ThreadEntryGroupBy,
@@ -202,8 +203,8 @@ export class ThreadRenderers {
 		callout.addClass('thread-journal-source-checkpoint-card');
 
 		const date = entry.values.checkpoint_date || '未填写日期';
-		const time = entry.values.checkpoint_time;
-		titleInner.setText(time ? `${date} ${time}` : date);
+		const time = entry.values.checkpoint_time || '';
+		titleInner.setText(formatThreadEntryTimestamp(date, time));
 		title.querySelector('.thread-journal-source-checkpoint-controls')?.remove();
 		const controls = title.createDiv({
 			cls: [
@@ -254,8 +255,7 @@ export class ThreadRenderers {
 		this.sourceLogSignatures.set(callout, signature);
 		callout.addClass('thread-journal-source-log-card');
 
-		const compactDate = entry.date.slice(5) || entry.date;
-		titleInner.setText(entry.time ? `${compactDate} ${entry.time}` : compactDate);
+		titleInner.setText(formatThreadEntryTimestamp(entry.date, entry.time));
 		title.querySelector('.thread-journal-source-log-controls')?.remove();
 		const controls = title.createDiv({
 			cls: [
@@ -508,6 +508,7 @@ export class ThreadRenderers {
 					[record.entry],
 					record.fields,
 					ctx.sourcePath,
+					dateFiltered,
 					threadDetail,
 					record.thread,
 					(child) => ctx.addChild(child),
@@ -536,9 +537,7 @@ export class ThreadRenderers {
 		const identity = header.createDiv({ cls: 'thread-journal-log-card-identity' });
 		identity.createSpan({
 			cls: 'thread-journal-log-card-date',
-			text: dateFiltered
-				? record.time || record.timestamp
-				: `${record.date}${record.time ? ` ${record.time}` : ''}`,
+			text: formatThreadEntryTimestamp(record.date, record.time, dateFiltered),
 		});
 		if (threadDetail !== 'none') {
 			identity.createSpan({ cls: 'thread-journal-entry-separator', text: '·' });
@@ -586,6 +585,7 @@ export class ThreadRenderers {
 		entries: ParsedCheckpointEntry[],
 		fields: ThreadJournalSettings['checkpointFields'],
 		renderSourcePath: string,
+		dateFiltered: boolean,
 		threadDetail: ThreadEntryDetail,
 		thread: ThreadInfo,
 		registerChild: MarkdownChildRegistrar,
@@ -597,10 +597,10 @@ export class ThreadRenderers {
 				cls: 'thread-journal-checkpoint-card-identity',
 			});
 			const date = entry.values.checkpoint_date || '未填写日期';
-			const time = entry.values.checkpoint_time;
+			const time = entry.values.checkpoint_time || '';
 			identity.createSpan({
 				cls: 'thread-journal-checkpoint-card-date',
-				text: time ? `${date} ${time}` : date,
+				text: formatThreadEntryTimestamp(date, time, dateFiltered),
 			});
 			if (threadDetail !== 'none') {
 				identity.createSpan({ cls: 'thread-journal-entry-separator', text: '·' });

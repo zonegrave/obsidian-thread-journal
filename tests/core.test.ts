@@ -33,7 +33,10 @@ import {
 	inlineLogEntryAroundLine,
 	parseInlineLogEntries,
 } from '../src/inline-log';
-import { parseThreadEntriesQuery } from '../src/entry-query';
+import {
+	formatThreadEntryTimestamp,
+	parseThreadEntriesQuery,
+} from '../src/entry-query';
 import {
 	buildCheckpointModalForm,
 	buildCheckpointTemplateFieldModalForm,
@@ -188,6 +191,13 @@ void test('reports invalid thread entries query values', () => {
 	assert.match(result.errors.join('\n'), /group_by/);
 	assert.match(result.errors.join('\n'), /thread_detail/);
 	assert.match(result.errors.join('\n'), /unknown/);
+});
+
+void test('formats checkpoint and log timestamps consistently', () => {
+	assert.equal(formatThreadEntryTimestamp('2026-09-05', '07:20'), '26/09/05 07:20');
+	assert.equal(formatThreadEntryTimestamp('2026-09-05', '07:20', true), '07:20');
+	assert.equal(formatThreadEntryTimestamp('2026-09-05', '', true), '26/09/05');
+	assert.equal(formatThreadEntryTimestamp('未填写日期', ''), '未填写日期');
 });
 
 void test('recognizes current and legacy Context headings', () => {

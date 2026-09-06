@@ -50,6 +50,19 @@ function listValues(value: string): string[] {
 	return inner.split(',').map(unquote).filter(Boolean);
 }
 
+export function formatThreadEntryTimestamp(
+	date: string,
+	time: string,
+	timeOnly = false,
+): string {
+	if (timeOnly && time) return time;
+	const match = /^(\d{2})(\d{2})-(\d{2})-(\d{2})$/u.exec(date);
+	const compactDate = match
+		? `${match[2]}/${match[3]}/${match[4]}`
+		: date;
+	return time ? `${compactDate} ${time}` : compactDate;
+}
+
 export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuery {
 	const values = new Map<string, string>();
 	const errors: string[] = [];

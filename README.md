@@ -155,6 +155,8 @@ thread_detail: crumb
 | `group_by` | `none`、`thread`、`type` | `none` |
 | `thread_detail` | `none`、`name`、`crumb` | `none` |
 
+单日查询中的卡片只显示 `HH:mm`；其他查询和工作区原地卡片统一显示 `YY/MM/DD HH:mm`。
+
 `thread_detail` 控制 thread 身份的显示层级：
 
 - `none`：不在卡片中额外显示 thread。
