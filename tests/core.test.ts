@@ -44,6 +44,11 @@ import {
 	checkpointTemplateFieldValues,
 } from '../src/modal-form';
 import { THREAD_STATUS_CHOICES, threadStatusLabel } from '../src/thread-status-model';
+import {
+	groupOpenThreadViews,
+	orderOpenThreadGroups,
+	preferredOpenThreadView,
+} from '../src/thread-switcher-model';
 
 void test('builds current thread and workspace file names', () => {
 	assert.equal(buildThreadFileName('睡眠/管理', '260831'), '260831·睡眠-管理');
@@ -612,6 +617,28 @@ void test('supports only the five current status values', () => {
 		['active', 'paused', 'review', 'completed', 'closed'],
 	);
 	assert.equal(threadStatusLabel('active'), '行动中');
+});
+
+void test('groups and orders open thread views without duplicating logical threads', () => {
+	const views = [
+		{ threadId: 'thread-a', surface: 'context' as const, target: 'a-context', order: 0 },
+		{ threadId: 'thread-b', surface: 'context' as const, target: 'b-context', order: 1 },
+		{ threadId: 'thread-a', surface: 'workspace' as const, target: 'a-workspace', order: 2 },
+		{ threadId: 'thread-c', surface: 'workspace' as const, target: 'c-workspace', order: 3 },
+	];
+	const groups = groupOpenThreadViews(views);
+	assert.equal(groups.length, 3);
+	assert.deepEqual(groups.find((group) => group.threadId === 'thread-a')?.views, [
+		views[0], views[2],
+	]);
+	assert.deepEqual(
+		orderOpenThreadGroups(groups, ['thread-c', 'thread-a']).map((group) => group.threadId),
+		['thread-c', 'thread-a', 'thread-b'],
+	);
+	const threadA = groups.find((group) => group.threadId === 'thread-a');
+	assert.ok(threadA);
+	assert.equal(preferredOpenThreadView(threadA, 'a-context')?.target, 'a-context');
+	assert.equal(preferredOpenThreadView(threadA)?.target, 'a-workspace');
 });
 
 void test('resolves current wikilinks and aliases', () => {

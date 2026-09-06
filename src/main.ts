@@ -19,6 +19,7 @@ import {
 import { ThreadCreator } from './thread-creator';
 import { ThreadIndex } from './thread-index';
 import { ThreadStatusManager } from './thread-status';
+import { ThreadSwitcherManager } from './thread-switcher';
 import { ThreadWorkspaceManager } from './thread-workspace';
 import type { ThreadJournalSettings } from './types';
 
@@ -30,6 +31,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	private workspaces!: ThreadWorkspaceManager;
 	private statuses!: ThreadStatusManager;
 	private checkpoints!: CheckpointManager;
+	private switcher!: ThreadSwitcherManager;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -39,6 +41,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		);
 		const getSettings = () => this.settings;
 		this.index = new ThreadIndex(this.app);
+		this.switcher = new ThreadSwitcherManager(this.app, this.index);
 		this.workspaces = new ThreadWorkspaceManager(this.app, this.index, getSettings);
 		this.statuses = new ThreadStatusManager(this.app, this.index);
 		this.checkpoints = new CheckpointManager(
@@ -68,6 +71,12 @@ export default class ThreadJournalPlugin extends Plugin {
 				this.renderers.renderSourceLogCallout(callout, file, entry);
 			},
 		));
+		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
+			this.switcher.rememberActiveLeaf(leaf);
+		}));
+		this.switcher.rememberActiveLeaf(
+			this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null,
+		);
 
 		this.registerCommands();
 		this.registerRenderers();
@@ -129,6 +138,14 @@ export default class ThreadJournalPlugin extends Plugin {
 					});
 				}
 				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'switch-open-thread',
+			name: '切换已打开的 thread',
+			callback: () => {
+				this.switcher.open();
 			},
 		});
 

@@ -11,6 +11,7 @@ import { buildWorkspaceBody, buildWorkspaceFileName } from './core';
 import { buildInlineLogEdit } from './inline-log';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadJournalSettings } from './types';
+import { leafFilePath } from './workspace-leaf';
 
 export interface ThreadWorkspaceSeed {
 	id: string;
@@ -20,12 +21,6 @@ export interface ThreadWorkspaceSeed {
 
 function stringValue(value: unknown): string {
 	return typeof value === 'string' ? value.trim() : '';
-}
-
-function leafFilePath(leaf: WorkspaceLeaf): string | undefined {
-	if (leaf.view instanceof MarkdownView) return leaf.view.file?.path;
-	const state = leaf.getViewState().state;
-	return typeof state?.file === 'string' ? state.file : undefined;
 }
 
 export class ThreadWorkspaceManager {
