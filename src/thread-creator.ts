@@ -202,12 +202,17 @@ export class ThreadCreator {
 		const settings = this.getSettings();
 		const folder = settings.threadsFolder;
 		await ensureFolder(this.app, folder);
-		const fileName = buildThreadFileName(title, moment().format('YYMMDD'));
+		const threadId = stableThreadId();
+		let fileName = buildThreadFileName(title);
 		if (!fileName) throw new Error('Thread title does not produce a valid file name.');
-		const path = normalizePath(`${folder}/${fileName}.md`);
+		let path = normalizePath(`${folder}/${fileName}.md`);
 		if (this.app.vault.getAbstractFileByPath(path)) {
-			new Notice(`已存在同名文件：${path}`);
-			throw new Error(`File already exists: ${path}`);
+			fileName = buildThreadFileName(title, threadId);
+			path = normalizePath(`${folder}/${fileName}.md`);
+			if (this.app.vault.getAbstractFileByPath(path)) {
+				new Notice(`无法为同名 thread 生成唯一文件名：${path}`);
+				throw new Error(`File already exists: ${path}`);
+			}
 		}
 		const parentLink = parent
 			? this.app.fileManager.generateMarkdownLink(
@@ -219,7 +224,6 @@ export class ThreadCreator {
 			: undefined;
 		const templateFile = await this.getOrCreateTemplateFile();
 		const template = await this.app.vault.cachedRead(templateFile);
-		const threadId = stableThreadId();
 		const created = moment().format('YYYY-MM-DD');
 		const body = renderThreadTemplate(template, {
 			title,

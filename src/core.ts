@@ -1,10 +1,12 @@
-export function buildThreadFileName(title: string, datePrefix: string): string {
+export function buildThreadFileName(title: string, collisionKey?: string): string {
 	const safeTitle = title
 		.trim()
 		.replace(/[\\/:*?"<>|]/g, '-')
 		.replace(/\.+$/g, '')
 		.trim();
-	return safeTitle ? `${datePrefix}·${safeTitle}` : '';
+	if (!safeTitle) return '';
+	const suffix = collisionKey?.replace(/[^a-z0-9]/gi, '').slice(0, 8);
+	return suffix ? `${safeTitle}·${suffix}` : safeTitle;
 }
 
 export function normalizeWorkspaceSuffix(value: unknown, fallback = '工作区'): string {

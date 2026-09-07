@@ -45,7 +45,7 @@ Context 让项目保持清晰，Workspace 让工作过程不受拘束；使用�
 
 ### 主 thread
 
-新建文件默认位于设置中的 Thread 目录，文件名为 `YYMMDD·标题.md`。插件会校正这些身份属性：
+新建文件默认位于设置中的 Thread 目录，直接使用 `标题.md`；创建日期保存在 `created`。仅当同名文件已经存在时，文件名才追加短 `thread_id` 以消除冲突。插件会校正这些身份属性：
 
 ```yaml
 ---
@@ -56,7 +56,7 @@ aliases: [睡眠管理]
 tags: [线程]
 kind: area
 status: active
-parent: "[[260826·健康管理|健康管理]]"
+parent: "[[健康管理|健康管理]]"
 created: 2026-08-31
 ---
 ```
@@ -75,7 +75,7 @@ created: 2026-08-31
 ---
 type: thread-workspace
 thread_id: 3e9b3f36-7f7d-4205-97b0-82c533155eb0
-thread: "[[260831·睡眠管理|睡眠管理]]"
+thread: "[[睡眠管理|睡眠管理]]"
 created: 2026-08-31
 ---
 ```

@@ -51,10 +51,14 @@ import {
 } from '../src/thread-switcher-model';
 
 void test('builds current thread and workspace file names', () => {
-	assert.equal(buildThreadFileName('睡眠/管理', '260831'), '260831·睡眠-管理');
-	assert.equal(buildThreadFileName('...', '260831'), '');
-	assert.equal(buildWorkspaceFileName('260831·睡眠管理'), '260831·睡眠管理·工作区');
-	assert.equal(buildWorkspaceFileName('260831·睡眠管理', '草稿/区'), '260831·睡眠管理·草稿-区');
+	assert.equal(buildThreadFileName('睡眠/管理'), '睡眠-管理');
+	assert.equal(
+		buildThreadFileName('睡眠/管理', '3e9b3f36-7f7d-4205-97b0-82c533155eb0'),
+		'睡眠-管理·3e9b3f36',
+	);
+	assert.equal(buildThreadFileName('...'), '');
+	assert.equal(buildWorkspaceFileName('睡眠管理'), '睡眠管理·工作区');
+	assert.equal(buildWorkspaceFileName('睡眠管理', '草稿/区'), '睡眠管理·草稿-区');
 	assert.equal(normalizeWorkspaceSuffix(' ·研究/空间. '), '研究-空间');
 	assert.equal(buildWorkspaceBody('睡眠\n管理'), '# 睡眠 管理 · Thread 工作区\n');
 });
@@ -259,15 +263,15 @@ void test('renders the current template placeholders', () => {
 		'{{date}} / {{date:YYMMDD}}',
 	].join('\n'), {
 		title: '睡眠管理',
-		fileName: '260831·睡眠管理',
+		fileName: '睡眠管理',
 		threadId: 'stable-id',
 		kind: 'area',
 		parentTitle: '健康管理',
-		parentLink: '[[260826·健康管理|健康管理]]',
+		parentLink: '[[健康管理|健康管理]]',
 		created: '2026-08-31',
 	}, (format) => format === 'YYMMDD' ? '260831' : '2026-08-31');
 	assert.match(rendered, /^# 睡眠管理/m);
-	assert.match(rendered, /area · 260831·睡眠管理 · stable-id/);
+	assert.match(rendered, /area · 睡眠管理 · stable-id/);
 	assert.match(rendered, /2026-08-31 \/ 260831/);
 });
 
@@ -642,7 +646,7 @@ void test('groups and orders open thread views without duplicating logical threa
 });
 
 void test('resolves current wikilinks and aliases', () => {
-	assert.equal(stripWikiLink('[[260831·睡眠管理#Context|睡眠管理]]'), '260831·睡眠管理');
-	assert.equal(wikiLinkAlias('[[260831·睡眠管理|睡眠管理]]'), '睡眠管理');
-	assert.equal(wikiLinkAlias('[[260831·睡眠管理]]'), undefined);
+	assert.equal(stripWikiLink('[[睡眠管理#Context|睡眠管理]]'), '睡眠管理');
+	assert.equal(wikiLinkAlias('[[睡眠管理|睡眠管理]]'), '睡眠管理');
+	assert.equal(wikiLinkAlias('[[睡眠管理]]'), undefined);
 });
