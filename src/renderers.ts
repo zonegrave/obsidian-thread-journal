@@ -15,6 +15,7 @@ import {
 	type CheckpointFieldRenderMode,
 } from './checkpoint-model';
 import {
+	compareThreadEntryTimestamps,
 	formatThreadEntryTimestamp,
 	parseThreadEntriesQuery,
 	type ThreadEntryDetail,
@@ -339,9 +340,12 @@ export class ThreadRenderers {
 			return entries;
 		}))).flat();
 
-		const direction = date ? 1 : -1;
 		records.sort((a, b) => {
-			const timestamp = direction * a.timestamp.localeCompare(b.timestamp);
+			const timestamp = compareThreadEntryTimestamps(
+				a.timestamp,
+				b.timestamp,
+				parsed.query.order,
+			);
 			return timestamp || a.thread.title.localeCompare(b.thread.title);
 		});
 		if (records.length === 0) {

@@ -34,6 +34,7 @@ import {
 	parseInlineLogEntries,
 } from '../src/inline-log';
 import {
+	compareThreadEntryTimestamps,
 	formatThreadEntryTimestamp,
 	parseThreadEntriesQuery,
 } from '../src/entry-query';
@@ -160,6 +161,7 @@ void test('parses the unified thread entries query', () => {
 		'type: [checkpoint, log]',
 		'group_by: thread',
 		'thread_detail: crumb',
+		'order: asc',
 	].join('\n')), {
 		query: {
 			threadIds: ['20e15ed8-5de0-44bc-919f-54d49294c14c'],
@@ -167,6 +169,7 @@ void test('parses the unified thread entries query', () => {
 			types: ['checkpoint', 'log'],
 			groupBy: 'thread',
 			threadDetail: 'crumb',
+			order: 'asc',
 		},
 		errors: [],
 	});
@@ -177,6 +180,7 @@ void test('parses the unified thread entries query', () => {
 			types: ['checkpoint', 'log'],
 			groupBy: 'none',
 			threadDetail: 'none',
+			order: 'desc',
 		},
 		errors: [],
 	});
@@ -184,6 +188,7 @@ void test('parses the unified thread entries query', () => {
 		from: '2026-09-04',
 		to: '2026-09-04',
 	});
+	assert.equal(parseThreadEntriesQuery('date: 2026-09-04').query.order, 'desc');
 });
 
 void test('reports invalid thread entries query values', () => {
@@ -192,13 +197,15 @@ void test('reports invalid thread entries query values', () => {
 		'type: checkpoint, thought',
 		'group_by: day',
 		'thread_detail: full',
+		'order: newest',
 		'unknown: value',
 	].join('\n'));
-	assert.equal(result.errors.length, 5);
+	assert.equal(result.errors.length, 6);
 	assert.match(result.errors.join('\n'), /date/);
 	assert.match(result.errors.join('\n'), /thought/);
 	assert.match(result.errors.join('\n'), /group_by/);
 	assert.match(result.errors.join('\n'), /thread_detail/);
+	assert.match(result.errors.join('\n'), /order/);
 	assert.match(result.errors.join('\n'), /unknown/);
 });
 
@@ -207,6 +214,13 @@ void test('formats checkpoint and log timestamps consistently', () => {
 	assert.equal(formatThreadEntryTimestamp('2026-09-05', '07:20', true), '07:20');
 	assert.equal(formatThreadEntryTimestamp('2026-09-05', '', true), '26/09/05');
 	assert.equal(formatThreadEntryTimestamp('未填写日期', ''), '未填写日期');
+});
+
+void test('sorts thread entry timestamps only by the explicit order', () => {
+	const earlier = '2026-09-04T09:00:00';
+	const later = '2026-09-04T10:00:00';
+	assert.ok(compareThreadEntryTimestamps(earlier, later, 'asc') < 0);
+	assert.ok(compareThreadEntryTimestamps(earlier, later, 'desc') > 0);
 });
 
 void test('recognizes current and legacy Context headings', () => {

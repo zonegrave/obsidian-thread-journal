@@ -1,6 +1,7 @@
 export type ThreadEntryType = 'checkpoint' | 'log';
 export type ThreadEntryGroupBy = 'none' | 'thread' | 'type';
 export type ThreadEntryDetail = 'none' | 'name' | 'crumb';
+export type ThreadEntryOrder = 'asc' | 'desc';
 
 export interface ThreadEntryDateFilter {
 	from: string;
@@ -13,6 +14,7 @@ export interface ThreadEntriesQuery {
 	types: ThreadEntryType[];
 	groupBy: ThreadEntryGroupBy;
 	threadDetail: ThreadEntryDetail;
+	order: ThreadEntryOrder;
 }
 
 export interface ParsedThreadEntriesQuery {
@@ -23,12 +25,14 @@ export interface ParsedThreadEntriesQuery {
 const ENTRY_TYPES = new Set<ThreadEntryType>(['checkpoint', 'log']);
 const GROUP_VALUES = new Set<ThreadEntryGroupBy>(['none', 'thread', 'type']);
 const THREAD_DETAIL_VALUES = new Set<ThreadEntryDetail>(['none', 'name', 'crumb']);
+const ORDER_VALUES = new Set<ThreadEntryOrder>(['asc', 'desc']);
 const QUERY_KEYS = new Set([
 	'thread_id',
 	'date',
 	'type',
 	'group_by',
 	'thread_detail',
+	'order',
 ]);
 
 function unquote(value: string): string {
@@ -61,6 +65,14 @@ export function formatThreadEntryTimestamp(
 		? `${match[2]}/${match[3]}/${match[4]}`
 		: date;
 	return time ? `${compactDate} ${time}` : compactDate;
+}
+
+export function compareThreadEntryTimestamps(
+	left: string,
+	right: string,
+	order: ThreadEntryOrder,
+): number {
+	return (order === 'asc' ? 1 : -1) * left.localeCompare(right);
 }
 
 export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuery {
@@ -156,8 +168,19 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 		}
 	}
 
+	let order: ThreadEntryOrder = 'desc';
+	const rawOrder = values.get('order');
+	if (rawOrder !== undefined) {
+		const parsed = unquote(rawOrder) as ThreadEntryOrder;
+		if (!ORDER_VALUES.has(parsed)) {
+			errors.push('order 只支持 asc 或 desc。');
+		} else {
+			order = parsed;
+		}
+	}
+
 	return {
-		query: { threadIds, date, types, groupBy, threadDetail },
+		query: { threadIds, date, types, groupBy, threadDetail, order },
 		errors,
 	};
 }

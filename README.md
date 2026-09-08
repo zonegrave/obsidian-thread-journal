@@ -171,6 +171,7 @@ date: 2026-09-01..2026-09-05
 type: [checkpoint, log]
 group_by: thread
 thread_detail: crumb
+order: asc
 ```
 ````
 
@@ -183,6 +184,7 @@ thread_detail: crumb
 | `type` | `checkpoint`、`log`，或列表 | 两种记录 |
 | `group_by` | `none`、`thread`、`type` | `none` |
 | `thread_detail` | `none`、`name`、`crumb` | `none` |
+| `order` | `asc`、`desc` | `desc` |
 
 单日查询中的卡片只显示 `HH:mm`；其他查询和工作区原地卡片统一显示 `YY/MM/DD HH:mm`。
 
@@ -194,7 +196,7 @@ thread_detail: crumb
 
 使用 `group_by: thread` 时，分组标题必须保留 thread 身份：`none` 与 `name` 显示名称，`crumb` 显示完整路径；组内卡片不重复显示。
 
-有日期条件时记录按时间正序排列，没有日期条件时按时间倒序排列。无效字段和值会直接显示查询错误，不自动猜测。查询只接受显式值，不支持 `current`。
+`order` 独立控制记录的时间顺序，不受 `date` 等筛选条件影响；`asc` 为正序，`desc` 为倒序，省略时固定使用 `desc`。无效字段和值会直接显示查询错误，不自动猜测。查询只接受显式值，不支持 `current`。
 
 ### 主 thread 中的 Timeline
 
@@ -216,6 +218,7 @@ type: [checkpoint, log]
 date: {{date:YYYY-MM-DD}}
 type: [checkpoint, log]
 group_by: thread
+order: asc
 ```
 ````
 
