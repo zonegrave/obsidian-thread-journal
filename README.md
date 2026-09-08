@@ -51,7 +51,6 @@ Context 让项目保持清晰，Workspace 让工作过程不受拘束；使用�
 ---
 type: thread
 thread_id: 3e9b3f36-7f7d-4205-97b0-82c533155eb0
-title: 睡眠管理
 aliases: [睡眠管理]
 tags: [线程]
 kind: area
@@ -62,6 +61,7 @@ created: 2026-08-31
 ```
 
 - `thread_id` 是稳定身份。
+- `aliases[0]` 是显示名称；缺失时使用文件名。主 thread 不使用 `title` 属性。
 - `kind` 可为 `normal`、`project` 或 `area`，三者使用同一套逻辑和模板。
 - `parent` 是可选的单一父节点。
 - `status` 可为 `active`、`paused`、`review`、`completed` 或 `closed`。

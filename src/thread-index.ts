@@ -40,7 +40,7 @@ export class ThreadIndex {
 		return {
 			file,
 			id,
-			title: textValue(frontmatter.title) || file.basename,
+			title: firstTextValue(frontmatter.aliases) || file.basename,
 			kind,
 			status: textValue(frontmatter.status),
 			parentLink: stripWikiLink(frontmatter.parent),
@@ -65,9 +65,7 @@ export class ThreadIndex {
 
 	getDisplayName(file: TFile): string {
 		const frontmatter = frontmatterFor(this.app, file);
-		return firstTextValue(frontmatter.aliases)
-			|| textValue(frontmatter.title)
-			|| file.basename;
+		return firstTextValue(frontmatter.aliases) || file.basename;
 	}
 
 	getParent(file: TFile): ThreadAncestor | undefined {

@@ -239,7 +239,7 @@ export class ThreadCreator {
 			const metadata = frontmatter as Record<string, unknown>;
 			metadata.type = 'thread';
 			metadata.thread_id = threadId;
-			metadata.title = title;
+			delete metadata.title;
 			metadata.aliases = [...new Set([title, ...stringList(metadata.aliases)])];
 			metadata.tags = [...new Set(['线程', ...stringList(metadata.tags)])];
 			metadata.kind = kind;

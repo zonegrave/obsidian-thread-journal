@@ -242,7 +242,7 @@ void test('pairs renamed thread workspaces by thread_id instead of file links', 
 	};
 	const frontmatter = new Map<unknown, Record<string, unknown>>([
 		[threadFile, {
-			type: 'thread', thread_id: 'thread-1', title: '已改名 thread',
+			type: 'thread', thread_id: 'thread-1', aliases: ['已改名 thread'],
 			workspace: '[[old-thread·工作区|工作区]]',
 		}],
 		[staleNameWorkspace, { type: 'thread-workspace', thread_id: 'another-thread' }],
@@ -259,6 +259,29 @@ void test('pairs renamed thread workspaces by thread_id instead of file links', 
 	const index = new ThreadIndex(app as never);
 	assert.equal(index.getWorkspace(threadFile as never), renamedWorkspace);
 	assert.equal(index.getThreadForWorkspace(renamedWorkspace as never), threadFile);
+	assert.equal(index.getThread(threadFile as never)?.title, '已改名 thread');
+});
+
+void test('uses aliases then the filename as the thread display name', () => {
+	const aliased = { path: '50-行动系统/同名项目·abc12345.md', basename: '同名项目·abc12345' };
+	const plain = { path: '50-行动系统/普通项目.md', basename: '普通项目' };
+	const frontmatter = new Map<unknown, Record<string, unknown>>([
+		[aliased, {
+			type: 'thread', thread_id: 'thread-a', aliases: ['同名项目'], title: '旧标题',
+		}],
+		[plain, { type: 'thread', thread_id: 'thread-b', title: '不再读取的旧标题' }],
+	]);
+	const app = {
+		vault: { getMarkdownFiles: () => [aliased, plain] },
+		metadataCache: {
+			getFileCache: (file: unknown) => ({ frontmatter: frontmatter.get(file) }),
+		},
+	};
+	const index = new ThreadIndex(app as never);
+	assert.equal(index.getThread(aliased as never)?.title, '同名项目');
+	assert.equal(index.getDisplayName(aliased as never), '同名项目');
+	assert.equal(index.getThread(plain as never)?.title, '普通项目');
+	assert.equal(index.getDisplayName(plain as never), '普通项目');
 });
 
 void test('keeps only the current main thread structure in the default template', () => {
