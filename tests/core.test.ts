@@ -1,5 +1,6 @@
 import { todoDisposition, summarizeAttention, attentionHint } from '../src/thread-attention-model';
 import {
+	breadcrumbCounterpart,
 	breadcrumbFilterLabel,
 	filterBreadcrumbThreads,
 } from '../src/thread-breadcrumb-model';
@@ -745,4 +746,16 @@ void test('breadcrumb switcher defaults can filter active threads without changi
 	);
 	assert.equal(filterBreadcrumbThreads(threads, 'all').length, 3);
 	assert.equal(breadcrumbFilterLabel('active'), '持续关注');
+});
+
+void test('breadcrumb switches between the main thread and its workspace', () => {
+	assert.deepEqual(
+		breadcrumbCounterpart('threads/sleep.md', 'workspaces/sleep.md', 'threads/sleep.md'),
+		{ path: 'workspaces/sleep.md', label: '打开工作区' },
+	);
+	assert.deepEqual(
+		breadcrumbCounterpart('threads/sleep.md', 'workspaces/sleep.md', 'workspaces/sleep.md'),
+		{ path: 'threads/sleep.md', label: '返回主 thread' },
+	);
+	assert.equal(breadcrumbCounterpart('threads/idea.md', undefined, 'threads/idea.md'), undefined);
 });

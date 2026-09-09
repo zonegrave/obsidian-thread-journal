@@ -15,3 +15,14 @@ export function filterBreadcrumbThreads(
 export function breadcrumbFilterLabel(filter: BreadcrumbFilter): string {
 	return filter === 'active' ? '持续关注' : '全部';
 }
+
+export function breadcrumbCounterpart(
+	threadPath: string,
+	workspacePath: string | undefined,
+	currentPath: string,
+): { path: string; label: string } | undefined {
+	if (!workspacePath) return undefined;
+	return currentPath === workspacePath
+		? { path: threadPath, label: '返回主 thread' }
+		: { path: workspacePath, label: '打开工作区' };
+}

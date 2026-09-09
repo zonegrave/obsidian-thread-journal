@@ -226,7 +226,7 @@ order: asc
 Thread 主文件和工作区顶部默认显示类似 VS Code 的固定 Breadcrumb 工具条，在源码、实时预览和阅读模式中都保持可见：
 
 - 最左侧 thread 图标打开没有 parent 的根 thread；中间显示完整祖先路径和当前 thread，每段均可跳转。
-- 右侧工作区按钮打开按 `thread_id` 配对的工作区，thread 切换器默认只列 `active`（持续关注）状态。
+- 右侧双向切换按钮在主 thread 中打开按 `thread_id` 配对的工作区，在工作区中返回主 thread；thread 切换器默认只列 `active`（持续关注）状态。
 - 最右侧可在“持续关注”和“全部”之间临时切换；默认范围和工具条位于正文上方／下方可在设置中修改。
 
 ````markdown

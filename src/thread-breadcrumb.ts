@@ -8,6 +8,7 @@ import {
 } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
 import {
+	breadcrumbCounterpart,
 	breadcrumbFilterLabel,
 	filterBreadcrumbThreads,
 	type BreadcrumbFilter,
@@ -84,7 +85,7 @@ export class ThreadBreadcrumbManager {
 		const threadFile = file ? this.index.getThreadFile(file) : undefined;
 		const thread = threadFile ? this.index.getThread(threadFile) : undefined;
 		const existing = this.mounted.get(leaf);
-		if (!thread || !threadFile) {
+		if (!file || !thread || !threadFile) {
 			if (existing) this.detach(existing);
 			this.mounted.delete(leaf);
 			return;
@@ -98,7 +99,7 @@ export class ThreadBreadcrumbManager {
 		if (resetFilter) mounted.filter = settings.breadcrumbDefaultFilter;
 		this.mounted.set(leaf, mounted);
 		this.place(view.contentEl, mounted.bar, settings.breadcrumbPosition);
-		this.render(mounted, thread, threadFile);
+		this.render(mounted, thread, threadFile, file);
 	}
 
 	private place(
@@ -117,7 +118,12 @@ export class ThreadBreadcrumbManager {
 		mounted.bar.remove();
 	}
 
-	private render(mounted: MountedBar, current: ThreadInfo, threadFile: ThreadInfo['file']): void {
+	private render(
+		mounted: MountedBar,
+		current: ThreadInfo,
+		threadFile: ThreadInfo['file'],
+		currentFile: ThreadInfo['file'],
+	): void {
 		const { bar } = mounted;
 		bar.empty();
 		const rootThreads = filterBreadcrumbThreads(
@@ -158,14 +164,15 @@ export class ThreadBreadcrumbManager {
 
 		const actions = bar.createDiv({ cls: 'thread-journal-fixed-breadcrumb-actions' });
 		const workspace = this.index.getWorkspace(threadFile);
-		if (workspace) {
+		const counterpart = breadcrumbCounterpart(threadFile.path, workspace?.path, currentFile.path);
+		if (counterpart) {
 			const workspaceButton = actions.createEl('button', {
 				cls: 'clickable-icon',
-				attr: { 'aria-label': '打开工作区' },
+				attr: { 'aria-label': counterpart.label },
 			});
-			setIcon(workspaceButton, 'panels-top-left');
+			setIcon(workspaceButton, 'arrow-left-right');
 			workspaceButton.addEventListener('click', () => {
-				void this.app.workspace.openLinkText(workspace.path, threadFile.path);
+				void this.app.workspace.openLinkText(counterpart.path, currentFile.path);
 			});
 		}
 
@@ -195,7 +202,7 @@ export class ThreadBreadcrumbManager {
 		});
 		filterButton.addEventListener('click', () => {
 			mounted.filter = mounted.filter === 'active' ? 'all' : 'active';
-			this.render(mounted, current, threadFile);
+			this.render(mounted, current, threadFile, currentFile);
 		});
 	}
 }
