@@ -49,6 +49,7 @@ export class ThreadStatusManager {
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
+		private readonly ensureWorkspace: (file: TFile) => Promise<TFile | undefined>,
 	) {}
 
 	getCurrentThreadFile(): TFile | undefined {
@@ -69,12 +70,13 @@ export class ThreadStatusManager {
 		}).open();
 	}
 
-	private async setStatus(file: TFile, status: ThreadStatus): Promise<void> {
+	async setStatus(file: TFile, status: ThreadStatus): Promise<void> {
 		const current = this.index.getThread(file)?.status;
 		if (current === status) {
 			new Notice(`当前状态已经是 ${status}。`);
 			return;
 		}
+		if (status === 'active' || status === 'committed' || status === 'dormant') await this.ensureWorkspace(file);
 		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
 			const metadata = frontmatter as Record<string, unknown>;
 			metadata.status = status;

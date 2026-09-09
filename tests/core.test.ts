@@ -1,3 +1,8 @@
+import { todoDisposition, summarizeAttention, attentionHint } from '../src/thread-attention-model';
+import {
+	breadcrumbFilterLabel,
+	filterBreadcrumbThreads,
+} from '../src/thread-breadcrumb-model';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
@@ -286,8 +291,8 @@ void test('uses aliases then the filename as the thread display name', () => {
 
 void test('keeps only the current main thread structure in the default template', () => {
 	assert.match(DEFAULT_THREAD_TEMPLATE, /## Milestones/);
-	assert.match(DEFAULT_THREAD_TEMPLATE, /## 当前 Context/);
-	assert.match(DEFAULT_THREAD_TEMPLATE, /\*\*继续：\*\*/);
+	assert.match(DEFAULT_THREAD_TEMPLATE, /## 设想与 Context/);
+	assert.doesNotMatch(DEFAULT_THREAD_TEMPLATE, /- \[ \]/);
 	assert.match(DEFAULT_THREAD_TEMPLATE, /### Checkpoints/);
 	assert.match(DEFAULT_THREAD_TEMPLATE, /```thread-entries\nthread_id: \{\{thread_id\}\}\ntype: checkpoint/);
 });
@@ -295,20 +300,20 @@ void test('keeps only the current main thread structure in the default template'
 void test('renders the current template placeholders', () => {
 	const rendered = renderThreadTemplate([
 		'# {{title}}',
-		'{{kind}} · {{filename}} · {{thread_id}}',
+		'{{status}} · {{filename}} · {{thread_id}}',
 		'{{parent_title}} {{parent}}',
 		'{{date}} / {{date:YYMMDD}}',
 	].join('\n'), {
 		title: '睡眠管理',
 		fileName: '睡眠管理',
 		threadId: 'stable-id',
-		kind: 'area',
+		status: 'idea',
 		parentTitle: '健康管理',
 		parentLink: '[[健康管理|健康管理]]',
 		created: '2026-08-31',
 	}, (format) => format === 'YYMMDD' ? '260831' : '2026-08-31');
 	assert.match(rendered, /^# 睡眠管理/m);
-	assert.match(rendered, /area · 睡眠管理 · stable-id/);
+	assert.match(rendered, /idea · 睡眠管理 · stable-id/);
 	assert.match(rendered, /2026-08-31 \/ 260831/);
 });
 
@@ -652,12 +657,12 @@ void test('deletes one checkpoint in place by block id', () => {
 	assert.equal(parseCheckpointEntries(result).length, 1);
 });
 
-void test('supports only the five current status values', () => {
+void test('supports only the eight current status values', () => {
 	assert.deepEqual(
 		THREAD_STATUS_CHOICES.map((choice) => choice.value),
-		['active', 'paused', 'review', 'completed', 'closed'],
+		['idea', 'committed', 'active', 'dormant', 'paused', 'review', 'completed', 'closed'],
 	);
-	assert.equal(threadStatusLabel('active'), '行动中');
+	assert.equal(threadStatusLabel('active'), '持续关注');
 });
 
 void test('groups and orders open thread views without duplicating logical threads', () => {
@@ -686,4 +691,58 @@ void test('resolves current wikilinks and aliases', () => {
 	assert.equal(stripWikiLink('[[睡眠管理#Context|睡眠管理]]'), '睡眠管理');
 	assert.equal(wikiLinkAlias('[[睡眠管理|睡眠管理]]'), '睡眠管理');
 	assert.equal(wikiLinkAlias('[[睡眠管理]]'), undefined);
+});
+
+void test('task readiness separates future, waiting, candidates, completion and deadlines', () => {
+ assert.equal(todoDisposition(' ', '2026-10-01 预约', '2026-09-09'), 'future');
+ assert.equal(todoDisposition(' ', '预约 📅 2026-10-01', '2026-09-09'), 'ready');
+ assert.equal(todoDisposition(' ', '预约 ⏳ 2026-10-01', '2026-09-09'), 'future');
+ assert.equal(todoDisposition(' ', '预约 🛫 2026-09-09', '2026-09-09'), 'ready');
+ assert.equal(todoDisposition('>', '等回复', '2026-09-09'), 'waiting');
+ assert.equal(todoDisposition('?', '考虑一下', '2026-09-09'), 'candidate');
+ assert.equal(todoDisposition('x', '完成', '2026-09-09'), undefined);
+ assert.equal(todoDisposition('-', '取消', '2026-09-09'), undefined);
+ assert.equal(todoDisposition(' ', '', '2026-09-09'), undefined);
+ assert.equal(todoDisposition('!', '自定义', '2026-09-09'), 'unknown');
+});
+
+void test('subtree attention includes descendants but suspends frozen branches and deduplicates shared tasks', () => {
+ const nodes = [
+  { id: 'root', status: 'active' },
+  { id: 'sleep', parent: 'root', status: 'dormant' },
+  { id: 'frozen', parent: 'root', status: 'paused' },
+  { id: 'child', parent: 'frozen', status: 'active' },
+ ];
+ const tasks = [
+  { key: 'one', owner: 'sleep', disposition: 'ready' as const },
+  { key: 'one', owner: 'root', disposition: 'ready' as const },
+  { key: 'two', owner: 'child', disposition: 'ready' as const },
+ ];
+ const result = summarizeAttention('root', nodes, tasks);
+ assert.equal(result.open, 2); assert.equal(result.ready, 1); assert.equal(result.suspended, 1);
+ assert.equal(summarizeAttention('child', nodes, tasks).ready, 0);
+ assert.match(attentionHint('dormant', summarizeAttention('sleep', nodes, tasks)), /需要处理/);
+ assert.match(attentionHint('active', summarizeAttention('root', nodes, [])), /考虑休眠/);
+});
+
+void test('cycles terminate with visible warning and future tasks are not an empty subtree', () => {
+ const nodes = [{ id: 'a', parent: 'b', status: 'active' }, { id: 'b', parent: 'a', status: 'active' }];
+ assert.equal(summarizeAttention('a', nodes, []).cycle, true);
+ const summary = summarizeAttention('a', [{ id: 'a', status: 'active' }], [{ key: 'a:1', owner: 'a', disposition: 'future' }]);
+ assert.equal(summary.open, 1); assert.equal(summary.ready, 0);
+ assert.doesNotMatch(attentionHint('active', summary), /考虑休眠/);
+});
+
+void test('breadcrumb switcher defaults can filter active threads without changing hierarchy', () => {
+	const threads = [
+		{ title: '睡眠', status: 'dormant' },
+		{ title: '插件', status: 'active' },
+		{ title: '旅行', status: 'active' },
+	] as never[];
+	assert.deepEqual(
+		filterBreadcrumbThreads(threads, 'active').map((thread) => thread.title),
+		['插件', '旅行'],
+	);
+	assert.equal(filterBreadcrumbThreads(threads, 'all').length, 3);
+	assert.equal(breadcrumbFilterLabel('active'), '持续关注');
 });

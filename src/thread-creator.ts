@@ -9,6 +9,7 @@ import {
 	normalizePath,
 	type FuzzyMatch,
 } from 'obsidian';
+import { THREAD_STATUS_CHOICES, isThreadStatus, threadStatusLabel, type ThreadStatus } from './thread-status-model';
 import { buildThreadFileName } from './core';
 import {
 	DEFAULT_THREAD_TEMPLATE,
@@ -16,7 +17,7 @@ import {
 } from './thread-template';
 import type { ThreadIndex, ThreadParentCandidate } from './thread-index';
 import type { ThreadWorkspaceManager } from './thread-workspace';
-import type { ThreadJournalSettings, ThreadKind } from './types';
+import type { ThreadJournalSettings } from './types';
 
 function stableThreadId(): string {
 	if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -44,12 +45,12 @@ function stringList(value: unknown): string[] {
 
 class NewThreadModal extends Modal {
 	private title = '';
-	private kind: ThreadKind = 'normal';
+	private status: ThreadStatus = 'idea';
 
 	constructor(
 		app: App,
 		private readonly parent: TFile | undefined,
-		private readonly onSubmit: (title: string, kind: ThreadKind) => Promise<void>,
+		private readonly onSubmit: (title: string, status: ThreadStatus) => Promise<void>,
 	) {
 		super(app);
 	}
@@ -70,18 +71,14 @@ class NewThreadModal extends Modal {
 			.setDesc(this.parent?.path ?? '无父 thread（根节点）');
 
 		new Setting(this.contentEl)
-			.setName('Thread 形态')
-			.setDesc('Normal 为默认；area 持续维护；project 表示阶段性结果。')
-			.addDropdown((dropdown) => dropdown
-				.addOption('normal', 'Normal')
-				.addOption('area', 'Area')
-				.addOption('project', 'Project')
-				.setValue(this.kind)
-				.onChange((value) => {
-					this.kind = value === 'area' || value === 'project'
-						? value
-						: 'normal';
-				}));
+			.setName('初始状态')
+			.setDesc('默认先保留为想法；不要求填写目标或 todo。')
+			.addDropdown((dropdown) => {
+				for (const choice of THREAD_STATUS_CHOICES) dropdown.addOption(choice.value, choice.label);
+				dropdown.setValue(this.status).onChange((value) => {
+					if (isThreadStatus(value)) this.status = value;
+				});
+			});
 
 		new Setting(this.contentEl)
 			.addButton((button) => button
@@ -94,7 +91,7 @@ class NewThreadModal extends Modal {
 						return;
 					}
 					try {
-						await this.onSubmit(title, this.kind);
+						await this.onSubmit(title, this.status);
 						this.close();
 					} catch (error) {
 						console.error('Thread Journal failed to create thread', error);
@@ -172,7 +169,7 @@ export class ThreadCreator {
 			preferred.push({
 				file: cursor,
 				title: thread.title,
-				detail: `${depth === 0 ? '当前 thread' : '祖先 thread'} · ${thread.kind} · ${cursor.path}`,
+				detail: `${depth === 0 ? '当前 thread' : '祖先 thread'} · ${threadStatusLabel(thread.status)} · ${cursor.path}`,
 			});
 			cursor = this.index.getParentFile(cursor);
 			depth += 1;
@@ -183,7 +180,7 @@ export class ThreadCreator {
 			.map((candidate: ThreadParentCandidate) => ({
 				file: candidate.file,
 				title: candidate.title,
-				detail: `${candidate.kind} · ${candidate.file.path}`,
+				detail: candidate.file.path,
 			}));
 		return [
 			...preferred,
@@ -193,12 +190,12 @@ export class ThreadCreator {
 	}
 
 	private openDetailsModal(parent?: TFile): void {
-		new NewThreadModal(this.app, parent, async (title, kind) => {
-			await this.createThread(title, kind, parent);
+		new NewThreadModal(this.app, parent, async (title, status) => {
+			await this.createThread(title, status, parent);
 		}).open();
 	}
 
-	async createThread(title: string, kind: ThreadKind, parent?: TFile): Promise<TFile> {
+	async createThread(title: string, status: ThreadStatus, parent?: TFile): Promise<TFile> {
 		const settings = this.getSettings();
 		const folder = settings.threadsFolder;
 		await ensureFolder(this.app, folder);
@@ -229,7 +226,7 @@ export class ThreadCreator {
 			title,
 			fileName,
 			threadId,
-			kind,
+			status,
 			parentLink,
 			parentTitle: parent ? this.index.getDisplayName(parent) : undefined,
 			created,
@@ -242,13 +239,12 @@ export class ThreadCreator {
 			delete metadata.title;
 			metadata.aliases = [...new Set([title, ...stringList(metadata.aliases)])];
 			metadata.tags = [...new Set(['线程', ...stringList(metadata.tags)])];
-			metadata.kind = kind;
-			metadata.status = 'active';
+			metadata.status = status;
 			metadata.created = created;
 			if (parentLink) metadata.parent = parentLink;
 			else delete metadata.parent;
 		});
-		await this.workspaces.ensureForThread(file, {
+		if (status !== 'idea') await this.workspaces.ensureForThread(file, {
 			id: threadId,
 			title,
 			created,

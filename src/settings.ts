@@ -10,6 +10,8 @@ export const DEFAULT_SETTINGS: ThreadJournalSettings = {
 	workspacesFolder: '50-行动系统/工作区',
 	workspaceSuffix: '工作区',
 	threadTemplatePath: 'Templates/Thread.md',
+	breadcrumbPosition: 'top',
+	breadcrumbDefaultFilter: 'active',
 	checkpointFields: normalizeCheckpointFields(undefined),
 };
 
@@ -30,6 +32,8 @@ export function normalizedSettings(
 		threadTemplatePath: normalizePath(
 			merged.threadTemplatePath.trim() || DEFAULT_SETTINGS.threadTemplatePath,
 		),
+		breadcrumbPosition: merged.breadcrumbPosition === 'bottom' ? 'bottom' : 'top',
+		breadcrumbDefaultFilter: merged.breadcrumbDefaultFilter === 'all' ? 'all' : 'active',
 		checkpointFields: normalizeCheckpointFields(raw.checkpointFields),
 	};
 }
@@ -85,6 +89,32 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.threadTemplatePath = value;
 					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Breadcrumb 位置')
+			.setDesc('固定在 thread 正文区域的上方或下方。')
+			.addDropdown((dropdown) => dropdown
+				.addOption('top', '正文上方')
+				.addOption('bottom', '正文下方')
+				.setValue(this.plugin.settings.breadcrumbPosition)
+				.onChange(async (value) => {
+					this.plugin.settings.breadcrumbPosition = value === 'bottom' ? 'bottom' : 'top';
+					await this.plugin.saveSettings();
+					this.plugin.refreshBreadcrumbBars();
+				}));
+
+		new Setting(containerEl)
+			.setName('Breadcrumb 默认范围')
+			.setDesc('工具条的 thread 切换器默认只显示“持续关注”，或显示全部状态。工具条最右侧可以临时切换。')
+			.addDropdown((dropdown) => dropdown
+				.addOption('active', '仅持续关注')
+				.addOption('all', '全部 thread')
+				.setValue(this.plugin.settings.breadcrumbDefaultFilter)
+				.onChange(async (value) => {
+					this.plugin.settings.breadcrumbDefaultFilter = value === 'all' ? 'all' : 'active';
+					await this.plugin.saveSettings();
+					this.plugin.refreshBreadcrumbBars(true);
 				}));
 
 		renderCheckpointFieldSettings(containerEl, this.plugin, () => {

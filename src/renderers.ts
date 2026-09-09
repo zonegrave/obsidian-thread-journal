@@ -94,28 +94,6 @@ export class ThreadRenderers {
 		) => void,
 	) {}
 
-	renderBreadcrumb(el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
-		const current = sourceFile(this.app, ctx);
-		if (!current) return;
-		const ancestry = this.index.getAncestors(current);
-		el.addClass('thread-journal-breadcrumb');
-		ancestry.items.forEach((item, index) => {
-			if (index > 0) el.createSpan({ cls: 'thread-journal-separator', text: '›' });
-			addFileLink(this.app, el, item.file, ctx.sourcePath, item.label);
-		});
-		const workspace = this.index.getWorkspace(current);
-		if (workspace) {
-			if (ancestry.items.length > 0) {
-				el.createSpan({ cls: 'thread-journal-separator', text: '·' });
-			}
-			const workspaceLink = el.createSpan({ cls: 'thread-journal-workspace-link' });
-			addFileLink(this.app, workspaceLink, workspace, ctx.sourcePath, '工作区');
-		}
-		if (ancestry.cycle) {
-			el.createSpan({ cls: 'thread-journal-warning', text: '检测到父线程循环' });
-		}
-	}
-
 	renderChildren(el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
 		const current = sourceFile(this.app, ctx);
 		if (!current) return;
@@ -131,7 +109,7 @@ export class ThreadRenderers {
 			addFileLink(this.app, item, child.file, ctx.sourcePath, child.title);
 			item.createSpan({
 				cls: 'thread-journal-meta',
-				text: `${child.kind} · ${threadStatusLabel(child.status)}`,
+				text: threadStatusLabel(child.status),
 			});
 		}
 	}

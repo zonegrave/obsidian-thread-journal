@@ -1,23 +1,82 @@
-.thread-journal-breadcrumb {
+.thread-journal-breadcrumb-host {
 	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 0.45rem;
-	margin: 0.5rem 0 1rem;
-	color: var(--text-muted);
-	font-size: var(--font-ui-small);
+	flex-direction: column;
+	min-height: 0;
 }
 
-.thread-journal-breadcrumb:empty {
+.thread-journal-breadcrumb-host > .markdown-source-view,
+.thread-journal-breadcrumb-host > .markdown-preview-view {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.thread-journal-fixed-breadcrumb {
+	display: flex;
+	align-items: center;
+	gap: 0.2rem;
+	flex: 0 0 auto;
+	min-height: 30px;
+	padding: 2px 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	z-index: var(--layer-popover);
+}
+
+.thread-journal-fixed-breadcrumb.is-bottom {
+	order: 99;
+	border-top: 1px solid var(--background-modifier-border);
+	border-bottom: 0;
+}
+
+.thread-journal-fixed-breadcrumb-path {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.thread-journal-fixed-breadcrumb-path::-webkit-scrollbar {
 	display: none;
 }
 
-.thread-journal-separator {
+.thread-journal-fixed-breadcrumb-separator {
+	padding: 0 2px;
 	color: var(--text-faint);
 }
 
-.thread-journal-workspace-link a {
+.thread-journal-fixed-breadcrumb-segment {
+	width: auto;
+	max-width: 14rem;
+	padding: 2px 5px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.thread-journal-fixed-breadcrumb-root {
+	flex: 0 0 auto;
 	color: var(--text-accent);
+}
+
+.thread-journal-fixed-breadcrumb-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	margin-left: auto;
+	flex: 0 0 auto;
+}
+
+.thread-journal-fixed-breadcrumb-picker {
+	gap: 3px;
+}
+
+.thread-journal-fixed-breadcrumb-filter {
+	width: auto;
+	padding: 2px 6px;
+	font-size: var(--font-ui-smaller);
 }
 
 .thread-journal-warning {
@@ -689,3 +748,6 @@
 		grid-template-columns: minmax(0, 1fr);
 	}
 }
+
+.thread-journal-overview-modal { width: min(850px, 90vw); }
+.thread-journal-overview-card { border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 12px; margin: 12px 0; }

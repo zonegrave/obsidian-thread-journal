@@ -1,11 +1,10 @@
 import type { App, TFile } from 'obsidian';
 import { stripWikiLink, wikiLinkAlias } from './core';
-import type { ThreadInfo, ThreadKind } from './types';
+import type { ThreadInfo } from './types';
 
 export interface ThreadParentCandidate {
 	file: TFile;
 	title: string;
-	kind: ThreadKind;
 }
 
 export interface ThreadAncestor {
@@ -33,15 +32,10 @@ export class ThreadIndex {
 		const frontmatter = frontmatterFor(this.app, file);
 		const id = textValue(frontmatter.thread_id);
 		if (frontmatter.type !== 'thread' || !id) return undefined;
-		const rawKind = textValue(frontmatter.kind);
-		const kind: ThreadKind = rawKind === 'area' || rawKind === 'project'
-			? rawKind
-			: 'normal';
 		return {
 			file,
 			id,
 			title: firstTextValue(frontmatter.aliases) || file.basename,
-			kind,
 			status: textValue(frontmatter.status),
 			parentLink: stripWikiLink(frontmatter.parent),
 		};
@@ -59,7 +53,7 @@ export class ThreadIndex {
 
 	getParentCandidates(): ThreadParentCandidate[] {
 		return this.getAllThreads()
-			.map((thread) => ({ file: thread.file, title: thread.title, kind: thread.kind }))
+			.map((thread) => ({ file: thread.file, title: thread.title }))
 			.sort((a, b) => a.title.localeCompare(b.title));
 	}
 

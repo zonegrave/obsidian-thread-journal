@@ -1,24 +1,11 @@
-import type { ThreadKind } from './types';
+import type { ThreadStatus } from './thread-status-model';
 
 export const DEFAULT_THREAD_TEMPLATE = [
-	'```thread-breadcrumb',
-	'```',
-	'',
 	'# {{title}}',
 	'',
-	'## 期望结果',
+	'## 设想与 Context',
 	'',
-	'## 完成条件',
-	'',
-	'- ',
-	'',
-	'## Milestones',
-	'',
-	'- [ ] ',
-	'',
-	'## 当前 Context',
-	'',
-	'**继续：** ',
+	'## Milestones（按需）',
 	'',
 	'### Checkpoints',
 	'',
@@ -38,7 +25,7 @@ export interface ThreadTemplateContext {
 	title: string;
 	fileName: string;
 	threadId: string;
-	kind: ThreadKind;
+	status: ThreadStatus;
 	parentLink?: string;
 	parentTitle?: string;
 	created: string;
@@ -54,7 +41,7 @@ export function renderThreadTemplate(
 		thread_title: context.title,
 		filename: context.fileName,
 		thread_id: context.threadId,
-		kind: context.kind,
+		status: context.status,
 		parent: context.parentLink ?? '',
 		parent_title: context.parentTitle ?? '',
 		created: context.created,

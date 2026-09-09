@@ -1,7 +1,5 @@
 import type { TFile } from 'obsidian';
 
-export type ThreadKind = 'normal' | 'area' | 'project';
-
 export type CheckpointFieldControl =
 	| 'text'
 	| 'textarea'
@@ -26,7 +24,6 @@ export interface ThreadInfo {
 	file: TFile;
 	id: string;
 	title: string;
-	kind: ThreadKind;
 	status: string;
 	parentLink?: string;
 }
@@ -36,5 +33,7 @@ export interface ThreadJournalSettings {
 	workspacesFolder: string;
 	workspaceSuffix: string;
 	threadTemplatePath: string;
+	breadcrumbPosition: 'top' | 'bottom';
+	breadcrumbDefaultFilter: 'active' | 'all';
 	checkpointFields: CheckpointFieldSpec[];
 }

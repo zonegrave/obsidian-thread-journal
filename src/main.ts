@@ -1,3 +1,5 @@
+import { openThreadOverview, renderThreadOverview } from './thread-overview';
+import { ThreadBreadcrumbManager } from './thread-breadcrumb';
 import {
 	MarkdownView,
 	Notice,
@@ -32,6 +34,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	private statuses!: ThreadStatusManager;
 	private checkpoints!: CheckpointManager;
 	private switcher!: ThreadSwitcherManager;
+	private breadcrumbs!: ThreadBreadcrumbManager;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -43,7 +46,8 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.index = new ThreadIndex(this.app);
 		this.switcher = new ThreadSwitcherManager(this.app, this.index);
 		this.workspaces = new ThreadWorkspaceManager(this.app, this.index, getSettings);
-		this.statuses = new ThreadStatusManager(this.app, this.index);
+		this.statuses = new ThreadStatusManager(this.app, this.index, (file) => this.workspaces.ensureForThread(file));
+		this.breadcrumbs = new ThreadBreadcrumbManager(this.app, this.index, getSettings);
 		this.checkpoints = new CheckpointManager(
 			this.app,
 			this.index,
@@ -73,7 +77,11 @@ export default class ThreadJournalPlugin extends Plugin {
 		));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
 			this.switcher.rememberActiveLeaf(leaf);
+			this.breadcrumbs.refresh();
 		}));
+		this.registerEvent(this.app.workspace.on('layout-change', () => this.breadcrumbs.refresh()));
+		this.registerEvent(this.app.workspace.on('file-open', () => this.breadcrumbs.refresh()));
+		this.registerEvent(this.app.metadataCache.on('changed', () => this.breadcrumbs.refresh()));
 		this.switcher.rememberActiveLeaf(
 			this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null,
 		);
@@ -81,6 +89,15 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.registerCommands();
 		this.registerRenderers();
 		this.addSettingTab(new ThreadJournalSettingTab(this.app, this));
+		this.app.workspace.onLayoutReady(() => this.breadcrumbs.refresh(true));
+	}
+
+	onunload(): void {
+		this.breadcrumbs?.unload();
+	}
+
+	refreshBreadcrumbBars(resetFilter = false): void {
+		this.breadcrumbs?.refresh(resetFilter);
 	}
 
 	async loadSettings(): Promise<void> {
@@ -95,6 +112,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerCommands(): void {
+		this.addCommand({ id: 'thread-overview', name: '打开 thread 总览', callback: () => openThreadOverview(this.app, this.index, this.statuses) });
 		this.addCommand({
 			id: 'edit-current-thread-checkpoint-template',
 			name: '编辑 checkpoint 模板',
@@ -178,6 +196,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerRenderers(): void {
+		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.statuses, el, ctx));
 		this.registerMarkdownPostProcessor(async (el, ctx) => {
 			await this.renderers.enhanceCheckpointCallouts(el, ctx);
 			this.renderers.enhanceLogCallouts(el, ctx);
@@ -186,9 +205,6 @@ export default class ThreadJournalPlugin extends Plugin {
 			await this.renderers.renderEntries(source, el, ctx);
 		});
 
-		this.registerMarkdownCodeBlockProcessor('thread-breadcrumb', (_source, el, ctx) => {
-			this.renderers.renderBreadcrumb(el, ctx);
-		});
 		this.registerMarkdownCodeBlockProcessor('thread-children', (_source, el, ctx) => {
 			this.renderers.renderChildren(el, ctx);
 		});
