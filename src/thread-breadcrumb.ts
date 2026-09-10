@@ -21,9 +21,10 @@ class ThreadPicker extends FuzzySuggestModal<ThreadInfo> {
 		app: App,
 		private readonly threads: ThreadInfo[],
 		private readonly onChoose: (thread: ThreadInfo) => Promise<void>,
+		placeholder = '切换 thread',
 	) {
 		super(app);
-		this.setPlaceholder('切换 thread');
+		this.setPlaceholder(placeholder);
 	}
 
 	getItems(): ThreadInfo[] {
@@ -147,8 +148,7 @@ export class ThreadBreadcrumbManager {
 			label: current.title,
 		}];
 		const path = bar.createDiv({ cls: 'thread-journal-fixed-breadcrumb-path' });
-		for (const [index, item] of trail.entries()) {
-			if (index > 0) path.createSpan({ cls: 'thread-journal-fixed-breadcrumb-separator', text: '›' });
+		for (const [trailIndex, item] of trail.entries()) {
 			const button = path.createEl('button', {
 				cls: 'clickable-icon thread-journal-fixed-breadcrumb-segment',
 				text: item.label,
@@ -157,6 +157,33 @@ export class ThreadBreadcrumbManager {
 			button.addEventListener('click', () => {
 				void this.app.workspace.openLinkText(item.file.path, threadFile.path);
 			});
+
+			const children = filterBreadcrumbThreads(
+				this.index.getDirectChildren(item.file),
+				mounted.filter,
+			);
+			const separatesNextSegment = trailIndex < trail.length - 1;
+			if (children.length > 0) {
+				const separator = path.createEl('button', {
+					cls: 'clickable-icon thread-journal-fixed-breadcrumb-separator',
+					attr: {
+						'aria-label': `切换 ${item.label} 的子 thread（${breadcrumbFilterLabel(mounted.filter)}，${children.length} 个）`,
+					},
+				});
+				setIcon(separator, 'chevron-right');
+				separator.addEventListener('click', () => {
+					new ThreadPicker(
+						this.app,
+						children,
+						async (thread) => {
+							await this.app.workspace.getLeaf(false).openFile(thread.file);
+						},
+						`切换 ${item.label} 的子 thread`,
+					).open();
+				});
+			} else if (separatesNextSegment) {
+				path.createSpan({ cls: 'thread-journal-fixed-breadcrumb-separator-static', text: '›' });
+			}
 		}
 		if (this.index.getAncestors(threadFile).cycle) {
 			path.createSpan({ cls: 'thread-journal-warning', text: '父子循环' });
