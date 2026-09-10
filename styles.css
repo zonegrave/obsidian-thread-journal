@@ -26,6 +26,7 @@
 
 .thread-journal-fixed-breadcrumb.is-bottom {
 	order: 99;
+	padding-right: calc(8px + var(--thread-journal-bottom-clearance, 0px));
 	border-top: 1px solid var(--background-modifier-border);
 	border-bottom: 0;
 }

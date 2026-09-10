@@ -3,6 +3,7 @@ import {
 	breadcrumbCounterpart,
 	breadcrumbFilterLabel,
 	breadcrumbMenuSide,
+	breadcrumbRightClearance,
 	filterBreadcrumbThreads,
 } from '../src/thread-breadcrumb-model';
 import assert from 'node:assert/strict';
@@ -777,4 +778,20 @@ void test('breadcrumb child menus open toward available space', () => {
 	assert.equal(breadcrumbMenuSide(40, 64, 800, 300, false), 'below');
 	assert.equal(breadcrumbMenuSide(730, 754, 800, 300, false), 'above');
 	assert.equal(breadcrumbMenuSide(730, 754, 800, 100, true), 'above');
+});
+
+void test('bottom breadcrumbs reserve space only for overlapping status bars', () => {
+	const bar = { left: 0, right: 1440, top: 870, bottom: 900 };
+	assert.equal(
+		breadcrumbRightClearance(bar, { left: 1227, right: 1440, top: 873, bottom: 900 }),
+		221,
+	);
+	assert.equal(
+		breadcrumbRightClearance({ ...bar, right: 700 }, { left: 1227, right: 1440, top: 873, bottom: 900 }),
+		0,
+	);
+	assert.equal(
+		breadcrumbRightClearance(bar, { left: 1227, right: 1440, top: 900, bottom: 927 }),
+		0,
+	);
 });

@@ -10,6 +10,7 @@ import {
 	breadcrumbCounterpart,
 	breadcrumbFilterLabel,
 	breadcrumbMenuSide,
+	breadcrumbRightClearance,
 	filterBreadcrumbThreads,
 	type BreadcrumbFilter,
 } from './thread-breadcrumb-model';
@@ -25,13 +26,18 @@ export class ThreadBreadcrumbManager {
 	private readonly mounted = new Map<WorkspaceLeaf, MountedBar>();
 	private childMenu?: HTMLElement;
 	private closeChildMenuListeners?: () => void;
+	private readonly updateClearances = (): void => {
+		for (const mounted of this.mounted.values()) this.updateBottomClearance(mounted.bar);
+	};
 
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 		private readonly switcher: ThreadSwitcherManager,
 		private readonly getSettings: () => ThreadJournalSettings,
-	) {}
+	) {
+		window.addEventListener('resize', this.updateClearances);
+	}
 
 	refresh(resetFilter = false): void {
 		this.closeChildMenu();
@@ -50,6 +56,7 @@ export class ThreadBreadcrumbManager {
 
 	unload(): void {
 		this.closeChildMenu();
+		window.removeEventListener('resize', this.updateClearances);
 		for (const mounted of this.mounted.values()) this.detach(mounted);
 		this.mounted.clear();
 	}
@@ -97,6 +104,20 @@ export class ThreadBreadcrumbManager {
 		this.closeChildMenuListeners = undefined;
 		this.childMenu?.remove();
 		this.childMenu = undefined;
+	}
+
+	private updateBottomClearance(bar: HTMLElement): void {
+		let clearance = 0;
+		if (bar.hasClass('is-bottom')) {
+			const statusBar = document.querySelector<HTMLElement>('.status-bar');
+			if (statusBar) {
+				clearance = breadcrumbRightClearance(
+					bar.getBoundingClientRect(),
+					statusBar.getBoundingClientRect(),
+				);
+			}
+		}
+		bar.setCssProps({ '--thread-journal-bottom-clearance': `${clearance}px` });
 	}
 
 	private openChildMenu(
@@ -323,6 +344,9 @@ export class ThreadBreadcrumbManager {
 		filterButton.addEventListener('click', () => {
 			mounted.filter = mounted.filter === 'operational' ? 'all' : 'operational';
 			this.render(mounted, current, threadFile, currentFile);
+		});
+		window.requestAnimationFrame(() => {
+			if (bar.isConnected) this.updateBottomClearance(bar);
 		});
 	}
 }

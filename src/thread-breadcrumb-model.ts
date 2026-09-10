@@ -30,6 +30,24 @@ export function breadcrumbMenuSide(
 	return spaceBelow < Math.min(menuHeight, 240) && spaceAbove > spaceBelow ? 'above' : 'below';
 }
 
+export interface BreadcrumbRect {
+	left: number;
+	right: number;
+	top: number;
+	bottom: number;
+}
+
+export function breadcrumbRightClearance(
+	bar: BreadcrumbRect,
+	overlay: BreadcrumbRect,
+	gap = 8,
+): number {
+	const verticalOverlap = Math.min(bar.bottom, overlay.bottom) - Math.max(bar.top, overlay.top);
+	const horizontalOverlap = Math.min(bar.right, overlay.right) - Math.max(bar.left, overlay.left);
+	if (verticalOverlap <= 0 || horizontalOverlap <= 0) return 0;
+	return Math.max(0, bar.right - Math.max(bar.left, overlay.left)) + gap;
+}
+
 export function breadcrumbCounterpart(
 	threadPath: string,
 	workspacePath: string | undefined,
