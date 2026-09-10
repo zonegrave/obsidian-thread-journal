@@ -333,13 +333,13 @@ export class ThreadBreadcrumbManager {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-filter',
 			text: breadcrumbFilterLabel(mounted.filter),
 			attr: {
-				'aria-label': mounted.filter === 'active'
-					? '当前只显示持续关注；切换为全部 thread'
-					: '当前显示全部；切换为仅持续关注',
+				'aria-label': mounted.filter === 'operational'
+					? '当前显示投入中的 thread；切换为全部 thread'
+					: '当前显示全部；切换为投入中的 thread',
 			},
 		});
 		filterButton.addEventListener('click', () => {
-			mounted.filter = mounted.filter === 'active' ? 'all' : 'active';
+			mounted.filter = mounted.filter === 'operational' ? 'all' : 'operational';
 			this.render(mounted, current, threadFile, currentFile);
 		});
 	}

@@ -34,6 +34,6 @@ export interface ThreadJournalSettings {
 	workspaceSuffix: string;
 	threadTemplatePath: string;
 	breadcrumbPosition: 'top' | 'bottom';
-	breadcrumbDefaultFilter: 'active' | 'all';
+	breadcrumbDefaultFilter: 'operational' | 'all';
 	checkpointFields: CheckpointFieldSpec[];
 }

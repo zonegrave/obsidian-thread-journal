@@ -226,8 +226,8 @@ order: asc
 Thread 主文件和工作区顶部默认显示类似 VS Code 的固定 Breadcrumb 工具条，在源码、实时预览和阅读模式中都保持可见：
 
 - 最左侧 thread 图标表示虚拟的 Thread 根节点；没有 parent 的 thread 是它的直接子节点，点击图标后的分隔箭头可在下方悬浮菜单中切换。中间显示完整祖先路径和当前 thread，每段均可跳转；点击某一级之后的分隔箭头会显示它的直接子 thread，当前 thread 有子节点时末尾也会显示箭头。
-- 右侧双向切换按钮在主 thread 中打开按 `thread_id` 配对的工作区，在工作区中返回主 thread；thread 切换器默认只列 `active`（持续关注）状态。
-- 最右侧可在“持续关注”和“全部”之间临时切换；默认范围和工具条位于正文上方／下方可在设置中修改。
+- 右侧双向切换按钮在主 thread 中打开按 `thread_id` 配对的工作区，在工作区中返回主 thread；thread 切换器默认只列“投入中”的 `active` 与 `dormant`。
+- 最右侧可在“投入中”和“全部”之间临时切换；默认范围和工具条位于正文上方／下方可在设置中修改。
 
 ````markdown
 ```thread-children
@@ -297,6 +297,8 @@ type: [checkpoint, log]
 
 状态选择控件直接显示英文状态值，并在后面附中文含义，例如 `dormant — 休眠`；详细说明仍使用中文。
 
+`active` 与 `dormant` 共同构成“投入中”分组：前者需要持续投入，后者按需投入。只有这两种状态的 thread 可以作为新子 thread 的父节点；无 parent 的根 thread 不受此限制。父 thread 后续离开该分组时保留已有层级，但不能继续产生新子节点。
+
 ## Thread 总览与任务提示
 
 运行 **打开 thread 总览**，或在笔记中插入空的 `thread-overview` 代码块。可按状态筛选、修改状态、查看自身与子树任务计数及定位原任务。元数据更新后刷新；不自动改变状态。
@@ -318,7 +320,7 @@ type: [checkpoint, log]
 - **工作区文件后缀**：只影响新建工作区的文件名，不移动或改名已有文件。
 - **Thread 模板**：新建 thread 使用的完整 Markdown 模板路径。
 - **Breadcrumb 位置**：固定工具条位于正文上方或下方。
-- **Breadcrumb 默认范围**：thread 切换器默认只显示持续关注，或显示全部状态；工具条最右侧可临时切换。
+- **Breadcrumb 默认范围**：thread 切换器默认显示投入中的 `active` 与 `dormant`，或显示全部状态；工具条最右侧可临时切换。
 - **默认 checkpoint 模板**：未设置独立模板的 thread 所继承的字段。
 
 ## 开发与本地安装

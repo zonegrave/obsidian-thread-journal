@@ -11,6 +11,7 @@ import {
 } from 'obsidian';
 import {
 	THREAD_STATUS_CHOICES,
+	isOperationalThreadStatus,
 	isThreadStatus,
 	threadStatusLabel,
 	threadStatusOptionLabel,
@@ -21,7 +22,7 @@ import {
 	DEFAULT_THREAD_TEMPLATE,
 	renderThreadTemplate,
 } from './thread-template';
-import type { ThreadIndex, ThreadParentCandidate } from './thread-index';
+import type { ThreadIndex } from './thread-index';
 import type { ThreadWorkspaceManager } from './thread-workspace';
 import type { ThreadJournalSettings } from './types';
 
@@ -174,22 +175,25 @@ export class ThreadCreator {
 			const thread = this.index.getThread(cursor);
 			if (!thread) break;
 			seen.add(cursor.path);
-			preferred.push({
-				file: cursor,
-				title: thread.title,
-				detail: `${depth === 0 ? '当前 thread' : '祖先 thread'} · ${threadStatusLabel(thread.status)} · ${cursor.path}`,
-			});
+			if (isOperationalThreadStatus(thread.status)) {
+				preferred.push({
+					file: cursor,
+					title: thread.title,
+					detail: `${depth === 0 ? '当前 thread' : '祖先 thread'} · ${thread.status} — ${threadStatusLabel(thread.status)} · ${cursor.path}`,
+				});
+			}
 			cursor = this.index.getParentFile(cursor);
 			depth += 1;
 		}
 
-		const others = this.index.getParentCandidates()
-			.filter((candidate) => !seen.has(candidate.file.path))
-			.map((candidate: ThreadParentCandidate) => ({
-				file: candidate.file,
-				title: candidate.title,
-				detail: candidate.file.path,
-			}));
+		const others = this.index.getAllThreads()
+			.filter((thread) => isOperationalThreadStatus(thread.status) && !seen.has(thread.file.path))
+			.map((thread) => ({
+				file: thread.file,
+				title: thread.title,
+				detail: `${thread.status} — ${threadStatusLabel(thread.status)} · ${thread.file.path}`,
+			}))
+			.sort((left, right) => left.title.localeCompare(right.title));
 		return [
 			...preferred,
 			{ title: '无父 thread', detail: '创建根节点' },
@@ -204,6 +208,13 @@ export class ThreadCreator {
 	}
 
 	async createThread(title: string, status: ThreadStatus, parent?: TFile): Promise<TFile> {
+		if (parent) {
+			const parentThread = this.index.getThread(parent);
+			if (!parentThread || !isOperationalThreadStatus(parentThread.status)) {
+				new Notice('只有 active 或 dormant thread 可以创建子 thread。');
+				throw new Error(`Thread cannot create children in its current status: ${parent.path}`);
+			}
+		}
 		const settings = this.getSettings();
 		const folder = settings.threadsFolder;
 		await ensureFolder(this.app, folder);

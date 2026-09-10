@@ -50,7 +50,12 @@ import {
 	checkpointFieldFromModalData,
 	checkpointTemplateFieldValues,
 } from '../src/modal-form';
-import { THREAD_STATUS_CHOICES, threadStatusLabel, threadStatusOptionLabel } from '../src/thread-status-model';
+import {
+	THREAD_STATUS_CHOICES,
+	isOperationalThreadStatus,
+	threadStatusLabel,
+	threadStatusOptionLabel,
+} from '../src/thread-status-model';
 import {
 	groupOpenThreadViews,
 	orderOpenThreadGroups,
@@ -667,6 +672,10 @@ void test('supports only the eight current status values', () => {
 	const dormant = THREAD_STATUS_CHOICES.find((choice) => choice.value === 'dormant');
 	assert.ok(dormant);
 	assert.equal(threadStatusOptionLabel(dormant), 'dormant — 休眠');
+	assert.equal(isOperationalThreadStatus('active'), true);
+	assert.equal(isOperationalThreadStatus('dormant'), true);
+	assert.equal(isOperationalThreadStatus('committed'), false);
+	assert.equal(isOperationalThreadStatus('paused'), false);
 });
 
 void test('groups and orders open thread views without duplicating logical threads', () => {
@@ -737,18 +746,18 @@ void test('cycles terminate with visible warning and future tasks are not an emp
  assert.doesNotMatch(attentionHint('active', summary), /考虑休眠/);
 });
 
-void test('breadcrumb switcher defaults can filter active threads without changing hierarchy', () => {
+void test('breadcrumb switcher defaults to operational threads without changing hierarchy', () => {
 	const threads = [
 		{ title: '睡眠', status: 'dormant' },
 		{ title: '插件', status: 'active' },
-		{ title: '旅行', status: 'active' },
+		{ title: '旅行', status: 'idea' },
 	] as never[];
 	assert.deepEqual(
-		filterBreadcrumbThreads(threads, 'active').map((thread) => thread.title),
-		['插件', '旅行'],
+		filterBreadcrumbThreads(threads, 'operational').map((thread) => thread.title),
+		['插件', '睡眠'],
 	);
 	assert.equal(filterBreadcrumbThreads(threads, 'all').length, 3);
-	assert.equal(breadcrumbFilterLabel('active'), '持续关注');
+	assert.equal(breadcrumbFilterLabel('operational'), '投入中');
 });
 
 void test('breadcrumb switches between the main thread and its workspace', () => {

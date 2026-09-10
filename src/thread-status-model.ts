@@ -1,4 +1,5 @@
 export type ThreadStatus = 'idea' | 'committed' | 'active' | 'dormant' | 'paused' | 'review' | 'completed' | 'closed';
+export type OperationalThreadStatus = Extract<ThreadStatus, 'active' | 'dormant'>;
 
 export interface ThreadStatusChoice {
  value: ThreadStatus;
@@ -19,6 +20,10 @@ export const THREAD_STATUS_CHOICES: readonly ThreadStatusChoice[] = [
 
 export function isThreadStatus(value: string): value is ThreadStatus {
  return THREAD_STATUS_CHOICES.some(choice => choice.value === value);
+}
+
+export function isOperationalThreadStatus(value: string): value is OperationalThreadStatus {
+ return value === 'active' || value === 'dormant';
 }
 
 export function threadStatusLabel(value: string): string {

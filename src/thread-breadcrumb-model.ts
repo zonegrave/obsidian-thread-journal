@@ -1,6 +1,7 @@
 import type { ThreadInfo } from './types';
+import { isOperationalThreadStatus } from './thread-status-model';
 
-export type BreadcrumbFilter = 'active' | 'all';
+export type BreadcrumbFilter = 'operational' | 'all';
 export type BreadcrumbPosition = 'top' | 'bottom';
 
 export function filterBreadcrumbThreads(
@@ -8,12 +9,12 @@ export function filterBreadcrumbThreads(
 	filter: BreadcrumbFilter,
 ): ThreadInfo[] {
 	return threads
-		.filter((thread) => filter === 'all' || thread.status === 'active')
+		.filter((thread) => filter === 'all' || isOperationalThreadStatus(thread.status))
 		.sort((left, right) => left.title.localeCompare(right.title));
 }
 
 export function breadcrumbFilterLabel(filter: BreadcrumbFilter): string {
-	return filter === 'active' ? '持续关注' : '全部';
+	return filter === 'operational' ? '投入中' : '全部';
 }
 
 export function breadcrumbCounterpart(
