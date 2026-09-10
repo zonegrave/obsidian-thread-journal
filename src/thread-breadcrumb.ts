@@ -21,10 +21,9 @@ class ThreadPicker extends FuzzySuggestModal<ThreadInfo> {
 		app: App,
 		private readonly threads: ThreadInfo[],
 		private readonly onChoose: (thread: ThreadInfo) => Promise<void>,
-		placeholder = '切换 thread',
 	) {
 		super(app);
-		this.setPlaceholder(placeholder);
+		this.setPlaceholder('切换 thread');
 	}
 
 	getItems(): ThreadInfo[] {
@@ -55,6 +54,8 @@ interface MountedBar {
 
 export class ThreadBreadcrumbManager {
 	private readonly mounted = new Map<WorkspaceLeaf, MountedBar>();
+	private childMenu?: HTMLElement;
+	private closeChildMenuListeners?: () => void;
 
 	constructor(
 		private readonly app: App,
@@ -63,6 +64,7 @@ export class ThreadBreadcrumbManager {
 	) {}
 
 	refresh(resetFilter = false): void {
+		this.closeChildMenu();
 		const liveLeaves = new Set<WorkspaceLeaf>();
 		this.app.workspace.iterateAllLeaves((leaf) => {
 			if (!(leaf.view instanceof MarkdownView)) return;
@@ -77,6 +79,7 @@ export class ThreadBreadcrumbManager {
 	}
 
 	unload(): void {
+		this.closeChildMenu();
 		for (const mounted of this.mounted.values()) this.detach(mounted);
 		this.mounted.clear();
 	}
@@ -117,6 +120,98 @@ export class ThreadBreadcrumbManager {
 	private detach(mounted: MountedBar): void {
 		mounted.bar.parentElement?.removeClass('thread-journal-breadcrumb-host');
 		mounted.bar.remove();
+	}
+
+	private closeChildMenu(): void {
+		this.closeChildMenuListeners?.();
+		this.closeChildMenuListeners = undefined;
+		this.childMenu?.remove();
+		this.childMenu = undefined;
+	}
+
+	private openChildMenu(
+		trigger: HTMLButtonElement,
+		parent: { file: ThreadInfo['file']; label: string },
+		children: ThreadInfo[],
+		activeChildPath: string | undefined,
+		currentFile: ThreadInfo['file'],
+	): void {
+		this.closeChildMenu();
+		const menu = document.body.createDiv({
+			cls: 'thread-journal-breadcrumb-child-menu',
+			attr: { role: 'menu', 'aria-label': `${parent.label} 的子 thread` },
+		});
+		this.childMenu = menu;
+		trigger.setAttr('aria-expanded', 'true');
+
+		menu.createDiv({
+			cls: 'thread-journal-breadcrumb-child-menu-title',
+			text: `${parent.label} /`,
+		});
+		const buttons = children.map((child) => {
+			const item = menu.createEl('button', {
+				cls: 'thread-journal-breadcrumb-child-menu-item',
+				attr: { role: 'menuitem' },
+			});
+			item.toggleClass('is-active', child.file.path === activeChildPath);
+			item.createSpan({ cls: 'thread-journal-breadcrumb-child-menu-name', text: child.title });
+			item.createSpan({
+				cls: 'thread-journal-breadcrumb-child-menu-status',
+				text: threadStatusLabel(child.status),
+			});
+			item.addEventListener('click', () => {
+				this.closeChildMenu();
+				void this.app.workspace.openLinkText(child.file.path, currentFile.path);
+			});
+			return item;
+		});
+
+		const rect = trigger.getBoundingClientRect();
+		menu.style.top = `${rect.bottom + 4}px`;
+		menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8))}px`;
+		menu.style.maxHeight = `${Math.max(120, window.innerHeight - rect.bottom - 12)}px`;
+
+		const closeOnPointerDown = (event: PointerEvent): void => {
+			const target = event.target as Node | null;
+			if (target && (menu.contains(target) || trigger.contains(target))) return;
+			this.closeChildMenu();
+		};
+		const closeOnViewportChange = (): void => this.closeChildMenu();
+		const onKeyDown = (event: KeyboardEvent): void => {
+			if (event.key === 'Escape') {
+				event.preventDefault();
+				this.closeChildMenu();
+				trigger.focus();
+				return;
+			}
+			const focused = document.activeElement;
+			const currentIndex = buttons.findIndex((button) => button === focused);
+			if (event.key === 'ArrowDown') {
+				event.preventDefault();
+				buttons[(currentIndex + 1 + buttons.length) % buttons.length]?.focus();
+			} else if (event.key === 'ArrowUp') {
+				event.preventDefault();
+				buttons[(currentIndex - 1 + buttons.length) % buttons.length]?.focus();
+			} else if (event.key === 'Home') {
+				event.preventDefault();
+				buttons[0]?.focus();
+			} else if (event.key === 'End') {
+				event.preventDefault();
+				buttons.at(-1)?.focus();
+			}
+		};
+		document.addEventListener('pointerdown', closeOnPointerDown);
+		document.addEventListener('keydown', onKeyDown);
+		window.addEventListener('resize', closeOnViewportChange);
+		document.addEventListener('scroll', closeOnViewportChange, true);
+		this.closeChildMenuListeners = () => {
+			trigger.setAttr('aria-expanded', 'false');
+			document.removeEventListener('pointerdown', closeOnPointerDown);
+			document.removeEventListener('keydown', onKeyDown);
+			window.removeEventListener('resize', closeOnViewportChange);
+			document.removeEventListener('scroll', closeOnViewportChange, true);
+		};
+		(buttons.find((button) => button.hasClass('is-active')) ?? buttons[0])?.focus();
 	}
 
 	private render(
@@ -168,18 +263,19 @@ export class ThreadBreadcrumbManager {
 					cls: 'clickable-icon thread-journal-fixed-breadcrumb-separator',
 					attr: {
 						'aria-label': `切换 ${item.label} 的子 thread（${breadcrumbFilterLabel(mounted.filter)}，${children.length} 个）`,
+						'aria-haspopup': 'menu',
+						'aria-expanded': 'false',
 					},
 				});
 				setIcon(separator, 'chevron-right');
 				separator.addEventListener('click', () => {
-					new ThreadPicker(
-						this.app,
+					this.openChildMenu(
+						separator,
+						item,
 						children,
-						async (thread) => {
-							await this.app.workspace.getLeaf(false).openFile(thread.file);
-						},
-						`切换 ${item.label} 的子 thread`,
-					).open();
+						trail[trailIndex + 1]?.file.path,
+						currentFile,
+					);
 				});
 			} else if (separatesNextSegment) {
 				path.createSpan({ cls: 'thread-journal-fixed-breadcrumb-separator-static', text: '›' });
