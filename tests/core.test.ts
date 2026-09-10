@@ -50,7 +50,7 @@ import {
 	checkpointFieldFromModalData,
 	checkpointTemplateFieldValues,
 } from '../src/modal-form';
-import { THREAD_STATUS_CHOICES, threadStatusLabel } from '../src/thread-status-model';
+import { THREAD_STATUS_CHOICES, threadStatusLabel, threadStatusOptionLabel } from '../src/thread-status-model';
 import {
 	groupOpenThreadViews,
 	orderOpenThreadGroups,
@@ -664,6 +664,9 @@ void test('supports only the eight current status values', () => {
 		['idea', 'committed', 'active', 'dormant', 'paused', 'review', 'completed', 'closed'],
 	);
 	assert.equal(threadStatusLabel('active'), '持续关注');
+	const dormant = THREAD_STATUS_CHOICES.find((choice) => choice.value === 'dormant');
+	assert.ok(dormant);
+	assert.equal(threadStatusOptionLabel(dormant), 'dormant — 休眠');
 });
 
 void test('groups and orders open thread views without duplicating logical threads', () => {

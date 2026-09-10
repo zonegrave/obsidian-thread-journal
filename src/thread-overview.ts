@@ -1,7 +1,7 @@
 import { App, Modal, Setting, MarkdownRenderChild, type MarkdownPostProcessorContext } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadStatusManager } from './thread-status';
-import { THREAD_STATUS_CHOICES, isThreadStatus, threadStatusLabel } from './thread-status-model';
+import { THREAD_STATUS_CHOICES, isThreadStatus, threadStatusLabel, threadStatusOptionLabel } from './thread-status-model';
 import { collectAttention } from './thread-attention';
 import { attentionHint } from './thread-attention-model';
 
@@ -30,7 +30,7 @@ class OverviewContent extends MarkdownRenderChild {
    const el = this.containerEl; el.empty(); el.addClass('thread-journal-overview');
    new Setting(el).setName('Thread 总览').addDropdown(dropdown => {
     dropdown.addOption('all', '全部状态');
-    for (const choice of THREAD_STATUS_CHOICES) dropdown.addOption(choice.value, choice.label);
+    for (const choice of THREAD_STATUS_CHOICES) dropdown.addOption(choice.value, threadStatusOptionLabel(choice));
     dropdown.setValue(this.filter).onChange(value => { this.filter = value; void this.render(); });
    }).addButton(button => button.setButtonText('刷新').onClick(() => { void this.render(); }));
    el.createEl('p', { cls: 'setting-item-description', text: '统计自身和子树。只提示，不自动切换状态。任务保存于原笔记，点击可定位。' });
@@ -44,7 +44,7 @@ class OverviewContent extends MarkdownRenderChild {
     card.createEl('p', { text: attentionHint(thread.status, summary) });
     card.createEl('p', { cls: 'setting-item-description', text: `子树未完成 ${summary.open} · 可执行 ${summary.ready} · 未来 ${summary.future} · 等待 ${summary.waiting} · 候选 ${summary.candidate} · 自定义标记 ${summary.unknown} · 暂不投入 ${summary.suspended}` });
     new Setting(card).setName('状态').addDropdown(dropdown => {
-     for (const choice of THREAD_STATUS_CHOICES) dropdown.addOption(choice.value, choice.label);
+     for (const choice of THREAD_STATUS_CHOICES) dropdown.addOption(choice.value, threadStatusOptionLabel(choice));
      dropdown.setValue(thread.status).onChange(async value => {
       if (!isThreadStatus(value)) return;
       await this.statuses.setStatus(thread.file, value);

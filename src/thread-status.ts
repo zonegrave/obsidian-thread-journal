@@ -9,6 +9,7 @@ import {
 import type { ThreadIndex } from './thread-index';
 import {
 	THREAD_STATUS_CHOICES,
+	threadStatusOptionLabel,
 	type ThreadStatus,
 	type ThreadStatusChoice,
 } from './thread-status-model';
@@ -33,10 +34,10 @@ class ThreadStatusModal extends FuzzySuggestModal<ThreadStatusChoice> {
 
 	renderSuggestion(match: FuzzyMatch<ThreadStatusChoice>, el: HTMLElement): void {
 		const current = match.item.value === this.currentStatus ? ' · 当前' : '';
-		el.createDiv({ text: `${match.item.label}${current}` });
+		el.createDiv({ text: `${match.item.value}${current}` });
 		el.createDiv({
 			cls: 'suggestion-note',
-			text: `${match.item.value} · ${match.item.description}`,
+			text: `${match.item.label} · ${match.item.description}`,
 		});
 	}
 
@@ -82,6 +83,6 @@ export class ThreadStatusManager {
 			metadata.status = status;
 		});
 		const choice = THREAD_STATUS_CHOICES.find((item) => item.value === status);
-		new Notice(`已将 ${file.basename} 设置为${choice?.label ?? status}。`);
+		new Notice(`已将 ${file.basename} 设置为 ${choice ? threadStatusOptionLabel(choice) : status}。`);
 	}
 }

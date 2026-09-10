@@ -9,7 +9,13 @@ import {
 	normalizePath,
 	type FuzzyMatch,
 } from 'obsidian';
-import { THREAD_STATUS_CHOICES, isThreadStatus, threadStatusLabel, type ThreadStatus } from './thread-status-model';
+import {
+	THREAD_STATUS_CHOICES,
+	isThreadStatus,
+	threadStatusLabel,
+	threadStatusOptionLabel,
+	type ThreadStatus,
+} from './thread-status-model';
 import { buildThreadFileName } from './core';
 import {
 	DEFAULT_THREAD_TEMPLATE,
@@ -72,9 +78,11 @@ class NewThreadModal extends Modal {
 
 		new Setting(this.contentEl)
 			.setName('初始状态')
-			.setDesc('默认先保留为想法；不要求填写目标或 todo。')
+			.setDesc('状态值使用英文，后附中文含义；默认 idea 不要求填写目标或 todo。')
 			.addDropdown((dropdown) => {
-				for (const choice of THREAD_STATUS_CHOICES) dropdown.addOption(choice.value, choice.label);
+				for (const choice of THREAD_STATUS_CHOICES) {
+					dropdown.addOption(choice.value, threadStatusOptionLabel(choice));
+				}
 				dropdown.setValue(this.status).onChange((value) => {
 					if (isThreadStatus(value)) this.status = value;
 				});

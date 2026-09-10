@@ -24,3 +24,7 @@ export function isThreadStatus(value: string): value is ThreadStatus {
 export function threadStatusLabel(value: string): string {
  return THREAD_STATUS_CHOICES.find(choice => choice.value === value)?.label || value || '未设状态';
 }
+
+export function threadStatusOptionLabel(choice: ThreadStatusChoice): string {
+ return `${choice.value} — ${choice.label}`;
+}
