@@ -47,7 +47,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.switcher = new ThreadSwitcherManager(this.app, this.index);
 		this.workspaces = new ThreadWorkspaceManager(this.app, this.index, getSettings);
 		this.statuses = new ThreadStatusManager(this.app, this.index, (file) => this.workspaces.ensureForThread(file));
-		this.breadcrumbs = new ThreadBreadcrumbManager(this.app, this.index, getSettings);
+		this.breadcrumbs = new ThreadBreadcrumbManager(this.app, this.index, this.switcher, getSettings);
 		this.checkpoints = new CheckpointManager(
 			this.app,
 			this.index,

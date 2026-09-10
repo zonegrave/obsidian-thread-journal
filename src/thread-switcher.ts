@@ -110,6 +110,10 @@ export class ThreadSwitcherManager {
 		}).open();
 	}
 
+	getOpenThreadCount(): number {
+		return this.collectOpenThreadGroups().length;
+	}
+
 	private collectOpenThreadGroups(): OpenThreadGroup<WorkspaceLeaf>[] {
 		const views: OpenThreadView<WorkspaceLeaf>[] = [];
 		let order = 0;

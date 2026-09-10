@@ -1,12 +1,11 @@
 import {
 	App,
-	FuzzySuggestModal,
 	MarkdownView,
 	setIcon,
-	type FuzzyMatch,
 	type WorkspaceLeaf,
 } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
+import type { ThreadSwitcherManager } from './thread-switcher';
 import {
 	breadcrumbCounterpart,
 	breadcrumbFilterLabel,
@@ -16,37 +15,6 @@ import {
 } from './thread-breadcrumb-model';
 import { threadStatusLabel } from './thread-status-model';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
-
-class ThreadPicker extends FuzzySuggestModal<ThreadInfo> {
-	constructor(
-		app: App,
-		private readonly threads: ThreadInfo[],
-		private readonly onChoose: (thread: ThreadInfo) => Promise<void>,
-	) {
-		super(app);
-		this.setPlaceholder('切换 thread');
-	}
-
-	getItems(): ThreadInfo[] {
-		return this.threads;
-	}
-
-	getItemText(thread: ThreadInfo): string {
-		return `${thread.title} ${threadStatusLabel(thread.status)} ${thread.file.path}`;
-	}
-
-	renderSuggestion(match: FuzzyMatch<ThreadInfo>, el: HTMLElement): void {
-		el.createDiv({ text: match.item.title });
-		el.createDiv({
-			cls: 'suggestion-note',
-			text: `${threadStatusLabel(match.item.status)} · ${match.item.file.path}`,
-		});
-	}
-
-	onChooseItem(thread: ThreadInfo): void {
-		void this.onChoose(thread);
-	}
-}
 
 interface MountedBar {
 	bar: HTMLElement;
@@ -61,6 +29,7 @@ export class ThreadBreadcrumbManager {
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
+		private readonly switcher: ThreadSwitcherManager,
 		private readonly getSettings: () => ThreadJournalSettings,
 	) {}
 
@@ -331,19 +300,15 @@ export class ThreadBreadcrumbManager {
 			});
 		}
 
-		const available = filterBreadcrumbThreads(this.index.getAllThreads(), mounted.filter);
+		const openThreadCount = this.switcher.getOpenThreadCount();
 		const pickerButton = actions.createEl('button', {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-picker',
-			attr: {
-				'aria-label': `切换 thread（${breadcrumbFilterLabel(mounted.filter)}）`,
-			},
+			attr: { 'aria-label': `切换已打开的 thread（${openThreadCount} 个）` },
 		});
-		setIcon(pickerButton, 'list-tree');
-		pickerButton.createSpan({ text: String(available.length) });
+		setIcon(pickerButton, 'panels-top-left');
+		pickerButton.createSpan({ text: String(openThreadCount) });
 		pickerButton.addEventListener('click', () => {
-			new ThreadPicker(this.app, available, async (thread) => {
-				await this.app.workspace.getLeaf(false).openFile(thread.file);
-			}).open();
+			this.switcher.open();
 		});
 
 		const filterButton = actions.createEl('button', {

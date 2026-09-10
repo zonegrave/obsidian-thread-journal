@@ -105,8 +105,8 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Breadcrumb 默认范围')
-			.setDesc('工具条的 thread 切换器默认显示“投入中”（active 与 dormant），或显示全部状态。工具条最右侧可以临时切换。')
+			.setName('Breadcrumb 层级默认范围')
+			.setDesc('根节点和分隔箭头默认显示“投入中”（active 与 dormant），或显示全部状态。工具条最右侧可以临时切换。')
 			.addDropdown((dropdown) => dropdown
 				.addOption('operational', '投入中（active + dormant）')
 				.addOption('all', '全部 thread')
