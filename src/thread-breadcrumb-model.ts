@@ -4,6 +4,10 @@ import { isOperationalThreadStatus } from './thread-status-model';
 export type BreadcrumbFilter = 'operational' | 'all';
 export type BreadcrumbPosition = 'top' | 'bottom';
 
+export function breadcrumbTooltipPlacement(position: BreadcrumbPosition): 'top' | 'bottom' {
+	return position === 'bottom' ? 'top' : 'bottom';
+}
+
 export function filterBreadcrumbThreads(
 	threads: ThreadInfo[],
 	filter: BreadcrumbFilter,

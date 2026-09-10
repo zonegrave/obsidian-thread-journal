@@ -4,6 +4,7 @@ import {
 	breadcrumbFilterLabel,
 	breadcrumbMenuSide,
 	breadcrumbRightClearance,
+	breadcrumbTooltipPlacement,
 	filterBreadcrumbThreads,
 } from '../src/thread-breadcrumb-model';
 import assert from 'node:assert/strict';
@@ -794,4 +795,9 @@ void test('bottom breadcrumbs reserve space only for overlapping status bars', (
 		breadcrumbRightClearance(bar, { left: 1227, right: 1440, top: 900, bottom: 927 }),
 		0,
 	);
+});
+
+void test('breadcrumb tooltips face the document area', () => {
+	assert.equal(breadcrumbTooltipPlacement('top'), 'bottom');
+	assert.equal(breadcrumbTooltipPlacement('bottom'), 'top');
 });
