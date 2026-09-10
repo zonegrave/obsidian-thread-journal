@@ -124,6 +124,11 @@
 }
 
 .thread-journal-fixed-breadcrumb-root {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
 	flex: 0 0 auto;
 	color: var(--text-accent);
 }

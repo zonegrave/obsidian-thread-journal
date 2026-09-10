@@ -131,7 +131,7 @@ export class ThreadBreadcrumbManager {
 
 	private openChildMenu(
 		trigger: HTMLButtonElement,
-		parent: { file: ThreadInfo['file']; label: string },
+		parent: { label: string },
 		children: ThreadInfo[],
 		activeChildPath: string | undefined,
 		currentFile: ThreadInfo['file'],
@@ -226,22 +226,37 @@ export class ThreadBreadcrumbManager {
 			this.index.getAllThreads().filter((thread) => !this.index.getParentFile(thread.file)),
 			mounted.filter,
 		);
-		const rootButton = bar.createEl('button', {
-			cls: 'clickable-icon thread-journal-fixed-breadcrumb-root',
-			attr: {
-				'aria-label': `切换根 thread（${breadcrumbFilterLabel(mounted.filter)}，${rootThreads.length} 个）`,
-			},
+		const root = bar.createSpan({
+			cls: 'thread-journal-fixed-breadcrumb-root',
+			attr: { 'aria-label': 'Thread 根节点' },
 		});
-		setIcon(rootButton, 'git-branch');
-		rootButton.addEventListener('click', () => {
-			new ThreadPicker(this.app, rootThreads, async (thread) => {
-				await this.app.workspace.getLeaf(false).openFile(thread.file);
-			}).open();
-		});
+		setIcon(root, 'git-branch');
 		const trail = [...this.index.getAncestors(threadFile).items, {
 			file: threadFile,
 			label: current.title,
 		}];
+		if (rootThreads.length > 0) {
+			const rootSeparator = bar.createEl('button', {
+				cls: 'clickable-icon thread-journal-fixed-breadcrumb-separator',
+				attr: {
+					'aria-label': `切换根 thread（${breadcrumbFilterLabel(mounted.filter)}，${rootThreads.length} 个）`,
+					'aria-haspopup': 'menu',
+					'aria-expanded': 'false',
+				},
+			});
+			setIcon(rootSeparator, 'chevron-right');
+			rootSeparator.addEventListener('click', () => {
+				this.openChildMenu(
+					rootSeparator,
+					{ label: 'Thread' },
+					rootThreads,
+					trail[0]?.file.path,
+					currentFile,
+				);
+			});
+		} else {
+			bar.createSpan({ cls: 'thread-journal-fixed-breadcrumb-separator-static', text: '›' });
+		}
 		const path = bar.createDiv({ cls: 'thread-journal-fixed-breadcrumb-path' });
 		for (const [trailIndex, item] of trail.entries()) {
 			const button = path.createEl('button', {
