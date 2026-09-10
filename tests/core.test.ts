@@ -2,6 +2,7 @@ import { todoDisposition, summarizeAttention, attentionHint } from '../src/threa
 import {
 	breadcrumbCounterpart,
 	breadcrumbFilterLabel,
+	breadcrumbMenuSide,
 	filterBreadcrumbThreads,
 } from '../src/thread-breadcrumb-model';
 import assert from 'node:assert/strict';
@@ -770,4 +771,10 @@ void test('breadcrumb switches between the main thread and its workspace', () =>
 		{ path: 'threads/sleep.md', label: '返回主 thread' },
 	);
 	assert.equal(breadcrumbCounterpart('threads/idea.md', undefined, 'threads/idea.md'), undefined);
+});
+
+void test('breadcrumb child menus open toward available space', () => {
+	assert.equal(breadcrumbMenuSide(40, 64, 800, 300, false), 'below');
+	assert.equal(breadcrumbMenuSide(730, 754, 800, 300, false), 'above');
+	assert.equal(breadcrumbMenuSide(730, 754, 800, 100, true), 'above');
 });

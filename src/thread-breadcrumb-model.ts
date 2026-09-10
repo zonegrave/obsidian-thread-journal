@@ -17,6 +17,19 @@ export function breadcrumbFilterLabel(filter: BreadcrumbFilter): string {
 	return filter === 'operational' ? '投入中' : '全部';
 }
 
+export function breadcrumbMenuSide(
+	triggerTop: number,
+	triggerBottom: number,
+	viewportHeight: number,
+	menuHeight: number,
+	preferAbove: boolean,
+): 'above' | 'below' {
+	if (preferAbove) return 'above';
+	const spaceAbove = triggerTop;
+	const spaceBelow = viewportHeight - triggerBottom;
+	return spaceBelow < Math.min(menuHeight, 240) && spaceAbove > spaceBelow ? 'above' : 'below';
+}
+
 export function breadcrumbCounterpart(
 	threadPath: string,
 	workspacePath: string | undefined,

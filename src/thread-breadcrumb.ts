@@ -10,6 +10,7 @@ import type { ThreadIndex } from './thread-index';
 import {
 	breadcrumbCounterpart,
 	breadcrumbFilterLabel,
+	breadcrumbMenuSide,
 	filterBreadcrumbThreads,
 	type BreadcrumbFilter,
 } from './thread-breadcrumb-model';
@@ -167,9 +168,25 @@ export class ThreadBreadcrumbManager {
 		});
 
 		const rect = trigger.getBoundingClientRect();
-		menu.style.top = `${rect.bottom + 4}px`;
-		menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8))}px`;
-		menu.style.maxHeight = `${Math.max(120, window.innerHeight - rect.bottom - 12)}px`;
+		const gap = 4;
+		const margin = 8;
+		const side = breadcrumbMenuSide(
+			rect.top,
+			rect.bottom,
+			window.innerHeight,
+			menu.scrollHeight,
+			Boolean(trigger.closest('.thread-journal-fixed-breadcrumb.is-bottom')),
+		);
+		menu.dataset.side = side;
+		const availableHeight = side === 'above'
+			? rect.top - gap - margin
+			: window.innerHeight - rect.bottom - gap - margin;
+		menu.setCssProps({
+			'--thread-journal-menu-top': side === 'below' ? `${rect.bottom + gap}px` : 'auto',
+			'--thread-journal-menu-bottom': side === 'above' ? `${window.innerHeight - rect.top + gap}px` : 'auto',
+			'--thread-journal-menu-left': `${Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8))}px`,
+			'--thread-journal-menu-max-height': `${Math.max(80, availableHeight)}px`,
+		});
 
 		const closeOnPointerDown = (event: PointerEvent): void => {
 			const target = event.target as Node | null;
