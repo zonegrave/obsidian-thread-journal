@@ -156,6 +156,42 @@
 	font-size: var(--font-ui-smaller);
 }
 
+.thread-journal-open-thread-suggestion {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.thread-journal-open-thread-copy {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.thread-journal-open-thread-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 0 0 auto;
+}
+
+.thread-journal-open-thread-action {
+	padding: 3px 7px;
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-open-thread-action.is-close,
+.thread-journal-open-thread-close-choice > :first-child {
+	color: var(--text-error);
+}
+
+@media (max-width: 520px) {
+	.thread-journal-open-thread-suggestion {
+		align-items: stretch;
+		flex-direction: column;
+		gap: 6px;
+	}
+}
+
 .thread-journal-warning {
 	margin-left: 0.5rem;
 	color: var(--text-error);

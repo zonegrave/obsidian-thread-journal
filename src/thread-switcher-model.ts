@@ -51,13 +51,20 @@ export function orderOpenThreadGroups<T>(
 	});
 }
 
-export function preferredOpenThreadView<T>(
+export function openThreadViewsForSurface<T>(
 	group: OpenThreadGroup<T>,
-	recentTarget?: T,
-): OpenThreadView<T> | undefined {
-	if (recentTarget !== undefined) {
-		const remembered = group.views.find((view) => view.target === recentTarget);
-		if (remembered) return remembered;
+	surface: OpenThreadSurface,
+): OpenThreadView<T>[] {
+	return group.views.filter((view) => view.surface === surface);
+}
+
+export function describeOpenThreadSurfaces<T>(group: OpenThreadGroup<T>): string {
+	const contextCount = openThreadViewsForSurface(group, 'context').length;
+	const workspaceCount = openThreadViewsForSurface(group, 'workspace').length;
+	const parts: string[] = [];
+	if (contextCount > 0) parts.push(contextCount > 1 ? `Context ×${contextCount}` : 'Context');
+	if (workspaceCount > 0) {
+		parts.push(workspaceCount > 1 ? `Workspace ×${workspaceCount}` : 'Workspace');
 	}
-	return group.views.find((view) => view.surface === 'workspace') ?? group.views[0];
+	return parts.join(' + ');
 }

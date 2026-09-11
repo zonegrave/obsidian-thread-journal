@@ -60,9 +60,10 @@ import {
 	threadStatusOptionLabel,
 } from '../src/thread-status-model';
 import {
+	describeOpenThreadSurfaces,
 	groupOpenThreadViews,
+	openThreadViewsForSurface,
 	orderOpenThreadGroups,
-	preferredOpenThreadView,
 } from '../src/thread-switcher-model';
 
 void test('builds current thread and workspace file names', () => {
@@ -687,11 +688,12 @@ void test('groups and orders open thread views without duplicating logical threa
 		{ threadId: 'thread-b', surface: 'context' as const, target: 'b-context', order: 1 },
 		{ threadId: 'thread-a', surface: 'workspace' as const, target: 'a-workspace', order: 2 },
 		{ threadId: 'thread-c', surface: 'workspace' as const, target: 'c-workspace', order: 3 },
+		{ threadId: 'thread-a', surface: 'context' as const, target: 'a-context-copy', order: 4 },
 	];
 	const groups = groupOpenThreadViews(views);
 	assert.equal(groups.length, 3);
 	assert.deepEqual(groups.find((group) => group.threadId === 'thread-a')?.views, [
-		views[0], views[2],
+		views[0], views[2], views[4],
 	]);
 	assert.deepEqual(
 		orderOpenThreadGroups(groups, ['thread-c', 'thread-a']).map((group) => group.threadId),
@@ -699,8 +701,15 @@ void test('groups and orders open thread views without duplicating logical threa
 	);
 	const threadA = groups.find((group) => group.threadId === 'thread-a');
 	assert.ok(threadA);
-	assert.equal(preferredOpenThreadView(threadA, 'a-context')?.target, 'a-context');
-	assert.equal(preferredOpenThreadView(threadA)?.target, 'a-workspace');
+	assert.deepEqual(
+		openThreadViewsForSurface(threadA, 'context').map((view) => view.target),
+		['a-context', 'a-context-copy'],
+	);
+	assert.deepEqual(
+		openThreadViewsForSurface(threadA, 'workspace').map((view) => view.target),
+		['a-workspace'],
+	);
+	assert.equal(describeOpenThreadSurfaces(threadA), 'Context ×2 + Workspace');
 });
 
 void test('resolves current wikilinks and aliases', () => {

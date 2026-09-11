@@ -44,8 +44,12 @@ export default class ThreadJournalPlugin extends Plugin {
 		);
 		const getSettings = () => this.settings;
 		this.index = new ThreadIndex(this.app);
-		this.switcher = new ThreadSwitcherManager(this.app, this.index);
 		this.workspaces = new ThreadWorkspaceManager(this.app, this.index, getSettings);
+		this.switcher = new ThreadSwitcherManager(
+			this.app,
+			this.index,
+			(file) => this.workspaces.ensureForThread(file),
+		);
 		this.statuses = new ThreadStatusManager(this.app, this.index, (file) => this.workspaces.ensureForThread(file));
 		this.breadcrumbs = new ThreadBreadcrumbManager(this.app, this.index, this.switcher, getSettings);
 		this.checkpoints = new CheckpointManager(
@@ -161,7 +165,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'switch-open-thread',
-			name: '切换已打开的 thread',
+			name: '管理已打开的 thread',
 			callback: () => {
 				this.switcher.open();
 			},

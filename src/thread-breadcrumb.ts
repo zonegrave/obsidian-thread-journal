@@ -342,7 +342,7 @@ export class ThreadBreadcrumbManager {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-picker',
 		});
 		setIcon(pickerButton, 'panels-top-left');
-		this.setBarTooltip(bar, pickerButton, `切换已打开的 thread（${openThreadCount} 个）`);
+		this.setBarTooltip(bar, pickerButton, `管理已打开的 thread（${openThreadCount} 个）`);
 		pickerButton.createSpan({ text: String(openThreadCount) });
 		pickerButton.addEventListener('click', () => {
 			this.switcher.open();
