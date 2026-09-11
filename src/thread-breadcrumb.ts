@@ -341,7 +341,7 @@ export class ThreadBreadcrumbManager {
 		const pickerButton = actions.createEl('button', {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-picker',
 		});
-		setIcon(pickerButton, 'panels-top-left');
+		setIcon(pickerButton, 'git-fork');
 		this.setBarTooltip(bar, pickerButton, `管理已打开的 thread（${openThreadCount} 个）`);
 		pickerButton.createSpan({ text: String(openThreadCount) });
 		pickerButton.addEventListener('click', () => {
