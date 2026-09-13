@@ -18,7 +18,7 @@ export function filterBreadcrumbThreads(
 }
 
 export function breadcrumbFilterLabel(filter: BreadcrumbFilter): string {
-	return filter === 'operational' ? '投入中' : '全部';
+	return filter === 'operational' ? 'Active + dormant' : 'All';
 }
 
 export function breadcrumbMenuSide(

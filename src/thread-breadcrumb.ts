@@ -16,7 +16,6 @@ import {
 	filterBreadcrumbThreads,
 	type BreadcrumbFilter,
 } from './thread-breadcrumb-model';
-import { threadStatusLabel } from './thread-status-model';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
 
 interface MountedBar {
@@ -139,7 +138,7 @@ export class ThreadBreadcrumbManager {
 		this.closeChildMenu();
 		const menu = document.body.createDiv({
 			cls: 'thread-journal-breadcrumb-child-menu',
-			attr: { role: 'menu', 'aria-label': `${parent.label} 的子 thread` },
+			attr: { role: 'menu', 'aria-label': `Child threads of ${parent.label}` },
 		});
 		this.childMenu = menu;
 		trigger.setAttr('aria-expanded', 'true');
@@ -157,7 +156,7 @@ export class ThreadBreadcrumbManager {
 			item.createSpan({ cls: 'thread-journal-breadcrumb-child-menu-name', text: child.title });
 			item.createSpan({
 				cls: 'thread-journal-breadcrumb-child-menu-status',
-				text: threadStatusLabel(child.status),
+				text: child.status || 'unset',
 			});
 			item.addEventListener('click', () => {
 				this.closeChildMenu();
@@ -247,7 +246,7 @@ export class ThreadBreadcrumbManager {
 			cls: 'thread-journal-fixed-breadcrumb-root',
 		});
 		setIcon(root, 'git-branch');
-		this.setBarTooltip(bar, root, 'Thread 根节点');
+		this.setBarTooltip(bar, root, 'Thread root');
 		const trail = [...this.index.getAncestors(threadFile).items, {
 			file: threadFile,
 			label: current.title,
@@ -264,7 +263,7 @@ export class ThreadBreadcrumbManager {
 			this.setBarTooltip(
 				bar,
 				rootSeparator,
-				`切换根 thread（${breadcrumbFilterLabel(mounted.filter)}，${rootThreads.length} 个）`,
+				`Switch root threads (${breadcrumbFilterLabel(mounted.filter)}, ${rootThreads.length})`,
 			);
 			rootSeparator.addEventListener('click', () => {
 				this.openChildMenu(
@@ -284,7 +283,7 @@ export class ThreadBreadcrumbManager {
 				cls: 'clickable-icon thread-journal-fixed-breadcrumb-segment',
 				text: item.label,
 			});
-			this.setBarTooltip(bar, button, `打开 ${item.label}`);
+			this.setBarTooltip(bar, button, `Open ${item.label}`);
 			button.addEventListener('click', () => {
 				const target = this.index.getEntry(item.file) ?? item.file;
 				void this.app.workspace.openLinkText(target.path, threadFile.path);
@@ -292,13 +291,13 @@ export class ThreadBreadcrumbManager {
 			if (trailIndex === trail.length - 1) {
 				const status = path.createSpan({
 					cls: 'thread-journal-fixed-breadcrumb-status',
-					text: current.status || '未设',
+					text: current.status || 'unset',
 					attr: { 'data-status': current.status || 'unset' },
 				});
 				this.setBarTooltip(
 					bar,
 					status,
-					`状态：${current.status || '未设'} — ${threadStatusLabel(current.status)}`,
+					`Status: ${current.status || 'unset'}`,
 				);
 			}
 
@@ -319,7 +318,7 @@ export class ThreadBreadcrumbManager {
 				this.setBarTooltip(
 					bar,
 					separator,
-					`切换 ${item.label} 的子 thread（${breadcrumbFilterLabel(mounted.filter)}，${children.length} 个）`,
+					`Switch child threads of ${item.label} (${breadcrumbFilterLabel(mounted.filter)}, ${children.length})`,
 				);
 				separator.addEventListener('click', () => {
 					this.openChildMenu(
@@ -335,7 +334,7 @@ export class ThreadBreadcrumbManager {
 			}
 		}
 		if (this.index.getAncestors(threadFile).cycle) {
-			path.createSpan({ cls: 'thread-journal-warning', text: '父子循环' });
+			path.createSpan({ cls: 'thread-journal-warning', text: 'Parent cycle' });
 		}
 
 		const actions = bar.createDiv({ cls: 'thread-journal-fixed-breadcrumb-actions' });
@@ -345,7 +344,7 @@ export class ThreadBreadcrumbManager {
 				cls: 'clickable-icon',
 			});
 			setIcon(entryButton, 'home');
-			this.setBarTooltip(bar, entryButton, '打开 thread 入口');
+			this.setBarTooltip(bar, entryButton, 'Open thread entry');
 			entryButton.addEventListener('click', () => {
 				void this.files.openEntry(threadFile);
 			});
@@ -355,7 +354,7 @@ export class ThreadBreadcrumbManager {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-files',
 		});
 		setIcon(filesButton, 'files');
-		this.setBarTooltip(bar, filesButton, `管理 thread 文件（${members.length} 个）`);
+		this.setBarTooltip(bar, filesButton, `Manage thread files (${members.length})`);
 		filesButton.createSpan({ text: String(members.length) });
 		filesButton.addEventListener('click', () => {
 			this.files.openThreadFilesModal(currentFile);
@@ -366,15 +365,15 @@ export class ThreadBreadcrumbManager {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-picker',
 		});
 		setIcon(pickerButton, 'git-fork');
-		this.setBarTooltip(bar, pickerButton, `管理已打开的 thread（${openThreadCount} 个）`);
+		this.setBarTooltip(bar, pickerButton, `Manage open threads (${openThreadCount})`);
 		pickerButton.createSpan({ text: String(openThreadCount) });
 		pickerButton.addEventListener('click', () => {
 			this.switcher.open();
 		});
 
 		const filterTooltip = mounted.filter === 'operational'
-			? '当前显示投入中的 thread；切换为全部 thread'
-			: '当前显示全部；切换为投入中的 thread';
+			? 'Showing active and dormant threads; switch to all threads'
+			: 'Showing all threads; switch to active and dormant threads';
 		const filterButton = actions.createEl('button', {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-filter',
 			text: breadcrumbFilterLabel(mounted.filter),
