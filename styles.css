@@ -129,20 +129,30 @@
 }
 
 .thread-journal-fixed-breadcrumb-status {
+	--thread-journal-status-color: var(--text-faint);
 	display: inline-flex;
 	align-items: center;
+	gap: 5px;
 	flex: 0 0 auto;
 	margin: 0 2px;
-	padding: 1px 5px;
-	border: 1px solid var(--background-modifier-border);
+	padding: 2px 5px;
+	border: 0;
 	border-radius: var(--radius-s);
-	background: var(--background-secondary);
+	background: transparent;
 	color: var(--text-muted);
 	font-family: var(--font-interface);
 	font-size: var(--font-ui-smaller);
 	line-height: 1.25;
 	white-space: nowrap;
 	cursor: pointer;
+}
+
+.thread-journal-fixed-breadcrumb-status::before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--thread-journal-status-color);
 }
 
 .thread-journal-fixed-breadcrumb-status:hover,
@@ -152,16 +162,16 @@
 
 .thread-journal-fixed-breadcrumb-status[data-status="active"],
 .thread-journal-fixed-breadcrumb-status[data-status="completed"] {
-	color: var(--text-success);
+	--thread-journal-status-color: var(--text-success);
 }
 
 .thread-journal-fixed-breadcrumb-status[data-status="paused"],
 .thread-journal-fixed-breadcrumb-status[data-status="review"] {
-	color: var(--text-warning);
+	--thread-journal-status-color: var(--text-warning);
 }
 
 .thread-journal-fixed-breadcrumb-status[data-status="closed"] {
-	color: var(--text-faint);
+	--thread-journal-status-color: var(--text-faint);
 }
 
 .thread-journal-fixed-breadcrumb-root {
@@ -188,12 +198,6 @@
 
 .thread-journal-fixed-breadcrumb-files {
 	gap: 3px;
-}
-
-.thread-journal-fixed-breadcrumb-filter {
-	width: auto;
-	padding: 2px 6px;
-	font-size: var(--font-ui-smaller);
 }
 
 .thread-journal-open-thread-suggestion {

@@ -43,6 +43,5 @@ export interface ThreadJournalSettings {
 	threadRoleTemplatesFolder: string;
 	defaultThreadRoleTemplatePath: string;
 	breadcrumbPosition: 'top' | 'bottom';
-	breadcrumbDefaultFilter: 'operational' | 'all';
 	checkpointFields: CheckpointFieldSpec[];
 }

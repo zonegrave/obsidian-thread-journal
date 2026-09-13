@@ -1,7 +1,6 @@
 import type { ThreadInfo } from './types';
 import { isOperationalThreadStatus } from './thread-status-model';
 
-export type BreadcrumbFilter = 'operational' | 'all';
 export type BreadcrumbPosition = 'top' | 'bottom';
 
 export function breadcrumbTooltipPlacement(position: BreadcrumbPosition): 'top' | 'bottom' {
@@ -10,15 +9,10 @@ export function breadcrumbTooltipPlacement(position: BreadcrumbPosition): 'top' 
 
 export function filterBreadcrumbThreads(
 	threads: ThreadInfo[],
-	filter: BreadcrumbFilter,
 ): ThreadInfo[] {
 	return threads
-		.filter((thread) => filter === 'all' || isOperationalThreadStatus(thread.status))
+		.filter((thread) => isOperationalThreadStatus(thread.status))
 		.sort((left, right) => left.title.localeCompare(right.title));
-}
-
-export function breadcrumbFilterLabel(filter: BreadcrumbFilter): string {
-	return filter === 'operational' ? 'Alive' : 'All';
 }
 
 export function breadcrumbMenuSide(

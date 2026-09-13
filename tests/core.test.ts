@@ -1,6 +1,5 @@
 import { todoDisposition, summarizeAttention, attentionHint } from '../src/thread-attention-model';
 import {
-	breadcrumbFilterLabel,
 	breadcrumbMenuSide,
 	breadcrumbRightClearance,
 	breadcrumbTooltipPlacement,
@@ -803,19 +802,16 @@ void test('cycles terminate with visible warning and future tasks are not an emp
  assert.doesNotMatch(attentionHint('active', summary), /考虑休眠/);
 });
 
-void test('breadcrumb switcher defaults to operational threads without changing hierarchy', () => {
+void test('breadcrumb switcher exposes only operational threads without changing hierarchy', () => {
 	const threads = [
 		{ title: '睡眠', status: 'dormant' },
 		{ title: '插件', status: 'active' },
 		{ title: '旅行', status: 'idea' },
 	] as never[];
 	assert.deepEqual(
-		filterBreadcrumbThreads(threads, 'operational').map((thread) => thread.title),
+		filterBreadcrumbThreads(threads).map((thread) => thread.title),
 		['插件', '睡眠'],
 	);
-	assert.equal(filterBreadcrumbThreads(threads, 'all').length, 3);
-	assert.equal(breadcrumbFilterLabel('operational'), 'Alive');
-	assert.equal(breadcrumbFilterLabel('all'), 'All');
 });
 
 void test('breadcrumb child menus open toward available space', () => {

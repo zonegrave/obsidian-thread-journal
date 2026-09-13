@@ -10,7 +10,6 @@ export const DEFAULT_SETTINGS: ThreadJournalSettings = {
 	threadRoleTemplatesFolder: 'Templates/Thread Roles',
 	defaultThreadRoleTemplatePath: 'Templates/Thread Roles/Workspace.md',
 	breadcrumbPosition: 'top',
-	breadcrumbDefaultFilter: 'operational',
 	checkpointFields: normalizeCheckpointFields(undefined),
 };
 
@@ -34,7 +33,6 @@ export function normalizedSettings(
 				|| DEFAULT_SETTINGS.defaultThreadRoleTemplatePath,
 		),
 		breadcrumbPosition: merged.breadcrumbPosition === 'bottom' ? 'bottom' : 'top',
-		breadcrumbDefaultFilter: merged.breadcrumbDefaultFilter === 'all' ? 'all' : 'operational',
 		checkpointFields: normalizeCheckpointFields(raw.checkpointFields),
 	};
 }
@@ -103,19 +101,6 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 					this.plugin.settings.breadcrumbPosition = value === 'bottom' ? 'bottom' : 'top';
 					await this.plugin.saveSettings();
 					this.plugin.refreshBreadcrumbBars();
-				}));
-
-		new Setting(containerEl)
-			.setName('Breadcrumb 层级默认范围')
-			.setDesc('根节点和分隔箭头默认显示“投入中”（active 与 dormant），或显示全部状态。工具条最右侧可以临时切换。')
-			.addDropdown((dropdown) => dropdown
-				.addOption('operational', '投入中（active + dormant）')
-				.addOption('all', '全部 thread')
-				.setValue(this.plugin.settings.breadcrumbDefaultFilter)
-				.onChange(async (value) => {
-					this.plugin.settings.breadcrumbDefaultFilter = value === 'all' ? 'all' : 'operational';
-					await this.plugin.saveSettings();
-					this.plugin.refreshBreadcrumbBars(true);
 				}));
 
 		renderCheckpointFieldSettings(containerEl, this.plugin, () => {

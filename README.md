@@ -137,7 +137,7 @@ thread_role_status: active
 - 入口以外的成员会出现首页按钮，可一键返回当前 thread 的入口。
 - 文件按钮显示成员数量，并打开 **Manage thread files**；选择成员可跳转，也可设置入口、终止非入口成员或重新激活成员。terminated 成员排在底部且不能成为入口。
 - thread 树图标打开 **Manage open threads**。它按 `thread_id` 合并当前窗口的所有已打开标签，显示角色组成，可打开入口、管理文件或关闭该 thread 的全部标签。
-- 最右侧在 `Alive`（悬浮提示 `Active + dormant`）和 `All` 之间切换树菜单范围。
+- thread 树和层级菜单固定只显示 `active` 与 `dormant` thread。
 
 目标文件已经打开时，插件直接聚焦已有标签；否则创建普通标签。插件不绑定、移动或自动关闭分栏，也不依赖 Vertical Tabs 等布局插件。
 
@@ -259,7 +259,7 @@ order: asc
 - **Thread 文件目录**：通过插件创建成员文件的位置。
 - **Thread 角色模板目录**：可用于新建入口和成员的模板集合。
 - **默认入口模板**：新建 thread 时默认选择的角色模板。
-- **Breadcrumb 位置与默认范围**：控制固定工具条和层级菜单。
+- **Breadcrumb 位置**：控制固定工具条显示在正文上方或下方。
 - **默认 checkpoint 模板**：未设置独立模板的 thread 所继承的字段。
 
 ## 开发与本地安装

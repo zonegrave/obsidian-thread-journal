@@ -98,15 +98,15 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.registerCommands();
 		this.registerRenderers();
 		this.addSettingTab(new ThreadJournalSettingTab(this.app, this));
-		this.app.workspace.onLayoutReady(() => this.breadcrumbs.refresh(true));
+		this.app.workspace.onLayoutReady(() => this.breadcrumbs.refresh());
 	}
 
 	onunload(): void {
 		this.breadcrumbs?.unload();
 	}
 
-	refreshBreadcrumbBars(resetFilter = false): void {
-		this.breadcrumbs?.refresh(resetFilter);
+	refreshBreadcrumbBars(): void {
+		this.breadcrumbs?.refresh();
 	}
 
 	async loadSettings(): Promise<void> {

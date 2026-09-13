@@ -10,18 +10,15 @@ import type { ThreadFileManager } from './thread-files';
 import type { ThreadStatusManager } from './thread-status';
 import type { ThreadSwitcherManager } from './thread-switcher';
 import {
-	breadcrumbFilterLabel,
 	breadcrumbMenuSide,
 	breadcrumbRightClearance,
 	breadcrumbTooltipPlacement,
 	filterBreadcrumbThreads,
-	type BreadcrumbFilter,
 } from './thread-breadcrumb-model';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
 
 interface MountedBar {
 	bar: HTMLElement;
-	filter: BreadcrumbFilter;
 }
 
 export class ThreadBreadcrumbManager {
@@ -43,13 +40,13 @@ export class ThreadBreadcrumbManager {
 		window.addEventListener('resize', this.updateClearances);
 	}
 
-	refresh(resetFilter = false): void {
+	refresh(): void {
 		this.closeChildMenu();
 		const liveLeaves = new Set<WorkspaceLeaf>();
 		this.app.workspace.iterateAllLeaves((leaf) => {
 			if (!(leaf.view instanceof MarkdownView)) return;
 			liveLeaves.add(leaf);
-			this.mountOrUpdate(leaf, leaf.view, resetFilter);
+			this.mountOrUpdate(leaf, leaf.view);
 		});
 		for (const [leaf, mounted] of this.mounted) {
 			if (liveLeaves.has(leaf)) continue;
@@ -65,7 +62,7 @@ export class ThreadBreadcrumbManager {
 		this.mounted.clear();
 	}
 
-	private mountOrUpdate(leaf: WorkspaceLeaf, view: MarkdownView, resetFilter: boolean): void {
+	private mountOrUpdate(leaf: WorkspaceLeaf, view: MarkdownView): void {
 		const file = view.file;
 		const threadFile = file ? this.index.getThreadFile(file) : undefined;
 		const thread = threadFile ? this.index.getThread(threadFile) : undefined;
@@ -79,9 +76,7 @@ export class ThreadBreadcrumbManager {
 		const settings = this.getSettings();
 		const mounted = existing ?? {
 			bar: createDiv({ cls: 'thread-journal-fixed-breadcrumb' }),
-			filter: settings.breadcrumbDefaultFilter,
 		};
-		if (resetFilter) mounted.filter = settings.breadcrumbDefaultFilter;
 		this.mounted.set(leaf, mounted);
 		this.place(view.contentEl, mounted.bar, settings.breadcrumbPosition);
 		this.render(mounted, thread, threadFile, file);
@@ -242,7 +237,6 @@ export class ThreadBreadcrumbManager {
 		bar.empty();
 		const rootThreads = filterBreadcrumbThreads(
 			this.index.getAllThreads().filter((thread) => !this.index.getParentFile(thread.file)),
-			mounted.filter,
 		);
 		const root = bar.createSpan({
 			cls: 'thread-journal-fixed-breadcrumb-root',
@@ -265,7 +259,7 @@ export class ThreadBreadcrumbManager {
 			this.setBarTooltip(
 				bar,
 				rootSeparator,
-				`Switch root threads (${breadcrumbFilterLabel(mounted.filter)}, ${rootThreads.length})`,
+				`Switch root threads (${rootThreads.length} alive)`,
 			);
 			rootSeparator.addEventListener('click', () => {
 				this.openChildMenu(
@@ -292,7 +286,6 @@ export class ThreadBreadcrumbManager {
 			});
 			const children = filterBreadcrumbThreads(
 				this.index.getDirectChildren(item.file),
-				mounted.filter,
 			);
 			const separatesNextSegment = trailIndex < trail.length - 1;
 			if (children.length > 0) {
@@ -307,7 +300,7 @@ export class ThreadBreadcrumbManager {
 				this.setBarTooltip(
 					bar,
 					separator,
-					`Switch child threads of ${item.label} (${breadcrumbFilterLabel(mounted.filter)}, ${children.length})`,
+					`Switch child threads of ${item.label} (${children.length} alive)`,
 				);
 				separator.addEventListener('click', () => {
 					this.openChildMenu(
@@ -373,18 +366,6 @@ export class ThreadBreadcrumbManager {
 			this.switcher.open();
 		});
 
-		const filterTooltip = mounted.filter === 'operational'
-			? 'Active + dormant; switch to all threads'
-			: 'All threads; switch to active + dormant';
-		const filterButton = actions.createEl('button', {
-			cls: 'clickable-icon thread-journal-fixed-breadcrumb-filter',
-			text: breadcrumbFilterLabel(mounted.filter),
-		});
-		this.setBarTooltip(bar, filterButton, filterTooltip);
-		filterButton.addEventListener('click', () => {
-			mounted.filter = mounted.filter === 'operational' ? 'all' : 'operational';
-			this.render(mounted, current, threadFile, currentFile);
-		});
 		window.requestAnimationFrame(() => {
 			if (bar.isConnected) this.updateBottomClearance(bar);
 		});
