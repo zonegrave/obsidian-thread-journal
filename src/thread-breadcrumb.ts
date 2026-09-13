@@ -7,6 +7,7 @@ import {
 } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager } from './thread-files';
+import type { ThreadStatusManager } from './thread-status';
 import type { ThreadSwitcherManager } from './thread-switcher';
 import {
 	breadcrumbFilterLabel,
@@ -35,6 +36,7 @@ export class ThreadBreadcrumbManager {
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 		private readonly files: ThreadFileManager,
+		private readonly statuses: ThreadStatusManager,
 		private readonly switcher: ThreadSwitcherManager,
 		private readonly getSettings: () => ThreadJournalSettings,
 	) {
@@ -325,12 +327,19 @@ export class ThreadBreadcrumbManager {
 		}
 
 		const actions = bar.createDiv({ cls: 'thread-journal-fixed-breadcrumb-actions' });
-		const status = actions.createSpan({
+		const status = actions.createEl('button', {
 			cls: 'thread-journal-fixed-breadcrumb-status',
 			text: current.status || 'unset',
-			attr: { 'data-status': current.status || 'unset' },
+			attr: {
+				type: 'button',
+				'data-status': current.status || 'unset',
+				'aria-label': `Change thread status; current status: ${current.status || 'unset'}`,
+			},
 		});
-		this.setBarTooltip(bar, status, `Status: ${current.status || 'unset'}`);
+		this.setBarTooltip(bar, status, `Change thread status (current: ${current.status || 'unset'})`);
+		status.addEventListener('click', () => {
+			this.statuses.openStatusModal(threadFile);
+		});
 		const entry = this.index.getEntry(threadFile);
 		if (entry && entry.path !== currentFile.path) {
 			const entryButton = actions.createEl('button', {

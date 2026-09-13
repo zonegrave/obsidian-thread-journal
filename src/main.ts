@@ -54,6 +54,7 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.app,
 			this.index,
 			this.files,
+			this.statuses,
 			this.switcher,
 			getSettings,
 		);

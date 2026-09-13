@@ -64,6 +64,14 @@ export class ThreadStatusManager {
 			new Notice('当前文件不属于 thread。');
 			return;
 		}
+		this.openStatusModal(file);
+	}
+
+	openStatusModal(file: TFile): void {
+		if (!this.index.getThread(file)) {
+			new Notice('当前文件不是有效的 thread meta。');
+			return;
+		}
 		const current = this.index.getThread(file)?.status ?? '';
 		new ThreadStatusModal(this.app, current, async (status) => {
 			await this.setStatus(file, status);

@@ -138,9 +138,16 @@
 	border-radius: var(--radius-s);
 	background: var(--background-secondary);
 	color: var(--text-muted);
+	font-family: var(--font-interface);
 	font-size: var(--font-ui-smaller);
 	line-height: 1.25;
 	white-space: nowrap;
+	cursor: pointer;
+}
+
+.thread-journal-fixed-breadcrumb-status:hover,
+.thread-journal-fixed-breadcrumb-status:focus-visible {
+	background: var(--background-modifier-hover);
 }
 
 .thread-journal-fixed-breadcrumb-status[data-status="active"],
