@@ -374,8 +374,8 @@ export class ThreadBreadcrumbManager {
 		});
 
 		const filterTooltip = mounted.filter === 'operational'
-			? 'Showing active and dormant threads; switch to all threads'
-			: 'Showing all threads; switch to active and dormant threads';
+			? 'Active + dormant; switch to all threads'
+			: 'All threads; switch to active + dormant';
 		const filterButton = actions.createEl('button', {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-filter',
 			text: breadcrumbFilterLabel(mounted.filter),

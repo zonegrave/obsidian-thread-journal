@@ -18,7 +18,7 @@ export function filterBreadcrumbThreads(
 }
 
 export function breadcrumbFilterLabel(filter: BreadcrumbFilter): string {
-	return filter === 'operational' ? 'Active + dormant' : 'All';
+	return filter === 'operational' ? 'Alive' : 'All';
 }
 
 export function breadcrumbMenuSide(

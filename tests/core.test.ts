@@ -814,7 +814,7 @@ void test('breadcrumb switcher defaults to operational threads without changing 
 		['插件', '睡眠'],
 	);
 	assert.equal(filterBreadcrumbThreads(threads, 'all').length, 3);
-	assert.equal(breadcrumbFilterLabel('operational'), 'Active + dormant');
+	assert.equal(breadcrumbFilterLabel('operational'), 'Alive');
 	assert.equal(breadcrumbFilterLabel('all'), 'All');
 });
 
