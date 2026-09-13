@@ -1,15 +1,14 @@
 import { App, PluginSettingTab, Setting, normalizePath } from 'obsidian';
 import { normalizeCheckpointFields } from './checkpoint-model';
 import { renderCheckpointFieldSettings } from './checkpoint-settings';
-import { normalizeWorkspaceSuffix } from './core';
 import type ThreadJournalPlugin from './main';
 import type { ThreadJournalSettings } from './types';
 
 export const DEFAULT_SETTINGS: ThreadJournalSettings = {
-	threadsFolder: '50-行动系统',
-	workspacesFolder: '50-行动系统/工作区',
-	workspaceSuffix: '工作区',
-	threadTemplatePath: 'Templates/Thread.md',
+	threadMetaFolder: '50-行动系统/Thread Meta',
+	threadFilesFolder: '50-行动系统/Thread Files',
+	threadRoleTemplatesFolder: 'Templates/Thread Roles',
+	defaultThreadRoleTemplatePath: 'Templates/Thread Roles/Workspace.md',
 	breadcrumbPosition: 'top',
 	breadcrumbDefaultFilter: 'operational',
 	checkpointFields: normalizeCheckpointFields(undefined),
@@ -21,16 +20,18 @@ export function normalizedSettings(
 	const raw = value ?? {};
 	const merged = { ...DEFAULT_SETTINGS, ...raw };
 	return {
-		threadsFolder: normalizePath(merged.threadsFolder.trim() || DEFAULT_SETTINGS.threadsFolder),
-		workspacesFolder: normalizePath(
-			merged.workspacesFolder.trim() || DEFAULT_SETTINGS.workspacesFolder,
+		threadMetaFolder: normalizePath(
+			merged.threadMetaFolder.trim() || DEFAULT_SETTINGS.threadMetaFolder,
 		),
-		workspaceSuffix: normalizeWorkspaceSuffix(
-			merged.workspaceSuffix,
-			DEFAULT_SETTINGS.workspaceSuffix,
+		threadFilesFolder: normalizePath(
+			merged.threadFilesFolder.trim() || DEFAULT_SETTINGS.threadFilesFolder,
 		),
-		threadTemplatePath: normalizePath(
-			merged.threadTemplatePath.trim() || DEFAULT_SETTINGS.threadTemplatePath,
+		threadRoleTemplatesFolder: normalizePath(
+			merged.threadRoleTemplatesFolder.trim() || DEFAULT_SETTINGS.threadRoleTemplatesFolder,
+		),
+		defaultThreadRoleTemplatePath: normalizePath(
+			merged.defaultThreadRoleTemplatePath.trim()
+				|| DEFAULT_SETTINGS.defaultThreadRoleTemplatePath,
 		),
 		breadcrumbPosition: merged.breadcrumbPosition === 'bottom' ? 'bottom' : 'top',
 		breadcrumbDefaultFilter: merged.breadcrumbDefaultFilter === 'all' ? 'all' : 'operational',
@@ -48,46 +49,46 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('线程目录')
-			.setDesc('新建 thread 文件的位置。')
+			.setName('Thread meta 目录')
+			.setDesc('每个 thread 的身份、状态、父子关系与唯一入口保存在这里。')
 			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.threadsFolder)
-				.setValue(this.plugin.settings.threadsFolder)
+				.setPlaceholder(DEFAULT_SETTINGS.threadMetaFolder)
+				.setValue(this.plugin.settings.threadMetaFolder)
 				.onChange(async (value) => {
-					this.plugin.settings.threadsFolder = value;
+					this.plugin.settings.threadMetaFolder = value;
 					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)
-			.setName('Thread 工作区目录')
-			.setDesc('新建的 thread 工作区统一保存在此目录；已有文件不会自动移动。')
+			.setName('Thread 文件目录')
+			.setDesc('通过角色模板新建的 thread 成员文件保存在这里。')
 			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.workspacesFolder)
-				.setValue(this.plugin.settings.workspacesFolder)
+				.setPlaceholder(DEFAULT_SETTINGS.threadFilesFolder)
+				.setValue(this.plugin.settings.threadFilesFolder)
 				.onChange(async (value) => {
-					this.plugin.settings.workspacesFolder = value;
+					this.plugin.settings.threadFilesFolder = value;
 					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)
-			.setName('工作区文件后缀')
-			.setDesc('新建工作区文件使用“thread 文件名·后缀”；已有文件不会自动改名。')
+			.setName('Thread 角色模板目录')
+			.setDesc('目录中的 Markdown 模板会成为“新建 thread 文件”的可选角色。')
 			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.workspaceSuffix)
-				.setValue(this.plugin.settings.workspaceSuffix)
+				.setPlaceholder(DEFAULT_SETTINGS.threadRoleTemplatesFolder)
+				.setValue(this.plugin.settings.threadRoleTemplatesFolder)
 				.onChange(async (value) => {
-					this.plugin.settings.workspaceSuffix = value;
+					this.plugin.settings.threadRoleTemplatesFolder = value;
 					await this.plugin.saveSettings();
 				}));
 
 		new Setting(containerEl)
-			.setName('Thread 模板')
-			.setDesc('新建 thread 时读取的完整 Markdown 模板；身份和层级属性仍由插件校正。')
+			.setName('默认入口模板')
+			.setDesc('新建 thread 时默认选中的角色模板；模板可通过 thread_role 定义任意角色。')
 			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.threadTemplatePath)
-				.setValue(this.plugin.settings.threadTemplatePath)
+				.setPlaceholder(DEFAULT_SETTINGS.defaultThreadRoleTemplatePath)
+				.setValue(this.plugin.settings.defaultThreadRoleTemplatePath)
 				.onChange(async (value) => {
-					this.plugin.settings.threadTemplatePath = value;
+					this.plugin.settings.defaultThreadRoleTemplatePath = value;
 					await this.plugin.saveSettings();
 				}));
 

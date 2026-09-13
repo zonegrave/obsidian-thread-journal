@@ -18,7 +18,7 @@ const CHECKPOINT_CALLOUT_SELECTOR = '.callout[data-callout="thread-checkpoint"]'
 const LOG_CALLOUT_SELECTOR = '.callout[data-callout="thread-log"]';
 
 export function checkpointEditorExtension(
-	isWorkspace: (file: TFile) => boolean,
+	isThreadMember: (file: TFile) => boolean,
 	onRender: (
 		callout: HTMLElement,
 		file: TFile,
@@ -82,7 +82,7 @@ export function checkpointEditorExtension(
 			const livePreview = this.view.state.field(editorLivePreviewField, false);
 			const info = this.view.state.field(editorInfoField, false);
 			const file = info?.file;
-			if (!livePreview || !file || !isWorkspace(file)) return;
+			if (!livePreview || !file || !isThreadMember(file)) return;
 
 			const source = this.view.state.doc.toString();
 			this.view.dom.querySelectorAll<HTMLElement>(CHECKPOINT_CALLOUT_SELECTOR).forEach((callout) => {

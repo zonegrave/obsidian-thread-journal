@@ -9,32 +9,6 @@ export function buildThreadFileName(title: string, collisionKey?: string): strin
 	return suffix ? `${safeTitle}·${suffix}` : safeTitle;
 }
 
-export function normalizeWorkspaceSuffix(value: unknown, fallback = '工作区'): string {
-	const safeSuffix = (typeof value === 'string' ? value : '')
-		.trim()
-		.replace(/^·+/g, '')
-		.replace(/[\\/:*?"<>|]/g, '-')
-		.replace(/\.+$/g, '')
-		.trim();
-	return safeSuffix || fallback;
-}
-
-export function buildWorkspaceFileName(
-	threadBaseName: string,
-	suffix = '工作区',
-): string {
-	return `${threadBaseName}·${normalizeWorkspaceSuffix(suffix)}`;
-}
-
-export function buildWorkspaceBody(threadTitle: string): string {
-	const title = threadTitle.replace(/[\n\r]+/g, ' ').trim();
-	return `# ${title} · Thread 工作区\n`;
-}
-
-export function isContextHeading(value: string): boolean {
-	return /^(?:当前\s*)?context$/i.test(value.trim());
-}
-
 export function stripWikiLink(value: unknown): string | undefined {
 	if (Array.isArray(value)) return stripWikiLink(value[0]);
 	if (typeof value !== 'string') return undefined;

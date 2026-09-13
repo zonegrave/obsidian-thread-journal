@@ -1,7 +1,6 @@
 import {
 	ItemView,
 	Notice,
-	type TFile,
 	type WorkspaceLeaf,
 } from 'obsidian';
 import type {
@@ -13,7 +12,7 @@ export const CHECKPOINT_PANEL_VIEW_TYPE = 'thread-journal-checkpoint-panel';
 
 export interface CheckpointPanelRequest {
 	mode: 'create' | 'edit';
-	threadFile: TFile;
+	threadTitle: string;
 	fields: CheckpointFieldSpec[];
 	date: string;
 	time: string;
@@ -129,7 +128,7 @@ export class CheckpointPanelView extends ItemView {
 		this.contentEl.createEl('h4', { text: 'Checkpoint 表单' });
 		this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-panel-empty',
-			text: '从 thread 或工作区运行“创建 checkpoint”，或在卡片上选择“编辑”。',
+			text: '从任一 thread 文件运行“创建 checkpoint”，或在卡片上选择“编辑”。',
 		});
 	}
 
@@ -146,7 +145,7 @@ export class CheckpointPanelView extends ItemView {
 		});
 		this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-panel-target',
-			text: request.threadFile.basename,
+			text: request.threadTitle,
 		});
 
 		const systemFields = this.contentEl.createDiv({

@@ -38,8 +38,9 @@ class OverviewContent extends MarkdownRenderChild {
    if (!visible.length) el.createEl('p', { text: '此状态暂无 thread。' });
    for (const { thread, summary, tasks } of visible) {
     const card = el.createDiv({ cls: 'thread-journal-overview-card' });
-    const link = card.createEl('a', { text: thread.title, href: thread.file.path });
-    link.onclick = event => { event.preventDefault(); void this.app.workspace.openLinkText(thread.file.path, '', event.metaKey || event.ctrlKey); };
+    const entry = this.index.getEntry(thread.file) ?? thread.file;
+    const link = card.createEl('a', { text: thread.title, href: entry.path });
+    link.onclick = event => { event.preventDefault(); void this.app.workspace.openLinkText(entry.path, '', event.metaKey || event.ctrlKey); };
     card.createSpan({ cls: 'thread-journal-meta', text: threadStatusLabel(thread.status) });
     card.createEl('p', { text: attentionHint(thread.status, summary) });
     card.createEl('p', { cls: 'setting-item-description', text: `子树未完成 ${summary.open} · 可执行 ${summary.ready} · 未来 ${summary.future} · 等待 ${summary.waiting} · 候选 ${summary.candidate} · 自定义标记 ${summary.unknown} · 暂不投入 ${summary.suspended}` });

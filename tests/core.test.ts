@@ -1,6 +1,5 @@
 import { todoDisposition, summarizeAttention, attentionHint } from '../src/thread-attention-model';
 import {
-	breadcrumbCounterpart,
 	breadcrumbFilterLabel,
 	breadcrumbMenuSide,
 	breadcrumbRightClearance,
@@ -28,14 +27,13 @@ import {
 } from '../src/checkpoint-model';
 import {
 	buildThreadFileName,
-	buildWorkspaceBody,
-	buildWorkspaceFileName,
-	isContextHeading,
-	normalizeWorkspaceSuffix,
 	stripWikiLink,
 	wikiLinkAlias,
 } from '../src/core';
-import { DEFAULT_THREAD_TEMPLATE, renderThreadTemplate } from '../src/thread-template';
+import {
+	DEFAULT_THREAD_ROLE_TEMPLATE,
+	renderThreadFileTemplate,
+} from '../src/thread-template';
 import { ThreadIndex } from '../src/thread-index';
 import {
 	buildInlineLogEdit,
@@ -60,23 +58,19 @@ import {
 	threadStatusOptionLabel,
 } from '../src/thread-status-model';
 import {
-	describeOpenThreadSurfaces,
+	describeOpenThreadRoles,
 	groupOpenThreadViews,
-	openThreadViewsForSurface,
+	openThreadViewsForFile,
 	orderOpenThreadGroups,
 } from '../src/thread-switcher-model';
 
-void test('builds current thread and workspace file names', () => {
+void test('builds safe thread member file names', () => {
 	assert.equal(buildThreadFileName('睡眠/管理'), '睡眠-管理');
 	assert.equal(
 		buildThreadFileName('睡眠/管理', '3e9b3f36-7f7d-4205-97b0-82c533155eb0'),
 		'睡眠-管理·3e9b3f36',
 	);
 	assert.equal(buildThreadFileName('...'), '');
-	assert.equal(buildWorkspaceFileName('睡眠管理'), '睡眠管理·工作区');
-	assert.equal(buildWorkspaceFileName('睡眠管理', '草稿/区'), '睡眠管理·草稿-区');
-	assert.equal(normalizeWorkspaceSuffix(' ·研究/空间. '), '研究-空间');
-	assert.equal(buildWorkspaceBody('睡眠\n管理'), '# 睡眠 管理 · Thread 工作区\n');
 });
 
 void test('builds a queryable inline log callout at the cursor line', () => {
@@ -238,42 +232,37 @@ void test('sorts thread entry timestamps only by the explicit order', () => {
 	assert.ok(compareThreadEntryTimestamps(earlier, later, 'desc') > 0);
 });
 
-void test('recognizes current and legacy Context headings', () => {
-	assert.equal(isContextHeading('当前 Context'), true);
-	assert.equal(isContextHeading('context'), true);
-	assert.equal(isContextHeading('  CONTEXT  '), true);
-	assert.equal(isContextHeading('Context 说明'), false);
-});
-
-void test('pairs renamed thread workspaces by thread_id instead of file links', () => {
-	const threadFile = { path: '50-行动系统/renamed-thread.md', basename: 'renamed-thread' };
-	const staleNameWorkspace = {
-		path: '50-行动系统/工作区/old-thread·工作区.md',
-		basename: 'old-thread·工作区',
-	};
-	const renamedWorkspace = {
-		path: '50-行动系统/工作区/custom-workspace-name.md',
-		basename: 'custom-workspace-name',
-	};
+void test('groups arbitrary member files under meta and resolves its unique entry', () => {
+	const threadFile = { path: '50-行动系统/Thread Meta/thread-1.md', basename: 'thread-1' };
+	const entry = { path: '50-行动系统/Thread Files/睡眠管理.md', basename: '睡眠管理' };
+	const research = { path: '50-行动系统/Thread Files/睡眠研究.md', basename: '睡眠研究' };
+	const other = { path: '50-行动系统/Thread Files/其它.md', basename: '其它' };
 	const frontmatter = new Map<unknown, Record<string, unknown>>([
 		[threadFile, {
 			type: 'thread', thread_id: 'thread-1', aliases: ['已改名 thread'],
-			workspace: '[[old-thread·工作区|工作区]]',
+			entry: '[[睡眠管理|入口]]',
 		}],
-		[staleNameWorkspace, { type: 'thread-workspace', thread_id: 'another-thread' }],
-		[renamedWorkspace, { type: 'thread-workspace', thread_id: 'thread-1' }],
+		[entry, { thread_id: 'thread-1' }],
+		[research, { type: 'source', thread_id: 'thread-1', thread_role: 'research' }],
+		[other, { thread_id: 'another-thread', thread_role: 'workspace' }],
 	]);
 	const app = {
 		vault: {
-			getMarkdownFiles: () => [threadFile, staleNameWorkspace, renamedWorkspace],
+			getMarkdownFiles: () => [threadFile, entry, research, other],
 		},
 		metadataCache: {
 			getFileCache: (file: unknown) => ({ frontmatter: frontmatter.get(file) }),
+			getFirstLinkpathDest: (link: string) => link === '睡眠管理' ? entry : null,
 		},
 	};
 	const index = new ThreadIndex(app as never);
-	assert.equal(index.getWorkspace(threadFile as never), renamedWorkspace);
-	assert.equal(index.getThreadForWorkspace(renamedWorkspace as never), threadFile);
+	assert.equal(index.getEntry(threadFile as never), entry);
+	assert.equal(index.getThreadForMember(research as never), threadFile);
+	assert.equal(index.getMember(entry as never)?.role, 'workspace');
+	assert.equal(index.getMember(research as never)?.role, 'research');
+	assert.deepEqual(index.getMembersByThreadId('thread-1').map((item) => item.file), [research, entry]);
+	assert.equal(index.isEntry(entry as never), true);
+	assert.equal(index.isEntry(research as never), false);
 	assert.equal(index.getThread(threadFile as never)?.title, '已改名 thread');
 });
 
@@ -299,31 +288,28 @@ void test('uses aliases then the filename as the thread display name', () => {
 	assert.equal(index.getDisplayName(plain as never), '普通项目');
 });
 
-void test('keeps only the current main thread structure in the default template', () => {
-	assert.match(DEFAULT_THREAD_TEMPLATE, /## Milestones/);
-	assert.match(DEFAULT_THREAD_TEMPLATE, /## 设想与 Context/);
-	assert.doesNotMatch(DEFAULT_THREAD_TEMPLATE, /- \[ \]/);
-	assert.match(DEFAULT_THREAD_TEMPLATE, /### Checkpoints/);
-	assert.match(DEFAULT_THREAD_TEMPLATE, /```thread-entries\nthread_id: \{\{thread_id\}\}\ntype: checkpoint/);
+void test('uses a minimal default role template', () => {
+	assert.equal(DEFAULT_THREAD_ROLE_TEMPLATE, '---\nthread_role: workspace\n---\n');
 });
 
-void test('renders the current template placeholders', () => {
-	const rendered = renderThreadTemplate([
+void test('renders thread member template placeholders', () => {
+	const rendered = renderThreadFileTemplate([
 		'# {{title}}',
-		'{{status}} · {{filename}} · {{thread_id}}',
+		'{{status}} · {{filename}} · {{thread_id}} · {{thread_role}}',
 		'{{parent_title}} {{parent}}',
 		'{{date}} / {{date:YYMMDD}}',
 	].join('\n'), {
 		title: '睡眠管理',
 		fileName: '睡眠管理',
 		threadId: 'stable-id',
+		role: 'research',
 		status: 'idea',
 		parentTitle: '健康管理',
 		parentLink: '[[健康管理|健康管理]]',
 		created: '2026-08-31',
-	}, (format) => format === 'YYMMDD' ? '260831' : '2026-08-31');
+	}, (format: string) => format === 'YYMMDD' ? '260831' : '2026-08-31');
 	assert.match(rendered, /^# 睡眠管理/m);
-	assert.match(rendered, /idea · 睡眠管理 · stable-id/);
+	assert.match(rendered, /idea · 睡眠管理 · stable-id · research/);
 	assert.match(rendered, /2026-08-31 \/ 260831/);
 });
 
@@ -507,7 +493,7 @@ void test('builds a Dataview-queryable checkpoint with a free-form body', () => 
 	].join('\n'));
 });
 
-void test('parses checkpoint data from a workspace callout', () => {
+void test('parses checkpoint data from a thread member callout', () => {
 	const parsed = parseCheckpointEntries([
 		'> [!thread-checkpoint] milestone · 08-31 14:35',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成表单设计] ^cp-01',
@@ -546,7 +532,7 @@ void test('finds the checkpoint around a Live Preview source line', () => {
 	assert.equal(checkpointEntryAroundLine(content, 6), undefined);
 });
 
-void test('appends checkpoint callouts to the workspace', () => {
+void test('appends checkpoint callouts to a thread member', () => {
 	const entry = [
 		'> [!thread-checkpoint] milestone · 08-31 14:35',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] ^cp-new',
@@ -562,7 +548,7 @@ void test('appends checkpoint callouts to the workspace', () => {
 	assert.ok(result.indexOf('自由记录') < result.indexOf('^cp-new'));
 });
 
-void test('inserts checkpoint callouts at a workspace cursor line', () => {
+void test('inserts checkpoint callouts at a thread member cursor line', () => {
 	const original = [
 		'# Thread 工作区',
 		'',
@@ -684,11 +670,11 @@ void test('supports only the eight current status values', () => {
 
 void test('groups and orders open thread views without duplicating logical threads', () => {
 	const views = [
-		{ threadId: 'thread-a', surface: 'context' as const, target: 'a-context', order: 0 },
-		{ threadId: 'thread-b', surface: 'context' as const, target: 'b-context', order: 1 },
-		{ threadId: 'thread-a', surface: 'workspace' as const, target: 'a-workspace', order: 2 },
-		{ threadId: 'thread-c', surface: 'workspace' as const, target: 'c-workspace', order: 3 },
-		{ threadId: 'thread-a', surface: 'context' as const, target: 'a-context-copy', order: 4 },
+		{ threadId: 'thread-a', role: 'workspace', filePath: 'a.md', target: 'a-entry', order: 0 },
+		{ threadId: 'thread-b', role: 'meta', filePath: 'b-meta.md', target: 'b-meta', order: 1 },
+		{ threadId: 'thread-a', role: 'research', filePath: 'a-research.md', target: 'a-research', order: 2 },
+		{ threadId: 'thread-c', role: 'workspace', filePath: 'c.md', target: 'c-entry', order: 3 },
+		{ threadId: 'thread-a', role: 'workspace', filePath: 'a.md', target: 'a-entry-copy', order: 4 },
 	];
 	const groups = groupOpenThreadViews(views);
 	assert.equal(groups.length, 3);
@@ -702,14 +688,14 @@ void test('groups and orders open thread views without duplicating logical threa
 	const threadA = groups.find((group) => group.threadId === 'thread-a');
 	assert.ok(threadA);
 	assert.deepEqual(
-		openThreadViewsForSurface(threadA, 'context').map((view) => view.target),
-		['a-context', 'a-context-copy'],
+		openThreadViewsForFile(threadA, 'a.md').map((view) => view.target),
+		['a-entry', 'a-entry-copy'],
 	);
 	assert.deepEqual(
-		openThreadViewsForSurface(threadA, 'workspace').map((view) => view.target),
-		['a-workspace'],
+		openThreadViewsForFile(threadA, 'a-research.md').map((view) => view.target),
+		['a-research'],
 	);
-	assert.equal(describeOpenThreadSurfaces(threadA), 'Context ×2 + Workspace');
+	assert.equal(describeOpenThreadRoles(threadA), 'workspace ×2 + research');
 });
 
 void test('resolves current wikilinks and aliases', () => {
@@ -770,18 +756,6 @@ void test('breadcrumb switcher defaults to operational threads without changing 
 	);
 	assert.equal(filterBreadcrumbThreads(threads, 'all').length, 3);
 	assert.equal(breadcrumbFilterLabel('operational'), '投入中');
-});
-
-void test('breadcrumb switches between the main thread and its workspace', () => {
-	assert.deepEqual(
-		breadcrumbCounterpart('threads/sleep.md', 'workspaces/sleep.md', 'threads/sleep.md'),
-		{ path: 'workspaces/sleep.md', label: '打开工作区' },
-	);
-	assert.deepEqual(
-		breadcrumbCounterpart('threads/sleep.md', 'workspaces/sleep.md', 'workspaces/sleep.md'),
-		{ path: 'threads/sleep.md', label: '返回主 thread' },
-	);
-	assert.equal(breadcrumbCounterpart('threads/idea.md', undefined, 'threads/idea.md'), undefined);
 });
 
 void test('breadcrumb child menus open toward available space', () => {

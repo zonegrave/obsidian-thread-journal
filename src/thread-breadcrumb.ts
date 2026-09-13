@@ -6,9 +6,9 @@ import {
 	type WorkspaceLeaf,
 } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
+import type { ThreadFileManager } from './thread-files';
 import type { ThreadSwitcherManager } from './thread-switcher';
 import {
-	breadcrumbCounterpart,
 	breadcrumbFilterLabel,
 	breadcrumbMenuSide,
 	breadcrumbRightClearance,
@@ -35,6 +35,7 @@ export class ThreadBreadcrumbManager {
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
+		private readonly files: ThreadFileManager,
 		private readonly switcher: ThreadSwitcherManager,
 		private readonly getSettings: () => ThreadJournalSettings,
 	) {
@@ -160,7 +161,8 @@ export class ThreadBreadcrumbManager {
 			});
 			item.addEventListener('click', () => {
 				this.closeChildMenu();
-				void this.app.workspace.openLinkText(child.file.path, currentFile.path);
+				const target = this.index.getEntry(child.file) ?? child.file;
+				void this.app.workspace.openLinkText(target.path, currentFile.path);
 			});
 			return item;
 		});
@@ -284,7 +286,8 @@ export class ThreadBreadcrumbManager {
 			});
 			this.setBarTooltip(bar, button, `打开 ${item.label}`);
 			button.addEventListener('click', () => {
-				void this.app.workspace.openLinkText(item.file.path, threadFile.path);
+				const target = this.index.getEntry(item.file) ?? item.file;
+				void this.app.workspace.openLinkText(target.path, threadFile.path);
 			});
 
 			const children = filterBreadcrumbThreads(
@@ -324,18 +327,27 @@ export class ThreadBreadcrumbManager {
 		}
 
 		const actions = bar.createDiv({ cls: 'thread-journal-fixed-breadcrumb-actions' });
-		const workspace = this.index.getWorkspace(threadFile);
-		const counterpart = breadcrumbCounterpart(threadFile.path, workspace?.path, currentFile.path);
-		if (counterpart) {
-			const workspaceButton = actions.createEl('button', {
+		const entry = this.index.getEntry(threadFile);
+		if (entry && entry.path !== currentFile.path) {
+			const entryButton = actions.createEl('button', {
 				cls: 'clickable-icon',
 			});
-			setIcon(workspaceButton, 'arrow-left-right');
-			this.setBarTooltip(bar, workspaceButton, counterpart.label);
-			workspaceButton.addEventListener('click', () => {
-				void this.app.workspace.openLinkText(counterpart.path, currentFile.path);
+			setIcon(entryButton, 'home');
+			this.setBarTooltip(bar, entryButton, '打开 thread 入口');
+			entryButton.addEventListener('click', () => {
+				void this.files.openEntry(threadFile);
 			});
 		}
+		const members = this.index.getMembersByThreadId(current.id);
+		const filesButton = actions.createEl('button', {
+			cls: 'clickable-icon thread-journal-fixed-breadcrumb-files',
+		});
+		setIcon(filesButton, 'files');
+		this.setBarTooltip(bar, filesButton, `管理 thread 文件（${members.length} 个）`);
+		filesButton.createSpan({ text: String(members.length) });
+		filesButton.addEventListener('click', () => {
+			this.files.openThreadFilesModal(currentFile);
+		});
 
 		const openThreadCount = this.switcher.getOpenThreadCount();
 		const pickerButton = actions.createEl('button', {

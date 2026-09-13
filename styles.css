@@ -150,6 +150,10 @@
 	gap: 3px;
 }
 
+.thread-journal-fixed-breadcrumb-files {
+	gap: 3px;
+}
+
 .thread-journal-fixed-breadcrumb-filter {
 	width: auto;
 	padding: 2px 6px;
@@ -184,8 +188,26 @@
 	color: var(--text-error);
 }
 
+.thread-journal-thread-file-suggestion {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.thread-journal-thread-file-copy {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.thread-journal-thread-file-entry {
+	flex: 0 0 auto;
+	padding: 3px 7px;
+	font-size: var(--font-ui-smaller);
+}
+
 @media (max-width: 520px) {
-	.thread-journal-open-thread-suggestion {
+	.thread-journal-open-thread-suggestion,
+	.thread-journal-thread-file-suggestion {
 		align-items: stretch;
 		flex-direction: column;
 		gap: 6px;

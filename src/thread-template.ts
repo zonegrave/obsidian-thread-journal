@@ -1,39 +1,24 @@
-import type { ThreadStatus } from './thread-status-model';
-
-export const DEFAULT_THREAD_TEMPLATE = [
-	'# {{title}}',
-	'',
-	'## 设想与 Context',
-	'',
-	'## Milestones（按需）',
-	'',
-	'### Checkpoints',
-	'',
-	'```thread-entries',
-	'thread_id: {{thread_id}}',
-	'type: checkpoint',
-	'```',
-	'',
-	'## 子线程',
-	'',
-	'```thread-children',
-	'```',
+export const DEFAULT_THREAD_ROLE_TEMPLATE = [
+	'---',
+	'thread_role: workspace',
+	'---',
 	'',
 ].join('\n');
 
-export interface ThreadTemplateContext {
+export interface ThreadFileTemplateContext {
 	title: string;
 	fileName: string;
 	threadId: string;
-	status: ThreadStatus;
+	role: string;
+	status: string;
 	parentLink?: string;
 	parentTitle?: string;
 	created: string;
 }
 
-export function renderThreadTemplate(
+export function renderThreadFileTemplate(
 	template: string,
-	context: ThreadTemplateContext,
+	context: ThreadFileTemplateContext,
 	formatDate: (format: string) => string = () => context.created,
 ): string {
 	const replacements: Record<string, string> = {
@@ -41,6 +26,7 @@ export function renderThreadTemplate(
 		thread_title: context.title,
 		filename: context.fileName,
 		thread_id: context.threadId,
+		thread_role: context.role,
 		status: context.status,
 		parent: context.parentLink ?? '',
 		parent_title: context.parentTitle ?? '',

@@ -102,7 +102,7 @@ class CheckpointModal extends Modal {
 
 	constructor(
 		app: App,
-		private readonly threadFile: TFile,
+		private readonly threadTitle: string,
 		private readonly fields: CheckpointFieldSpec[],
 		private readonly onSubmit: CheckpointSubmit,
 		private readonly initial?: CheckpointModalInitialState,
@@ -118,7 +118,7 @@ class CheckpointModal extends Modal {
 		this.setTitle(this.initial ? '编辑 checkpoint' : '创建 checkpoint');
 		this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-target',
-			text: this.threadFile.basename,
+			text: this.threadTitle,
 		});
 
 		const systemFields = this.contentEl.createDiv({
@@ -313,7 +313,6 @@ export class CheckpointManager {
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 		private readonly getSettings: () => ThreadJournalSettings,
-		private readonly ensureWorkspace: (threadFile: TFile) => Promise<TFile | undefined>,
 	) {}
 
 	getCurrentThreadFile(): TFile | undefined {
@@ -330,10 +329,11 @@ export class CheckpointManager {
 	): void {
 		const date = initial?.date || moment().format('YYYY-MM-DD');
 		const time = initial?.time || moment().format('HH:mm');
+		const threadTitle = this.index.getThread(threadFile)?.title ?? threadFile.basename;
 		const values = checkpointFormValues(fields, date, time, initial?.values);
 		const request: CheckpointPanelRequest = {
 			mode: initial ? 'edit' : 'create',
-			threadFile,
+			threadTitle,
 			fields,
 			date,
 			time,
@@ -343,7 +343,7 @@ export class CheckpointManager {
 		void this.openCheckpointPanel(request).catch((error: unknown) => {
 			console.error('Thread Journal failed to open checkpoint side panel', error);
 			new Notice('Checkpoint 侧栏打开失败，已使用原表单。');
-			this.openFallbackCheckpointForm(threadFile, fields, onSubmit, initial);
+			this.openFallbackCheckpointForm(threadTitle, fields, onSubmit, initial);
 		});
 	}
 
@@ -362,21 +362,27 @@ export class CheckpointManager {
 	}
 
 	private openFallbackCheckpointForm(
-		threadFile: TFile,
+		threadTitle: string,
 		fields: CheckpointFieldSpec[],
 		onSubmit: CheckpointSubmit,
 		initial?: CheckpointModalInitialState,
 	): void {
 		const api = getModalFormApi(this.app);
 		if (!api) {
-			new CheckpointModal(this.app, threadFile, fields, onSubmit, initial).open();
+			new CheckpointModal(
+				this.app,
+				threadTitle,
+				fields,
+				onSubmit,
+				initial,
+			).open();
 			return;
 		}
 		const date = initial?.date || moment().format('YYYY-MM-DD');
 		const time = initial?.time || moment().format('HH:mm');
 		const values = checkpointFormValues(fields, date, time, initial?.values);
 		const definition = buildCheckpointModalForm(
-			`${initial ? '编辑' : '创建'} checkpoint · ${threadFile.basename}`,
+			`${initial ? '编辑' : '创建'} checkpoint · ${threadTitle}`,
 			fields,
 			values,
 		);
@@ -404,7 +410,13 @@ export class CheckpointManager {
 		}).catch((error: unknown) => {
 			console.error('Thread Journal failed to open Modal Form', error);
 			new Notice('Modal form 打开失败，已使用内置表单。');
-			new CheckpointModal(this.app, threadFile, fields, onSubmit, initial).open();
+			new CheckpointModal(
+				this.app,
+				threadTitle,
+				fields,
+				onSubmit,
+				initial,
+			).open();
 		});
 	}
 
@@ -422,6 +434,7 @@ export class CheckpointManager {
 		new CheckpointTemplateModal(
 			this.app,
 			threadFile,
+			this.index.getThread(threadFile)?.title ?? threadFile.basename,
 			fields,
 			!Array.isArray(ownTemplate),
 			async (nextFields) => {
@@ -433,7 +446,8 @@ export class CheckpointManager {
 				await this.app.fileManager.processFrontMatter(threadFile, (metadata) => {
 					delete (metadata as Record<string, unknown>).checkpoint_fields;
 				});
-				new Notice(`${threadFile.basename} 已改为使用全局默认模板。`);
+				const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
+				new Notice(`${title} 已改为使用全局默认模板。`);
 			},
 		).open();
 	}
@@ -446,34 +460,27 @@ export class CheckpointManager {
 			new Notice('当前文件不属于 thread。');
 			return;
 		}
-		const originWorkspace = activeFile && this.index.getThreadForWorkspace(activeFile)
+		const originMember = activeFile && this.index.getThreadForMember(activeFile)
 			? activeFile
 			: undefined;
-		const frontmatter = originWorkspace
-			? this.app.metadataCache.getFileCache(originWorkspace)?.frontmatterPosition
+		const frontmatter = originMember
+			? this.app.metadataCache.getFileCache(originMember)?.frontmatterPosition
 			: undefined;
-		const cursorLine = originWorkspace && activeView
+		const cursorLine = originMember && activeView
 			&& (!frontmatter || activeView.editor.getCursor().line > frontmatter.end.line)
 			? activeView.editor.getCursor().line
 			: undefined;
-		void this.openNewCheckpointForm(threadFile, originWorkspace, cursorLine);
+		void this.openNewCheckpointForm(threadFile, originMember, cursorLine);
 	}
 
 	private async openNewCheckpointForm(
 		threadFile: TFile,
-		originWorkspace?: TFile,
+		originMember?: TFile,
 		cursorLine?: number,
 	): Promise<void> {
-		let workspace: TFile | undefined;
-		try {
-			workspace = await this.ensureWorkspace(threadFile);
-		} catch (error) {
-			console.error('Thread Journal failed to prepare checkpoint workspace', error);
-			new Notice(`无法准备 Thread 工作区：${String(error)}`);
-			return;
-		}
-		if (!workspace) {
-			new Notice('无法通过线程 ID 定位配套工作区。');
+		const targetFile = originMember ?? this.index.getEntry(threadFile);
+		if (!targetFile) {
+			new Notice('当前 thread 没有有效入口文件，无法保存 checkpoint。');
 			return;
 		}
 		const ownTemplate = threadCheckpointFields(this.app, threadFile);
@@ -489,8 +496,8 @@ export class CheckpointManager {
 				fields,
 				values,
 			});
-			await this.app.vault.process(workspace, (content) =>
-				originWorkspace?.path === workspace.path && cursorLine !== undefined
+			await this.app.vault.process(targetFile, (content) =>
+				originMember?.path === targetFile.path && cursorLine !== undefined
 					? insertCheckpointEntryAtLine(content, entry, cursorLine)
 					: appendCheckpointEntry(content, entry));
 			const nextStatus = checkpointStatus(values.status_after);
@@ -506,7 +513,8 @@ export class CheckpointManager {
 					return;
 				}
 			}
-			new Notice(`已为 ${threadFile.basename} 创建 checkpoint。`);
+			const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
+			new Notice(`已为 ${title} 创建 checkpoint。`);
 		});
 	}
 
@@ -515,9 +523,9 @@ export class CheckpointManager {
 			new Notice('这条 checkpoint 没有块 ID，无法安全编辑。');
 			return;
 		}
-		const threadFile = this.index.getThreadForWorkspace(sourceFile);
+		const threadFile = this.index.getThreadForMember(sourceFile);
 		if (!threadFile) {
-			new Notice('无法通过工作区线程 ID 定位主 thread。');
+			new Notice('无法根据 thread ID 定位 thread meta。');
 			return;
 		}
 		const ownTemplate = threadCheckpointFields(this.app, threadFile);
@@ -539,7 +547,8 @@ export class CheckpointManager {
 				});
 				await this.app.vault.process(sourceFile, (content) =>
 					replaceCheckpointEntry(content, entry.blockId ?? '', replacement));
-				new Notice(`已更新 ${threadFile.basename} 的 checkpoint。`);
+				const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
+				new Notice(`已更新 ${title} 的 checkpoint。`);
 			},
 			{
 				date: entry.values.checkpoint_date || moment().format('YYYY-MM-DD'),
@@ -554,15 +563,16 @@ export class CheckpointManager {
 			new Notice('这条 checkpoint 没有块 ID，无法安全删除。');
 			return;
 		}
-		const threadFile = this.index.getThreadForWorkspace(sourceFile);
+		const threadFile = this.index.getThreadForMember(sourceFile);
 		if (!threadFile) {
-			new Notice('无法通过工作区线程 ID 定位主 thread。');
+			new Notice('无法根据 thread ID 定位 thread meta。');
 			return;
 		}
 		new CheckpointDeleteModal(this.app, sourceFile, entry, async () => {
 			await this.app.vault.process(sourceFile, (content) =>
 				deleteCheckpointEntry(content, entry.blockId ?? ''));
-			new Notice(`已删除 ${threadFile.basename} 的 checkpoint。`);
+			const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
+			new Notice(`已删除 ${title} 的 checkpoint。`);
 		}).open();
 	}
 }

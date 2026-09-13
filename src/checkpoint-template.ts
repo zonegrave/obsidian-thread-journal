@@ -26,6 +26,7 @@ export class CheckpointTemplateModal extends Modal {
 	constructor(
 		app: App,
 		private readonly threadFile: TFile,
+		private readonly threadTitle: string,
 		initialFields: CheckpointFieldSpec[],
 		inherited: boolean,
 		private readonly onSave: (fields: CheckpointFieldSpec[]) => Promise<void>,
@@ -47,7 +48,7 @@ export class CheckpointTemplateModal extends Modal {
 		this.contentEl.empty();
 		this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-target',
-			text: this.threadFile.basename,
+			text: this.threadTitle,
 		});
 		this.contentEl.createEl('p', {
 			cls: 'setting-item-description',

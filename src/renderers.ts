@@ -29,7 +29,7 @@ import type { ThreadInfo, ThreadJournalSettings } from './types';
 interface CheckpointEntryRecord {
 	type: 'checkpoint';
 	thread: ThreadInfo;
-	workspace: TFile;
+	memberFile: TFile;
 	date: string;
 	time: string;
 	timestamp: string;
@@ -40,7 +40,7 @@ interface CheckpointEntryRecord {
 interface LogEntryRecord {
 	type: 'log';
 	thread: ThreadInfo;
-	workspace: TFile;
+	memberFile: TFile;
 	date: string;
 	time: string;
 	timestamp: string;
@@ -97,7 +97,9 @@ export class ThreadRenderers {
 	renderChildren(el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
 		const current = sourceFile(this.app, ctx);
 		if (!current) return;
-		const children = this.index.getDirectChildren(current);
+		const threadFile = this.index.getThreadFile(current);
+		if (!threadFile) return;
+		const children = this.index.getDirectChildren(threadFile);
 		el.addClass('thread-journal-children');
 		if (children.length === 0) {
 			el.createDiv({ cls: 'thread-journal-empty', text: '暂无子 thread。' });
@@ -106,7 +108,13 @@ export class ThreadRenderers {
 		const list = el.createEl('ul');
 		for (const child of children) {
 			const item = list.createEl('li');
-			addFileLink(this.app, item, child.file, ctx.sourcePath, child.title);
+			addFileLink(
+				this.app,
+				item,
+				this.index.getEntry(child.file) ?? child.file,
+				ctx.sourcePath,
+				child.title,
+			);
 			item.createSpan({
 				cls: 'thread-journal-meta',
 				text: threadStatusLabel(child.status),
@@ -119,7 +127,7 @@ export class ThreadRenderers {
 		ctx: MarkdownPostProcessorContext,
 	): Promise<void> {
 		const current = sourceFile(this.app, ctx);
-		if (!current || !this.index.getThreadForWorkspace(current)) return;
+		if (!current || !this.index.getThreadForMember(current)) return;
 		const selector = '.callout[data-callout="thread-checkpoint"]';
 		const callouts = [
 			...(el.matches(selector) ? [el] : []),
@@ -146,7 +154,7 @@ export class ThreadRenderers {
 		ctx: MarkdownPostProcessorContext,
 	): void {
 		const current = sourceFile(this.app, ctx);
-		if (!current || !this.index.getThreadForWorkspace(current)) return;
+		if (!current || !this.index.getThreadForMember(current)) return;
 		const selector = '.callout[data-callout="thread-log"]';
 		const callouts = [
 			...(el.matches(selector) ? [el] : []),
@@ -165,11 +173,11 @@ export class ThreadRenderers {
 
 	async renderSourceCheckpointCallout(
 		callout: HTMLElement,
-		workspace: TFile,
+		memberFile: TFile,
 		entry: ParsedCheckpointEntry,
 		registerChild: MarkdownChildRegistrar,
 	): Promise<void> {
-		const thread = this.index.getThreadForWorkspace(workspace);
+		const thread = this.index.getThreadForMember(memberFile);
 		if (!thread) return;
 		const fields = this.checkpointFields(thread);
 		const signature = JSON.stringify([entry, fields]);
@@ -207,7 +215,7 @@ export class ThreadRenderers {
 		edit.addEventListener('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			this.onEditCheckpoint(workspace, entry);
+			this.onEditCheckpoint(memberFile, entry);
 		});
 
 		content.empty();
@@ -215,14 +223,14 @@ export class ThreadRenderers {
 			content,
 			entry,
 			fields,
-			workspace.path,
+			memberFile.path,
 			registerChild,
 		);
 	}
 
 	renderSourceLogCallout(
 		callout: HTMLElement,
-		_workspace: TFile,
+		_memberFile: TFile,
 		entry: ParsedInlineLogEntry,
 	): void {
 		const signature = JSON.stringify(entry);
@@ -279,10 +287,15 @@ export class ThreadRenderers {
 			return;
 		}
 
-		const records = (await Promise.all(threads.map(async (thread) => {
-			const workspace = this.index.getWorkspace(thread.file);
-			if (!workspace) return [];
-			const content = await this.app.vault.cachedRead(workspace);
+		const membersByThread = new Map<string, TFile[]>();
+		for (const member of this.index.getAllMembers()) {
+			const members = membersByThread.get(member.threadId) ?? [];
+			members.push(member.file);
+			membersByThread.set(member.threadId, members);
+		}
+		const records = (await Promise.all(threads.flatMap((thread) =>
+			(membersByThread.get(thread.id) ?? []).map(async (memberFile) => {
+			const content = await this.app.vault.cachedRead(memberFile);
 			const entries: ThreadEntryRecord[] = [];
 			if (parsed.query.types.includes('checkpoint')) {
 				const fields = this.checkpointFields(thread.file);
@@ -292,7 +305,7 @@ export class ThreadRenderers {
 					entries.push({
 						type: 'checkpoint',
 						thread,
-						workspace,
+						memberFile,
 						date: entryDate,
 						time: entry.values.checkpoint_time ?? '',
 						timestamp: checkpointTimestamp(entry),
@@ -307,7 +320,7 @@ export class ThreadRenderers {
 					entries.push({
 						type: 'log',
 						thread,
-						workspace,
+						memberFile,
 						date: entry.date,
 						time: entry.time,
 						timestamp: entry.timestamp,
@@ -316,7 +329,7 @@ export class ThreadRenderers {
 				}
 			}
 			return entries;
-		}))).flat();
+		})))).flat();
 
 		records.sort((a, b) => {
 			const timestamp = compareThreadEntryTimestamps(
@@ -387,15 +400,6 @@ export class ThreadRenderers {
 					ctx.sourcePath,
 					threadDetail === 'crumb' ? 'crumb' : 'name',
 				);
-				const source = summary.createSpan({ cls: 'thread-journal-entry-source' });
-				source.createSpan({ text: ' · ' });
-				addFileLink(
-					this.app,
-					source,
-					first.workspace,
-					ctx.sourcePath,
-					'工作区',
-				);
 				this.addEntryCount(summary, group.length);
 				const cards = section.createDiv({ cls: 'thread-journal-entry-cards' });
 				await this.renderEntryCards(cards, group, ctx, dateFiltered, 'none');
@@ -451,7 +455,13 @@ export class ThreadRenderers {
 			],
 		});
 		if (detail === 'name') {
-			addFileLink(this.app, target, thread.file, sourcePath, thread.title);
+			addFileLink(
+				this.app,
+				target,
+				this.index.getEntry(thread.file) ?? thread.file,
+				sourcePath,
+				thread.title,
+			);
 			return;
 		}
 
@@ -464,7 +474,13 @@ export class ThreadRenderers {
 			if (index > 0) {
 				target.createSpan({ cls: 'thread-journal-entry-separator', text: '›' });
 			}
-			addFileLink(this.app, target, item.file, sourcePath, item.label);
+			addFileLink(
+				this.app,
+				target,
+				this.index.getEntry(item.file) ?? item.file,
+				sourcePath,
+				item.label,
+			);
 		});
 		if (ancestry.cycle) {
 			target.createSpan({
@@ -486,7 +502,7 @@ export class ThreadRenderers {
 			if (record.type === 'checkpoint') {
 				await this.renderCheckpointCards(
 					container,
-					record.workspace,
+					record.memberFile,
 					[record.entry],
 					record.fields,
 					ctx.sourcePath,
@@ -537,14 +553,14 @@ export class ThreadRenderers {
 			cls: 'thread-journal-log-locate',
 			text: '定位',
 			attr: {
-				href: `${record.workspace.path}#^${blockId}`,
-				'aria-label': '在工作区中定位 log',
+				href: `${record.memberFile.path}#^${blockId}`,
+				'aria-label': '在 thread 文件中定位 log',
 			},
 		});
 		locate.addEventListener('click', (event) => {
 			event.preventDefault();
 			void this.app.workspace.openLinkText(
-				`${record.workspace.path}#^${blockId}`,
+				`${record.memberFile.path}#^${blockId}`,
 				ctx.sourcePath,
 				event.metaKey || event.ctrlKey,
 			);
@@ -556,7 +572,7 @@ export class ThreadRenderers {
 			this.app,
 			record.entry.text || '（空日志）',
 			content,
-			record.workspace.path,
+			record.memberFile.path,
 			child,
 		);
 	}
@@ -603,7 +619,7 @@ export class ThreadRenderers {
 					text: '定位',
 					attr: {
 						href: `${sourceFile.path}#^${blockId}`,
-						'aria-label': '在工作区中定位 checkpoint',
+						'aria-label': '在 thread 文件中定位 checkpoint',
 					},
 				});
 				locate.addEventListener('click', (event) => {

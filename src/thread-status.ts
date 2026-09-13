@@ -50,7 +50,6 @@ export class ThreadStatusManager {
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
-		private readonly ensureWorkspace: (file: TFile) => Promise<TFile | undefined>,
 	) {}
 
 	getCurrentThreadFile(): TFile | undefined {
@@ -77,12 +76,12 @@ export class ThreadStatusManager {
 			new Notice(`当前状态已经是 ${status}。`);
 			return;
 		}
-		if (status === 'active' || status === 'committed' || status === 'dormant') await this.ensureWorkspace(file);
 		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
 			const metadata = frontmatter as Record<string, unknown>;
 			metadata.status = status;
 		});
 		const choice = THREAD_STATUS_CHOICES.find((item) => item.value === status);
-		new Notice(`已将 ${file.basename} 设置为 ${choice ? threadStatusOptionLabel(choice) : status}。`);
+		const title = this.index.getThread(file)?.title ?? file.basename;
+		new Notice(`已将 ${title} 设置为 ${choice ? threadStatusOptionLabel(choice) : status}。`);
 	}
 }

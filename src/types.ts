@@ -28,11 +28,17 @@ export interface ThreadInfo {
 	parentLink?: string;
 }
 
+export interface ThreadMemberInfo {
+	file: TFile;
+	threadId: string;
+	role: string;
+}
+
 export interface ThreadJournalSettings {
-	threadsFolder: string;
-	workspacesFolder: string;
-	workspaceSuffix: string;
-	threadTemplatePath: string;
+	threadMetaFolder: string;
+	threadFilesFolder: string;
+	threadRoleTemplatesFolder: string;
+	defaultThreadRoleTemplatePath: string;
 	breadcrumbPosition: 'top' | 'bottom';
 	breadcrumbDefaultFilter: 'operational' | 'all';
 	checkpointFields: CheckpointFieldSpec[];

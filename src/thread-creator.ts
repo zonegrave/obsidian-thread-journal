@@ -17,13 +17,8 @@ import {
 	threadStatusOptionLabel,
 	type ThreadStatus,
 } from './thread-status-model';
-import { buildThreadFileName } from './core';
-import {
-	DEFAULT_THREAD_TEMPLATE,
-	renderThreadTemplate,
-} from './thread-template';
 import type { ThreadIndex } from './thread-index';
-import type { ThreadWorkspaceManager } from './thread-workspace';
+import type { ThreadFileManager, ThreadRoleTemplate } from './thread-files';
 import type { ThreadJournalSettings } from './types';
 
 function stableThreadId(): string {
@@ -53,14 +48,23 @@ function stringList(value: unknown): string[] {
 class NewThreadModal extends Modal {
 	private title = '';
 	private status: ThreadStatus = 'idea';
+	private creating = false;
 
 	constructor(
 		app: App,
 		private readonly parent: TFile | undefined,
-		private readonly onSubmit: (title: string, status: ThreadStatus) => Promise<void>,
+		private readonly templates: ThreadRoleTemplate[],
+		private readonly onSubmit: (
+			title: string,
+			status: ThreadStatus,
+			template: ThreadRoleTemplate,
+		) => Promise<void>,
 	) {
 		super(app);
+		this.templatePath = templates[0]?.file.path ?? '';
 	}
+
+	private templatePath: string;
 
 	onOpen(): void {
 		this.setTitle('新建 thread');
@@ -90,20 +94,43 @@ class NewThreadModal extends Modal {
 			});
 
 		new Setting(this.contentEl)
+			.setName('入口模板')
+			.setDesc('模板中的 thread_role 决定入口文件角色。')
+			.addDropdown((dropdown) => {
+				for (const template of this.templates) {
+					dropdown.addOption(template.file.path, `${template.label} · ${template.role}`);
+				}
+				dropdown.setValue(this.templatePath).onChange((value) => {
+					this.templatePath = value;
+				});
+			});
+
+		new Setting(this.contentEl)
 			.addButton((button) => button
 				.setButtonText('创建')
 				.setCta()
 				.onClick(async () => {
+					if (this.creating) return;
 					const title = this.title.trim();
 					if (!title) {
 						new Notice('请先输入 thread 标题。');
 						return;
 					}
+					const template = this.templates.find((item) => item.file.path === this.templatePath);
+					if (!template) {
+						new Notice('请选择有效的入口模板。');
+						return;
+					}
+					this.creating = true;
+					button.setDisabled(true);
 					try {
-						await this.onSubmit(title, this.status);
+						await this.onSubmit(title, this.status, template);
 						this.close();
 					} catch (error) {
 						console.error('Thread Journal failed to create thread', error);
+						new Notice(`创建 thread 失败：${String(error)}`);
+						this.creating = false;
+						button.setDisabled(false);
 					}
 				}));
 	}
@@ -151,7 +178,7 @@ export class ThreadCreator {
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
-		private readonly workspaces: ThreadWorkspaceManager,
+		private readonly files: ThreadFileManager,
 		private readonly getSettings: () => ThreadJournalSettings,
 	) {}
 
@@ -202,12 +229,22 @@ export class ThreadCreator {
 	}
 
 	private openDetailsModal(parent?: TFile): void {
-		new NewThreadModal(this.app, parent, async (title, status) => {
-			await this.createThread(title, status, parent);
-		}).open();
+		void this.files.getRoleTemplates().then((templates) => {
+			new NewThreadModal(this.app, parent, templates, async (title, status, template) => {
+				await this.createThread(title, status, parent, template);
+			}).open();
+		}).catch((error: unknown) => {
+			console.error('Thread Journal failed to load entry templates', error);
+			new Notice(`无法读取入口模板：${String(error)}`);
+		});
 	}
 
-	async createThread(title: string, status: ThreadStatus, parent?: TFile): Promise<TFile> {
+	async createThread(
+		title: string,
+		status: ThreadStatus,
+		parent?: TFile,
+		template?: ThreadRoleTemplate,
+	): Promise<TFile> {
 		if (parent) {
 			const parentThread = this.index.getThread(parent);
 			if (!parentThread || !isOperationalThreadStatus(parentThread.status)) {
@@ -216,20 +253,11 @@ export class ThreadCreator {
 			}
 		}
 		const settings = this.getSettings();
-		const folder = settings.threadsFolder;
+		const folder = settings.threadMetaFolder;
 		await ensureFolder(this.app, folder);
 		const threadId = stableThreadId();
-		let fileName = buildThreadFileName(title);
-		if (!fileName) throw new Error('Thread title does not produce a valid file name.');
-		let path = normalizePath(`${folder}/${fileName}.md`);
-		if (this.app.vault.getAbstractFileByPath(path)) {
-			fileName = buildThreadFileName(title, threadId);
-			path = normalizePath(`${folder}/${fileName}.md`);
-			if (this.app.vault.getAbstractFileByPath(path)) {
-				new Notice(`无法为同名 thread 生成唯一文件名：${path}`);
-				throw new Error(`File already exists: ${path}`);
-			}
-		}
+		const path = normalizePath(`${folder}/${threadId}.md`);
+		if (this.app.vault.getAbstractFileByPath(path)) throw new Error(`Thread meta 已存在：${path}`);
 		const parentLink = parent
 			? this.app.fileManager.generateMarkdownLink(
 				parent,
@@ -238,19 +266,8 @@ export class ThreadCreator {
 				this.index.getDisplayName(parent),
 			)
 			: undefined;
-		const templateFile = await this.getOrCreateTemplateFile();
-		const template = await this.app.vault.cachedRead(templateFile);
 		const created = moment().format('YYYY-MM-DD');
-		const body = renderThreadTemplate(template, {
-			title,
-			fileName,
-			threadId,
-			status,
-			parentLink,
-			parentTitle: parent ? this.index.getDisplayName(parent) : undefined,
-			created,
-		}, (format) => moment(created, 'YYYY-MM-DD').format(format));
-		const file = await this.app.vault.create(path, body);
+		const file = await this.app.vault.create(path, '');
 		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
 			const metadata = frontmatter as Record<string, unknown>;
 			metadata.type = 'thread';
@@ -263,25 +280,24 @@ export class ThreadCreator {
 			if (parentLink) metadata.parent = parentLink;
 			else delete metadata.parent;
 		});
-		if (status !== 'idea') await this.workspaces.ensureForThread(file, {
-			id: threadId,
+		const selectedTemplate = template ?? (await this.files.getRoleTemplates())[0];
+		if (!selectedTemplate) throw new Error('没有可用的 thread 文件模板。');
+		const entry = await this.files.createThreadFile(
+			file,
+			selectedTemplate,
 			title,
 			created,
-		});
-		await this.app.workspace.getLeaf(false).openFile(file);
+			{
+				id: threadId,
+				title,
+				status,
+				parentLink,
+				parentTitle: parent ? this.index.getDisplayName(parent) : undefined,
+			},
+		);
+		await this.files.setEntry(file, entry, false, threadId);
+		await this.files.openFile(entry);
 		new Notice(`已创建 ${title}`);
-		return file;
-	}
-
-	private async getOrCreateTemplateFile(): Promise<TFile> {
-		const path = this.getSettings().threadTemplatePath;
-		const existing = this.app.vault.getAbstractFileByPath(path);
-		if (existing instanceof TFile) return existing;
-		if (existing) throw new Error(`Thread template path is not a file: ${path}`);
-		const separator = path.lastIndexOf('/');
-		if (separator > 0) await ensureFolder(this.app, path.slice(0, separator));
-		const file = await this.app.vault.create(path, DEFAULT_THREAD_TEMPLATE);
-		new Notice(`已创建 Thread 模板：${path}`);
 		return file;
 	}
 }

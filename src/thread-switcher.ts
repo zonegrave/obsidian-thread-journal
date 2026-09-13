@@ -7,29 +7,27 @@ import {
 	type FuzzyMatch,
 	type WorkspaceLeaf,
 } from 'obsidian';
+import type { ThreadFileManager } from './thread-files';
 import type { ThreadIndex } from './thread-index';
 import {
-	describeOpenThreadSurfaces,
+	describeOpenThreadRoles,
 	groupOpenThreadViews,
-	openThreadViewsForSurface,
 	orderOpenThreadGroups,
 	type OpenThreadGroup,
-	type OpenThreadSurface,
 	type OpenThreadView,
 } from './thread-switcher-model';
 import { threadStatusLabel } from './thread-status-model';
 import type { ThreadInfo } from './types';
 import { leafFilePath } from './workspace-leaf';
 
-type ThreadManagerAction = OpenThreadSurface | 'close';
-type EnsureWorkspace = (threadFile: TFile) => Promise<TFile | undefined>;
+type ThreadManagerAction = 'entry' | 'files' | 'close';
 
 interface OpenThreadCandidate {
 	thread: ThreadInfo;
 	breadcrumb: string;
-	surfaces: string;
-	contextCount: number;
-	workspaceCount: number;
+	openSummary: string;
+	memberCount: number;
+	openCount: number;
 	current: boolean;
 }
 
@@ -65,11 +63,10 @@ class OpenThreadManagerModal extends FuzzySuggestModal<OpenThreadCandidate> {
 		return [
 			candidate.breadcrumb,
 			candidate.thread.title,
-			candidate.thread.file.basename,
 			candidate.thread.id,
 			threadStatusLabel(candidate.thread.status),
 			candidate.thread.status,
-			candidate.surfaces,
+			candidate.openSummary,
 		].join(' ');
 	}
 
@@ -77,15 +74,14 @@ class OpenThreadManagerModal extends FuzzySuggestModal<OpenThreadCandidate> {
 		const candidate = match.item;
 		el.addClass('thread-journal-open-thread-suggestion');
 		const copy = el.createDiv({ cls: 'thread-journal-open-thread-copy' });
-		const current = candidate.current ? ' · 当前' : '';
-		copy.createDiv({ text: `${candidate.breadcrumb}${current}` });
+		copy.createDiv({ text: `${candidate.breadcrumb}${candidate.current ? ' · 当前' : ''}` });
 		copy.createDiv({
 			cls: 'suggestion-note',
-			text: `${threadStatusLabel(candidate.thread.status)} · ${candidate.surfaces}`,
+			text: `${threadStatusLabel(candidate.thread.status)} · ${candidate.openSummary}`,
 		});
 		const actions = el.createDiv({ cls: 'thread-journal-open-thread-actions' });
-		this.addActionButton(actions, candidate, 'context', 'Context');
-		this.addActionButton(actions, candidate, 'workspace', 'Workspace');
+		this.addActionButton(actions, candidate, 'entry', '入口');
+		this.addActionButton(actions, candidate, 'files', '文件');
 		this.addActionButton(actions, candidate, 'close', '关闭标签');
 	}
 
@@ -110,7 +106,7 @@ class OpenThreadManagerModal extends FuzzySuggestModal<OpenThreadCandidate> {
 				tabindex: '-1',
 				'aria-label': action === 'close'
 					? `关闭 ${candidate.thread.title} 的所有已打开标签`
-					: `跳转到 ${candidate.thread.title} 的 ${label}`,
+					: `${label}：${candidate.thread.title}`,
 			},
 		});
 		button.addEventListener('mousedown', (event) => {
@@ -125,7 +121,6 @@ class OpenThreadManagerModal extends FuzzySuggestModal<OpenThreadCandidate> {
 		});
 	}
 }
-
 class ThreadActionModal extends FuzzySuggestModal<ThreadActionChoice> {
 	constructor(
 		app: App,
@@ -158,29 +153,24 @@ class ThreadActionModal extends FuzzySuggestModal<ThreadActionChoice> {
 
 export class ThreadSwitcherManager {
 	private readonly recentThreadIds: string[] = [];
-	private readonly lastLeafBySurface = new Map<string, WorkspaceLeaf>();
 
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
-		private readonly ensureWorkspace: EnsureWorkspace,
+		private readonly files: ThreadFileManager,
 	) {}
 
 	rememberActiveLeaf(leaf: WorkspaceLeaf | null): void {
 		if (!leaf) return;
 		const view = this.openThreadView(leaf, 0);
 		if (!view) return;
-		this.lastLeafBySurface.set(this.surfaceKey(view.threadId, view.surface), leaf);
 		const existing = this.recentThreadIds.indexOf(view.threadId);
 		if (existing >= 0) this.recentThreadIds.splice(existing, 1);
 		this.recentThreadIds.unshift(view.threadId);
 	}
 
 	open(): void {
-		const groups = orderOpenThreadGroups(
-			this.collectOpenThreadGroups(),
-			this.recentThreadIds,
-		);
+		const groups = orderOpenThreadGroups(this.collectOpenThreadGroups(), this.recentThreadIds);
 		if (groups.length === 0) {
 			new Notice('当前没有已打开的 thread。');
 			return;
@@ -192,7 +182,7 @@ export class ThreadSwitcherManager {
 		new OpenThreadManagerModal(
 			this.app,
 			candidates,
-			(candidate) => this.openActions(candidate.thread.id),
+			(candidate) => this.openActions(candidate),
 			(candidate, action) => this.runAction(candidate.thread.id, action),
 		).open();
 	}
@@ -220,22 +210,17 @@ export class ThreadSwitcherManager {
 		if (!path) return undefined;
 		const file = this.app.vault.getAbstractFileByPath(path);
 		if (!(file instanceof TFile)) return undefined;
-		const thread = this.index.getThread(file);
-		if (thread) return this.threadView(thread.id, 'context', leaf, order);
-		const threadFile = this.index.getThreadForWorkspace(file);
-		const workspaceThread = threadFile ? this.index.getThread(threadFile) : undefined;
-		return workspaceThread
-			? this.threadView(workspaceThread.id, 'workspace', leaf, order)
-			: undefined;
-	}
-
-	private threadView(
-		threadId: string,
-		surface: OpenThreadSurface,
-		target: WorkspaceLeaf,
-		order: number,
-	): OpenThreadView<WorkspaceLeaf> {
-		return { threadId, surface, target, order };
+		const threadFile = this.index.getThreadFile(file);
+		const thread = threadFile ? this.index.getThread(threadFile) : undefined;
+		if (!thread) return undefined;
+		const member = this.index.getMember(file);
+		return {
+			threadId: thread.id,
+			role: member?.role ?? 'meta',
+			filePath: file.path,
+			target: leaf,
+			order,
+		};
 	}
 
 	private buildCandidate(
@@ -248,9 +233,9 @@ export class ThreadSwitcherManager {
 		return {
 			thread,
 			breadcrumb: [...ancestors, thread.title].join(' › '),
-			surfaces: describeOpenThreadSurfaces(group),
-			contextCount: openThreadViewsForSurface(group, 'context').length,
-			workspaceCount: openThreadViewsForSurface(group, 'workspace').length,
+			openSummary: describeOpenThreadRoles(group),
+			memberCount: this.index.getMembersByThreadId(thread.id).length,
+			openCount: group.views.length,
 			current: thread.id === currentThreadId,
 		};
 	}
@@ -260,53 +245,18 @@ export class ThreadSwitcherManager {
 		return leaf ? this.openThreadView(leaf, 0)?.threadId : undefined;
 	}
 
-	private openActions(threadId: string): void {
-		const current = this.getOpenThread(threadId);
-		if (!current) {
-			new Notice('这个 thread 已经不在打开的标签页中。');
-			return;
-		}
-		const workspaceExists = Boolean(this.index.getWorkspace(current.thread.file));
+	private openActions(candidate: OpenThreadCandidate): void {
 		const choices: ThreadActionChoice[] = [
-			{
-				action: 'context',
-				label: '跳转到 Context',
-				detail: this.surfaceActionDetail(current.candidate.contextCount, true),
-			},
-			{
-				action: 'workspace',
-				label: '跳转到 Workspace',
-				detail: this.surfaceActionDetail(current.candidate.workspaceCount, workspaceExists),
-			},
-			{
-				action: 'close',
-				label: '关闭全部标签',
-				detail: `${current.group.views.length} 个已打开标签；不修改 thread 状态`,
-			},
+			{ action: 'entry', label: '打开入口', detail: '打开 meta 指定的唯一入口文件' },
+			{ action: 'files', label: '管理文件', detail: `${candidate.memberCount} 个成员文件` },
+			{ action: 'close', label: '关闭全部标签', detail: `${candidate.openCount} 个已打开标签；不修改 thread 状态` },
 		];
 		new ThreadActionModal(
 			this.app,
-			current.thread,
+			candidate.thread,
 			choices,
-			(action) => this.runAction(threadId, action),
+			(action) => this.runAction(candidate.thread.id, action),
 		).open();
-	}
-
-	private getOpenThread(threadId: string): {
-		thread: ThreadInfo;
-		group: OpenThreadGroup<WorkspaceLeaf>;
-		candidate: OpenThreadCandidate;
-	} | undefined {
-		const group = this.collectOpenThreadGroups().find((item) => item.threadId === threadId);
-		const thread = this.index.getThreadById(threadId);
-		if (!group || !thread) return undefined;
-		const candidate = this.buildCandidate(group, this.currentThreadId());
-		return candidate ? { thread, group, candidate } : undefined;
-	}
-
-	private surfaceActionDetail(openCount: number, exists: boolean): string {
-		if (openCount > 0) return `${openCount} 个已打开标签`;
-		return exists ? '在当前标签组打开' : '按需创建工作区并打开';
 	}
 
 	private runAction(threadId: string, action: ThreadManagerAction): void {
@@ -317,37 +267,17 @@ export class ThreadSwitcherManager {
 	}
 
 	private async performAction(threadId: string, action: ThreadManagerAction): Promise<void> {
+		const thread = this.index.getThreadById(threadId);
+		if (!thread) throw new Error(`找不到 thread_id: ${threadId}`);
 		if (action === 'close') {
 			this.closeThread(threadId);
 			return;
 		}
-		await this.openSurface(threadId, action);
-	}
-
-	private async openSurface(threadId: string, surface: OpenThreadSurface): Promise<void> {
-		const thread = this.index.getThreadById(threadId);
-		if (!thread) throw new Error(`找不到 thread_id: ${threadId}`);
-		const targetFile = surface === 'context'
-			? thread.file
-			: await this.ensureWorkspace(thread.file);
-		if (!targetFile) throw new Error('无法创建或定位 Thread 工作区。');
-
-		const group = this.collectOpenThreadGroups().find((item) => item.threadId === threadId);
-		const openViews = group ? openThreadViewsForSurface(group, surface) : [];
-		const remembered = this.lastLeafBySurface.get(this.surfaceKey(threadId, surface));
-		const existing = openViews.find((view) => view.target === remembered) ?? openViews[0];
-		if (existing) {
-			await this.app.workspace.revealLeaf(existing.target);
-			this.app.workspace.setActiveLeaf(existing.target, { focus: true });
-			this.rememberActiveLeaf(existing.target);
+		if (action === 'files') {
+			this.files.openThreadFilesModal(thread.file);
 			return;
 		}
-
-		const target = this.app.workspace.getLeaf('tab');
-		await target.openFile(targetFile, { active: true });
-		await this.app.workspace.revealLeaf(target);
-		this.app.workspace.setActiveLeaf(target, { focus: true });
-		this.rememberActiveLeaf(target);
+		await this.files.openEntry(thread.file);
 	}
 
 	private closeThread(threadId: string): void {
@@ -358,14 +288,8 @@ export class ThreadSwitcherManager {
 		}
 		const leaves = [...new Set(group.views.map((view) => view.target))];
 		for (const leaf of leaves) leaf.detach();
-		this.lastLeafBySurface.delete(this.surfaceKey(threadId, 'context'));
-		this.lastLeafBySurface.delete(this.surfaceKey(threadId, 'workspace'));
 		const recent = this.recentThreadIds.indexOf(threadId);
 		if (recent >= 0) this.recentThreadIds.splice(recent, 1);
 		new Notice(`已关闭 ${leaves.length} 个标签；thread 状态未改变。`);
-	}
-
-	private surfaceKey(threadId: string, surface: OpenThreadSurface): string {
-		return `${threadId}:${surface}`;
 	}
 }

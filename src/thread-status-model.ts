@@ -9,7 +9,7 @@ export interface ThreadStatusChoice {
 
 export const THREAD_STATUS_CHOICES: readonly ThreadStatusChoice[] = [
  { value: 'idea', label: '想法', description: '保留可能性，尚未承诺投入' },
- { value: 'committed', label: '已承诺', description: '已决定投入，等待开始；在 Context 中说明承诺' },
+ { value: 'committed', label: '已承诺', description: '已决定投入，等待开始；在入口或相应角色文件中说明承诺' },
  { value: 'active', label: '持续关注', description: '已经展开，需要持续关注；子树无 todo 时复核状态' },
  { value: 'dormant', label: '休眠', description: '保持开放，按需记录；有可执行 todo 时需要处理' },
  { value: 'paused', label: '冻结', description: '明确暂停投入，保留未完成事项；不自动取消承诺' },

@@ -51,14 +51,3 @@ export function breadcrumbRightClearance(
 	if (verticalOverlap <= 0 || horizontalOverlap <= 0) return 0;
 	return Math.max(0, bar.right - Math.max(bar.left, overlay.left)) + gap;
 }
-
-export function breadcrumbCounterpart(
-	threadPath: string,
-	workspacePath: string | undefined,
-	currentPath: string,
-): { path: string; label: string } | undefined {
-	if (!workspacePath) return undefined;
-	return currentPath === workspacePath
-		? { path: threadPath, label: '返回主 thread' }
-		: { path: workspacePath, label: '打开工作区' };
-}

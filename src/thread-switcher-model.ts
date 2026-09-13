@@ -1,8 +1,7 @@
-export type OpenThreadSurface = 'context' | 'workspace';
-
 export interface OpenThreadView<T> {
 	threadId: string;
-	surface: OpenThreadSurface;
+	role: string;
+	filePath: string;
 	target: T;
 	order: number;
 }
@@ -51,20 +50,17 @@ export function orderOpenThreadGroups<T>(
 	});
 }
 
-export function openThreadViewsForSurface<T>(
+export function openThreadViewsForFile<T>(
 	group: OpenThreadGroup<T>,
-	surface: OpenThreadSurface,
+	filePath: string,
 ): OpenThreadView<T>[] {
-	return group.views.filter((view) => view.surface === surface);
+	return group.views.filter((view) => view.filePath === filePath);
 }
 
-export function describeOpenThreadSurfaces<T>(group: OpenThreadGroup<T>): string {
-	const contextCount = openThreadViewsForSurface(group, 'context').length;
-	const workspaceCount = openThreadViewsForSurface(group, 'workspace').length;
-	const parts: string[] = [];
-	if (contextCount > 0) parts.push(contextCount > 1 ? `Context ×${contextCount}` : 'Context');
-	if (workspaceCount > 0) {
-		parts.push(workspaceCount > 1 ? `Workspace ×${workspaceCount}` : 'Workspace');
-	}
-	return parts.join(' + ');
+export function describeOpenThreadRoles<T>(group: OpenThreadGroup<T>): string {
+	const counts = new Map<string, number>();
+	for (const view of group.views) counts.set(view.role, (counts.get(view.role) ?? 0) + 1);
+	return [...counts.entries()]
+		.map(([role, count]) => count > 1 ? `${role} ×${count}` : role)
+		.join(' + ');
 }
