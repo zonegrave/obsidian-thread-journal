@@ -54,6 +54,7 @@ import {
 import {
 	THREAD_STATUS_CHOICES,
 	isOperationalThreadStatus,
+	threadStatusUsesMembers,
 	threadStatusLabel,
 	threadStatusOptionLabel,
 } from '../src/thread-status-model';
@@ -685,6 +686,9 @@ void test('supports only the eight current status values', () => {
 	assert.equal(isOperationalThreadStatus('dormant'), true);
 	assert.equal(isOperationalThreadStatus('committed'), false);
 	assert.equal(isOperationalThreadStatus('paused'), false);
+	assert.equal(threadStatusUsesMembers('idea'), false);
+	assert.equal(threadStatusUsesMembers('committed'), false);
+	assert.equal(threadStatusUsesMembers('active'), true);
 });
 
 void test('groups and orders open thread views without duplicating logical threads', () => {

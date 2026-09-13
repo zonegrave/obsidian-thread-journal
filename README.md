@@ -39,7 +39,7 @@ thread meta（唯一）
 ## 推荐使用方式
 
 1. 一条独立工作线自然形成后，再运行 **新建 thread**；不要为了使用工具而提前拆 thread。
-2. 创建时选择一个入口模板。默认 `workspace` 模板几乎为空，可以立刻开始自由工作。
+2. `idea` 和 `committed` 只创建 meta，不创建成员或 entry。选择其他初始状态时才选择入口模板；默认 `workspace` 模板几乎为空，可以立刻开始自由工作。
 3. 内容变长或出现稳定分工后，运行 **新建 thread 文件**，从 `context`、`research` 等自定义角色模板扩展 pack。
 4. 用 **设为 thread 入口** 决定当前最适合恢复工作的文件，用 **管理 thread 文件** 在 pack 内切换。
 5. 随手进展用 inline log；阶段节点、方向变化和复盘结果用 checkpoint。
@@ -240,7 +240,7 @@ order: asc
 
 | 命令 | 可用位置 | 作用 |
 | --- | --- | --- |
-| **新建 thread** | 任意位置 | 选择父 thread、状态和入口模板，创建 meta 与初始入口 |
+| **新建 thread** | 任意位置 | 创建 meta；非 idea/committed 状态同时选择模板并创建入口 |
 | **新建 thread 文件** | meta 或成员 | 从角色模板向当前 pack 添加成员 |
 | **管理 thread 文件** | meta 或成员 | 打开成员、设置入口、终止或重新激活成员 |
 | **切换 active thread role** | meta 或成员 | 在当前 pack 的 active 成员间循环切换；从 meta 或 terminated 成员进入入口 |

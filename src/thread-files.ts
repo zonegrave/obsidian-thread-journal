@@ -20,6 +20,7 @@ import {
 	renderThreadFileTemplate,
 } from './thread-template';
 import { nextActiveThreadRolePath } from './thread-switcher-model';
+import { threadStatusUsesMembers } from './thread-status-model';
 import type {
 	ThreadJournalSettings,
 	ThreadMemberInfo,
@@ -423,10 +424,16 @@ export class ThreadFileManager {
 			new Notice('当前文件不属于 thread。');
 			return;
 		}
+		if (!threadStatusUsesMembers(thread.status)) {
+			new Notice('构想或已承诺的 thread 只保留 meta；请先切换到执行状态。');
+			return;
+		}
 		void this.getRoleTemplates().then((templates) => {
 			new ThreadRoleTemplateModal(this.app, templates, (template) => {
 				new NewThreadFileModal(this.app, thread.title, template, async (title) => {
+					const hasEntry = Boolean(this.index.getEntry(threadFile));
 					const member = await this.createThreadFile(threadFile, template, title);
+					if (!hasEntry) await this.setEntry(threadFile, member, false, thread.id);
 					await this.openFile(member);
 					new Notice(`已创建 ${template.role} 文件：${member.basename}`);
 				}).open();

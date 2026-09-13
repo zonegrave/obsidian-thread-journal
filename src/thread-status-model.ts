@@ -26,6 +26,10 @@ export function isOperationalThreadStatus(value: string): value is OperationalTh
  return value === 'active' || value === 'dormant';
 }
 
+export function threadStatusUsesMembers(value: string): boolean {
+	return value !== 'idea' && value !== 'committed';
+}
+
 export function threadStatusLabel(value: string): string {
  return THREAD_STATUS_CHOICES.find(choice => choice.value === value)?.label || value || '未设状态';
 }

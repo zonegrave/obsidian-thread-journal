@@ -13,6 +13,7 @@ import {
 	THREAD_STATUS_CHOICES,
 	isOperationalThreadStatus,
 	isThreadStatus,
+	threadStatusUsesMembers,
 	threadStatusLabel,
 	threadStatusOptionLabel,
 	type ThreadStatus,
@@ -57,7 +58,7 @@ class NewThreadModal extends Modal {
 		private readonly onSubmit: (
 			title: string,
 			status: ThreadStatus,
-			template: ThreadRoleTemplate,
+			template?: ThreadRoleTemplate,
 		) => Promise<void>,
 	) {
 		super(app);
@@ -68,6 +69,11 @@ class NewThreadModal extends Modal {
 
 	onOpen(): void {
 		this.setTitle('新建 thread');
+		let entrySetting: Setting | undefined;
+		const needsEntry = (): boolean => threadStatusUsesMembers(this.status);
+		const updateEntryVisibility = (): void => {
+			entrySetting?.settingEl.toggleClass('is-hidden', !needsEntry());
+		};
 		new Setting(this.contentEl)
 			.setName('标题')
 			.addText((text) => {
@@ -89,11 +95,14 @@ class NewThreadModal extends Modal {
 					dropdown.addOption(choice.value, threadStatusOptionLabel(choice));
 				}
 				dropdown.setValue(this.status).onChange((value) => {
-					if (isThreadStatus(value)) this.status = value;
+					if (isThreadStatus(value)) {
+						this.status = value;
+						updateEntryVisibility();
+					}
 				});
 			});
 
-		new Setting(this.contentEl)
+		entrySetting = new Setting(this.contentEl)
 			.setName('入口模板')
 			.setDesc('模板中的 thread_role 决定入口文件角色。')
 			.addDropdown((dropdown) => {
@@ -104,6 +113,7 @@ class NewThreadModal extends Modal {
 					this.templatePath = value;
 				});
 			});
+		updateEntryVisibility();
 
 		new Setting(this.contentEl)
 			.addButton((button) => button
@@ -117,14 +127,18 @@ class NewThreadModal extends Modal {
 						return;
 					}
 					const template = this.templates.find((item) => item.file.path === this.templatePath);
-					if (!template) {
+					if (needsEntry() && !template) {
 						new Notice('请选择有效的入口模板。');
 						return;
 					}
 					this.creating = true;
 					button.setDisabled(true);
 					try {
-						await this.onSubmit(title, this.status, template);
+						await this.onSubmit(
+							title,
+							this.status,
+							needsEntry() ? template : undefined,
+						);
 						this.close();
 					} catch (error) {
 						console.error('Thread Journal failed to create thread', error);
@@ -280,6 +294,11 @@ export class ThreadCreator {
 			if (parentLink) metadata.parent = parentLink;
 			else delete metadata.parent;
 		});
+		if (!threadStatusUsesMembers(status)) {
+			await this.files.openFile(file);
+			new Notice(`已创建 ${title}`);
+			return file;
+		}
 		const selectedTemplate = template ?? (await this.files.getRoleTemplates())[0];
 		if (!selectedTemplate) throw new Error('没有可用的 thread 文件模板。');
 		const entry = await this.files.createThreadFile(
