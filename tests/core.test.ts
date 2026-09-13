@@ -59,6 +59,10 @@ import {
 	threadStatusOptionLabel,
 } from '../src/thread-status-model';
 import {
+	availableThreadParentIds,
+	wouldCreateThreadParentCycle,
+} from '../src/thread-parent-model';
+import {
 	describeOpenThreadRoles,
 	groupOpenThreadViews,
 	nextActiveThreadRolePath,
@@ -689,6 +693,20 @@ void test('supports only the eight current status values', () => {
 	assert.equal(threadStatusUsesMembers('idea'), false);
 	assert.equal(threadStatusUsesMembers('committed'), false);
 	assert.equal(threadStatusUsesMembers('active'), true);
+});
+
+void test('allows only operational non-descendants as a new thread parent', () => {
+	const nodes = [
+		{ id: 'root', status: 'active' },
+		{ id: 'current', status: 'active', parent: 'root' },
+		{ id: 'child', status: 'dormant', parent: 'current' },
+		{ id: 'other', status: 'dormant' },
+		{ id: 'paused', status: 'paused' },
+	];
+	assert.equal(wouldCreateThreadParentCycle(nodes, 'current', 'current'), true);
+	assert.equal(wouldCreateThreadParentCycle(nodes, 'current', 'child'), true);
+	assert.equal(wouldCreateThreadParentCycle(nodes, 'current', 'root'), false);
+	assert.deepEqual(availableThreadParentIds(nodes, 'current'), ['root', 'other']);
 });
 
 void test('groups and orders open thread views without duplicating logical threads', () => {

@@ -251,6 +251,7 @@ order: asc
 | **编辑 checkpoint 模板** | meta 或成员 | 编辑当前 thread 的独立字段模板 |
 | **创建 checkpoint** | meta 或成员 | 打开 checkpoint 侧栏表单 |
 | **设置 thread 状态** | meta 或成员 | 修改 meta 中的状态 |
+| **调整 thread parent** | meta 或成员 | 选择新的 active/dormant 父 thread，或将当前 thread 设为根节点 |
 
 ## 设置
 

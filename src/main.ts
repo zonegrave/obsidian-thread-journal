@@ -21,6 +21,7 @@ import {
 import { ThreadCreator } from './thread-creator';
 import { ThreadFileManager } from './thread-files';
 import { ThreadIndex } from './thread-index';
+import { ThreadParentManager } from './thread-parent';
 import { ThreadStatusManager } from './thread-status';
 import { ThreadSwitcherManager } from './thread-switcher';
 import type { ThreadJournalSettings } from './types';
@@ -31,6 +32,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	private creator!: ThreadCreator;
 	private renderers!: ThreadRenderers;
 	private files!: ThreadFileManager;
+	private parents!: ThreadParentManager;
 	private statuses!: ThreadStatusManager;
 	private checkpoints!: CheckpointManager;
 	private switcher!: ThreadSwitcherManager;
@@ -46,6 +48,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.index = new ThreadIndex(this.app);
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
 		this.switcher = new ThreadSwitcherManager(this.app, this.index, this.files);
+		this.parents = new ThreadParentManager(this.app, this.index);
 		this.statuses = new ThreadStatusManager(this.app, this.index);
 		this.breadcrumbs = new ThreadBreadcrumbManager(
 			this.app,
@@ -144,6 +147,16 @@ export default class ThreadJournalPlugin extends Plugin {
 			checkCallback: (checking) => {
 				if (!this.statuses.getCurrentThreadFile()) return false;
 				if (!checking) this.statuses.openCurrentStatusModal();
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'set-thread-parent',
+			name: '调整 thread parent',
+			checkCallback: (checking) => {
+				if (!this.parents.getCurrentThreadFile()) return false;
+				if (!checking) this.parents.openCurrentParentModal();
 				return true;
 			},
 		});
