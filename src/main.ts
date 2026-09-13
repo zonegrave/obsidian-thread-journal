@@ -120,10 +120,10 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerCommands(): void {
-		this.addCommand({ id: 'thread-overview', name: '打开 thread 总览', callback: () => openThreadOverview(this.app, this.index, this.statuses) });
+		this.addCommand({ id: 'thread-overview', name: 'Open thread overview', callback: () => openThreadOverview(this.app, this.index, this.statuses) });
 		this.addCommand({
 			id: 'edit-current-thread-checkpoint-template',
-			name: '编辑 checkpoint 模板',
+			name: 'Edit checkpoint template',
 			checkCallback: (checking) => {
 				if (!this.checkpoints.getCurrentThreadFile()) return false;
 				if (!checking) this.checkpoints.openCurrentCheckpointTemplateModal();
@@ -133,7 +133,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'create-current-thread-checkpoint',
-			name: '创建 checkpoint',
+			name: 'Create checkpoint',
 			checkCallback: (checking) => {
 				if (!this.checkpoints.canCreateCurrentCheckpoint()) return false;
 				if (!checking) this.checkpoints.openCurrentCheckpointModal();
@@ -143,7 +143,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'set-current-thread-status',
-			name: '设置 thread 状态',
+			name: 'Set thread status',
 			checkCallback: (checking) => {
 				if (!this.statuses.getCurrentThreadFile()) return false;
 				if (!checking) this.statuses.openCurrentStatusModal();
@@ -153,7 +153,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'set-thread-parent',
-			name: '调整 thread parent',
+			name: 'Change thread parent',
 			checkCallback: (checking) => {
 				if (!this.parents.getCurrentThreadFile()) return false;
 				if (!checking) this.parents.openCurrentParentModal();
@@ -163,7 +163,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'open-thread-workspace',
-			name: '切换 active thread role',
+			name: 'Switch active thread role',
 			checkCallback: (checking) => {
 				const file = this.currentThreadFile();
 				if (!file) return false;
@@ -179,7 +179,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'switch-open-thread',
-			name: '管理已打开的 thread',
+			name: 'Manage open threads',
 			callback: () => {
 				this.switcher.open();
 			},
@@ -187,7 +187,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'manage-thread-files',
-			name: '管理 thread 文件',
+			name: 'Manage thread files',
 			checkCallback: (checking) => {
 				const file = this.currentThreadFile();
 				if (!file) return false;
@@ -198,7 +198,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'new-thread-file',
-			name: '新建 thread 文件',
+			name: 'Create thread file',
 			checkCallback: (checking) => {
 				const file = this.currentThreadFile();
 				if (!file) return false;
@@ -209,7 +209,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'set-thread-entry',
-			name: '设为 thread 入口',
+			name: 'Set as thread entry',
 			checkCallback: (checking) => {
 				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
 				const threadFile = file ? this.index.getThreadForMember(file) : undefined;
@@ -232,7 +232,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'insert-inline-log',
-			name: '插入 inline log',
+			name: 'Insert inline log',
 			editorCheckCallback: (checking, editor, view) => {
 				const file = view.file;
 				const member = file ? this.index.getMember(file) : undefined;
@@ -253,7 +253,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'new-thread',
-			name: '新建 thread',
+			name: 'Create thread',
 			callback: () => {
 				this.creator.openNewThreadModal();
 			},
