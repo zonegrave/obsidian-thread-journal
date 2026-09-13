@@ -288,19 +288,6 @@ export class ThreadBreadcrumbManager {
 				const target = this.index.getEntry(item.file) ?? item.file;
 				void this.app.workspace.openLinkText(target.path, threadFile.path);
 			});
-			if (trailIndex === trail.length - 1) {
-				const status = path.createSpan({
-					cls: 'thread-journal-fixed-breadcrumb-status',
-					text: current.status || 'unset',
-					attr: { 'data-status': current.status || 'unset' },
-				});
-				this.setBarTooltip(
-					bar,
-					status,
-					`Status: ${current.status || 'unset'}`,
-				);
-			}
-
 			const children = filterBreadcrumbThreads(
 				this.index.getDirectChildren(item.file),
 				mounted.filter,
@@ -338,6 +325,12 @@ export class ThreadBreadcrumbManager {
 		}
 
 		const actions = bar.createDiv({ cls: 'thread-journal-fixed-breadcrumb-actions' });
+		const status = actions.createSpan({
+			cls: 'thread-journal-fixed-breadcrumb-status',
+			text: current.status || 'unset',
+			attr: { 'data-status': current.status || 'unset' },
+		});
+		this.setBarTooltip(bar, status, `Status: ${current.status || 'unset'}`);
 		const entry = this.index.getEntry(threadFile);
 		if (entry && entry.path !== currentFile.path) {
 			const entryButton = actions.createEl('button', {
