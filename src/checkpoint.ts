@@ -321,6 +321,14 @@ export class CheckpointManager {
 		return this.index.getThreadFile(file);
 	}
 
+	canCreateCurrentCheckpoint(): boolean {
+		const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+		if (!file) return false;
+		if (this.index.getThread(file)) return true;
+		const member = this.index.getMember(file);
+		return member?.roleStatus === 'active' && Boolean(this.index.getThreadForMember(file));
+	}
+
 	private openCheckpointForm(
 		threadFile: TFile,
 		fields: CheckpointFieldSpec[],
@@ -460,7 +468,13 @@ export class CheckpointManager {
 			new Notice('当前文件不属于 thread。');
 			return;
 		}
-		const originMember = activeFile && this.index.getThreadForMember(activeFile)
+		const member = activeFile ? this.index.getMember(activeFile) : undefined;
+		if (member?.roleStatus === 'terminated') {
+			new Notice('当前 thread role 已终止，不能在其中创建 checkpoint。');
+			return;
+		}
+		const originMember = activeFile && member?.roleStatus === 'active'
+			&& this.index.getThreadForMember(activeFile)
 			? activeFile
 			: undefined;
 		const frontmatter = originMember

@@ -28,10 +28,13 @@ export interface ThreadInfo {
 	parentLink?: string;
 }
 
+export type ThreadRoleStatus = 'active' | 'terminated';
+
 export interface ThreadMemberInfo {
 	file: TFile;
 	threadId: string;
 	role: string;
+	roleStatus: ThreadRoleStatus;
 }
 
 export interface ThreadJournalSettings {

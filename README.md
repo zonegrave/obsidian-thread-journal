@@ -22,9 +22,9 @@ Thread 表示一条可以暂停、恢复、分叉并最终结束的工作脉络�
 ```text
 thread meta（唯一）
   ├─ entry → 当前默认入口文件
-  ├─ workspace（默认角色）
-  ├─ context（可选角色）
-  ├─ research（自定义角色）
+  ├─ workspace · active（默认角色）
+  ├─ context · active（可选角色）
+  ├─ research · terminated（已结束但保留）
   └─ 任意其他成员文件
 ```
 
@@ -79,14 +79,16 @@ created: 2026-09-13
 ---
 thread_id: 3e9b3f36-7f7d-4205-97b0-82c533155eb0
 thread_role: research
+thread_role_status: active
 created: 2026-09-13
 ---
 ```
 
 - `thread_role` 是任意字符串；省略时按 `workspace` 显示。
+- `thread_role_status` 只有 `active` 和 `terminated`；省略时视为 `active`。终止只结束这个工作切片，不删除文件或整个 thread。
 - 成员可以保留模板自己的普通 `type`，但不能使用 `type: thread`，因为只有 meta 是 thread 身份来源。
 - 文件名、路径和正文结构不参与身份判断，改名或移动后仍由 `thread_id` 归属。
-- Log、checkpoint 和任务可以分布在任意成员中；查询和总览会按 pack 汇总。
+- Log 和 checkpoint 可以分布在任意成员中；terminated 成员的历史记录仍会被查询。任务总览只统计 meta 与 active 成员，避免已经结束的工作切片留下陈旧任务。
 
 ## 角色模板
 
@@ -95,6 +97,7 @@ created: 2026-09-13
 ```markdown
 ---
 thread_role: context
+thread_role_status: active
 ---
 
 # 项目概况
@@ -111,6 +114,7 @@ thread_role: context
 ```yaml
 ---
 thread_role: workspace
+thread_role_status: active
 ---
 ```
 
@@ -118,12 +122,12 @@ thread_role: workspace
 
 - `{{title}}`、`{{thread_title}}`
 - `{{filename}}`
-- `{{thread_id}}`、`{{thread_role}}`
+- `{{thread_id}}`、`{{thread_role}}`、`{{thread_role_status}}`
 - `{{status}}`
 - `{{parent}}`、`{{parent_title}}`
 - `{{created}}`、`{{date}}`、`{{date:YYMMDD}}` 等日期格式
 
-创建成员后，插件会强制写入正确的 `thread_id`、`thread_role` 和 `created`，并移除模板中的 thread 级字段，例如 `status`、`parent`、`entry` 与 `checkpoint_fields`。
+创建成员后，插件会强制写入正确的 `thread_id`、`thread_role`、`thread_role_status: active` 和 `created`，并移除模板中的 thread 级字段，例如 `status`、`parent`、`entry` 与 `checkpoint_fields`。
 
 ## Pack 内导航
 
@@ -131,7 +135,7 @@ thread_role: workspace
 
 - 左侧展示 thread 树；根节点、祖先和子 thread 都打开各自的入口文件。
 - 入口以外的成员会出现首页按钮，可一键返回当前 thread 的入口。
-- 文件按钮显示成员数量，并打开 **管理 thread 文件**；选择成员可跳转，也可直接把它设为入口。
+- 文件按钮显示成员数量，并打开 **管理 thread 文件**；选择成员可跳转，也可设置入口、终止非入口成员或重新激活成员。terminated 成员排在底部且不能成为入口。
 - thread 树图标打开 **管理已打开的 thread**。它按 `thread_id` 合并当前窗口的所有已打开标签，显示角色组成，可打开入口、管理文件或关闭该 thread 的全部标签。
 - 最右侧在“投入中”和“全部”之间切换树菜单范围。
 
@@ -139,7 +143,7 @@ thread_role: workspace
 
 ## Log
 
-**插入 inline log** 可在任意 thread 成员的编辑视图中使用。它在光标处插入一个可查询 callout：
+**插入 inline log** 可在任意 active thread 成员的编辑视图中使用。它在光标处插入一个可查询 callout：
 
 ```markdown
 > [!thread-log] 09-13 14:35
@@ -153,7 +157,7 @@ thread_role: workspace
 
 ## Checkpoint
 
-**创建 checkpoint** 可从 meta 或任意成员运行：
+**创建 checkpoint** 可从 meta 或 active 成员运行：
 
 - 从成员运行时，记录插入光标位置。
 - 从 meta 运行时，记录追加到当前入口末尾。
@@ -238,12 +242,12 @@ order: asc
 | --- | --- | --- |
 | **新建 thread** | 任意位置 | 选择父 thread、状态和入口模板，创建 meta 与初始入口 |
 | **新建 thread 文件** | meta 或成员 | 从角色模板向当前 pack 添加成员 |
-| **管理 thread 文件** | meta 或成员 | 打开成员或将成员设为入口 |
-| **打开 thread 入口** | meta 或成员 | 聚焦当前 meta 指定的入口 |
+| **管理 thread 文件** | meta 或成员 | 打开成员、设置入口、终止或重新激活成员 |
+| **切换 active thread role** | meta 或成员 | 在当前 pack 的 active 成员间循环切换；从 meta 或 terminated 成员进入入口 |
 | **设为 thread 入口** | 非入口成员 | 将当前成员设为唯一入口 |
 | **管理已打开的 thread** | 任意位置 | 按 thread 管理当前窗口里的标签 |
 | **打开 thread 总览** | 任意位置 | 查看状态、子树任务提示并定位原任务 |
-| **插入 inline log** | 成员编辑视图 | 在光标处插入 log |
+| **插入 inline log** | active 成员编辑视图 | 在光标处插入 log |
 | **编辑 checkpoint 模板** | meta 或成员 | 编辑当前 thread 的独立字段模板 |
 | **创建 checkpoint** | meta 或成员 | 打开 checkpoint 侧栏表单 |
 | **设置 thread 状态** | meta 或成员 | 修改 meta 中的状态 |

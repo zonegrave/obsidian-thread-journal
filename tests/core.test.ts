@@ -60,6 +60,7 @@ import {
 import {
 	describeOpenThreadRoles,
 	groupOpenThreadViews,
+	nextActiveThreadRolePath,
 	openThreadViewsForFile,
 	orderOpenThreadGroups,
 } from '../src/thread-switcher-model';
@@ -243,7 +244,12 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 			entry: '[[睡眠管理|入口]]',
 		}],
 		[entry, { thread_id: 'thread-1' }],
-		[research, { type: 'source', thread_id: 'thread-1', thread_role: 'research' }],
+		[research, {
+			type: 'source',
+			thread_id: 'thread-1',
+			thread_role: 'research',
+			thread_role_status: 'terminated',
+		}],
 		[other, { thread_id: 'another-thread', thread_role: 'workspace' }],
 	]);
 	const app = {
@@ -252,18 +258,27 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 		},
 		metadataCache: {
 			getFileCache: (file: unknown) => ({ frontmatter: frontmatter.get(file) }),
-			getFirstLinkpathDest: (link: string) => link === '睡眠管理' ? entry : null,
+			getFirstLinkpathDest: (link: string) => {
+				if (link === '睡眠管理') return entry;
+				if (link === '睡眠研究') return research;
+				return null;
+			},
 		},
 	};
 	const index = new ThreadIndex(app as never);
 	assert.equal(index.getEntry(threadFile as never), entry);
 	assert.equal(index.getThreadForMember(research as never), threadFile);
 	assert.equal(index.getMember(entry as never)?.role, 'workspace');
+	assert.equal(index.getMember(entry as never)?.roleStatus, 'active');
 	assert.equal(index.getMember(research as never)?.role, 'research');
+	assert.equal(index.getMember(research as never)?.roleStatus, 'terminated');
 	assert.deepEqual(index.getMembersByThreadId('thread-1').map((item) => item.file), [research, entry]);
 	assert.equal(index.isEntry(entry as never), true);
 	assert.equal(index.isEntry(research as never), false);
 	assert.equal(index.getThread(threadFile as never)?.title, '已改名 thread');
+	const threadMetadata = frontmatter.get(threadFile);
+	if (threadMetadata) threadMetadata.entry = '[[睡眠研究]]';
+	assert.equal(index.getEntry(threadFile as never), undefined);
 });
 
 void test('uses aliases then the filename as the thread display name', () => {
@@ -289,13 +304,16 @@ void test('uses aliases then the filename as the thread display name', () => {
 });
 
 void test('uses a minimal default role template', () => {
-	assert.equal(DEFAULT_THREAD_ROLE_TEMPLATE, '---\nthread_role: workspace\n---\n');
+	assert.equal(
+		DEFAULT_THREAD_ROLE_TEMPLATE,
+		'---\nthread_role: workspace\nthread_role_status: active\n---\n',
+	);
 });
 
 void test('renders thread member template placeholders', () => {
 	const rendered = renderThreadFileTemplate([
 		'# {{title}}',
-		'{{status}} · {{filename}} · {{thread_id}} · {{thread_role}}',
+		'{{status}} · {{filename}} · {{thread_id}} · {{thread_role}} · {{thread_role_status}}',
 		'{{parent_title}} {{parent}}',
 		'{{date}} / {{date:YYMMDD}}',
 	].join('\n'), {
@@ -303,13 +321,14 @@ void test('renders thread member template placeholders', () => {
 		fileName: '睡眠管理',
 		threadId: 'stable-id',
 		role: 'research',
+		roleStatus: 'active',
 		status: 'idea',
 		parentTitle: '健康管理',
 		parentLink: '[[健康管理|健康管理]]',
 		created: '2026-08-31',
 	}, (format: string) => format === 'YYMMDD' ? '260831' : '2026-08-31');
 	assert.match(rendered, /^# 睡眠管理/m);
-	assert.match(rendered, /idea · 睡眠管理 · stable-id · research/);
+	assert.match(rendered, /idea · 睡眠管理 · stable-id · research · active/);
 	assert.match(rendered, /2026-08-31 \/ 260831/);
 });
 
@@ -670,11 +689,11 @@ void test('supports only the eight current status values', () => {
 
 void test('groups and orders open thread views without duplicating logical threads', () => {
 	const views = [
-		{ threadId: 'thread-a', role: 'workspace', filePath: 'a.md', target: 'a-entry', order: 0 },
+		{ threadId: 'thread-a', role: 'workspace', roleStatus: 'active' as const, filePath: 'a.md', target: 'a-entry', order: 0 },
 		{ threadId: 'thread-b', role: 'meta', filePath: 'b-meta.md', target: 'b-meta', order: 1 },
-		{ threadId: 'thread-a', role: 'research', filePath: 'a-research.md', target: 'a-research', order: 2 },
-		{ threadId: 'thread-c', role: 'workspace', filePath: 'c.md', target: 'c-entry', order: 3 },
-		{ threadId: 'thread-a', role: 'workspace', filePath: 'a.md', target: 'a-entry-copy', order: 4 },
+		{ threadId: 'thread-a', role: 'research', roleStatus: 'terminated' as const, filePath: 'a-research.md', target: 'a-research', order: 2 },
+		{ threadId: 'thread-c', role: 'workspace', roleStatus: 'active' as const, filePath: 'c.md', target: 'c-entry', order: 3 },
+		{ threadId: 'thread-a', role: 'workspace', roleStatus: 'active' as const, filePath: 'a.md', target: 'a-entry-copy', order: 4 },
 	];
 	const groups = groupOpenThreadViews(views);
 	assert.equal(groups.length, 3);
@@ -695,7 +714,25 @@ void test('groups and orders open thread views without duplicating logical threa
 		openThreadViewsForFile(threadA, 'a-research.md').map((view) => view.target),
 		['a-research'],
 	);
-	assert.equal(describeOpenThreadRoles(threadA), 'workspace ×2 + research');
+	assert.equal(
+		describeOpenThreadRoles(threadA),
+		'workspace · active ×2 + research · terminated',
+	);
+});
+
+void test('cycles only through active thread roles and enters the first active role from outside', () => {
+	const roles = [
+		{ path: 'entry.md', status: 'active' as const },
+		{ path: 'old-research.md', status: 'terminated' as const },
+		{ path: 'context.md', status: 'active' as const },
+	];
+	assert.equal(nextActiveThreadRolePath(roles, 'entry.md'), 'context.md');
+	assert.equal(nextActiveThreadRolePath(roles, 'context.md'), 'entry.md');
+	assert.equal(nextActiveThreadRolePath(roles, 'old-research.md'), 'entry.md');
+	assert.equal(
+		nextActiveThreadRolePath([{ path: 'old.md', status: 'terminated' }], 'old.md'),
+		undefined,
+	);
 });
 
 void test('resolves current wikilinks and aliases', () => {

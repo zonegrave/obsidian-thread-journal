@@ -22,7 +22,11 @@ export async function collectAttention(app: App, index: ThreadIndex): Promise<At
   const cache = app.metadataCache.getFileCache(file);
   const taskItems = cache?.listItems?.filter(item => item.task !== undefined) ?? [];
   if (!taskItems.length) continue;
-  const ownerFile = index.getThreadFile(file);
+  const thread = index.getThread(file);
+  const member = index.getMember(file);
+  const ownerFile = thread?.file ?? (member?.roleStatus === 'active'
+   ? index.getThreadForMember(file)
+   : undefined);
   const defaultOwner = ownerFile ? index.getThread(ownerFile)?.id : undefined;
   const lines = (await app.vault.cachedRead(file)).split('\n');
   for (const item of taskItems) {

@@ -1,6 +1,6 @@
 import type { App, TFile } from 'obsidian';
 import { stripWikiLink, wikiLinkAlias } from './core';
-import type { ThreadInfo, ThreadMemberInfo } from './types';
+import type { ThreadInfo, ThreadMemberInfo, ThreadRoleStatus } from './types';
 
 export interface ThreadParentCandidate {
 	file: TFile;
@@ -23,6 +23,10 @@ function textValue(value: unknown): string {
 function firstTextValue(value: unknown): string {
 	if (Array.isArray(value)) return value.map(textValue).find(Boolean) ?? '';
 	return textValue(value);
+}
+
+function threadRoleStatus(value: unknown): ThreadRoleStatus {
+	return textValue(value) === 'terminated' ? 'terminated' : 'active';
 }
 
 export class ThreadIndex {
@@ -59,6 +63,7 @@ export class ThreadIndex {
 			file,
 			threadId,
 			role: textValue(frontmatter.thread_role) || 'workspace',
+			roleStatus: threadRoleStatus(frontmatter.thread_role_status),
 		};
 	}
 
@@ -83,7 +88,12 @@ export class ThreadIndex {
 		const target = this.app.metadataCache.getFirstLinkpathDest(entryLink, threadFile.path);
 		const thread = this.getThread(threadFile);
 		const member = target ? this.getMember(target) : undefined;
-		return thread && target && member?.threadId === thread.id ? target : undefined;
+		return thread
+			&& target
+			&& member?.threadId === thread.id
+			&& member.roleStatus === 'active'
+			? target
+			: undefined;
 	}
 
 	isEntry(file: TFile): boolean {

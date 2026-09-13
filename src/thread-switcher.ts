@@ -217,6 +217,7 @@ export class ThreadSwitcherManager {
 		return {
 			threadId: thread.id,
 			role: member?.role ?? 'meta',
+			roleStatus: member?.roleStatus,
 			filePath: file.path,
 			target: leaf,
 			order,

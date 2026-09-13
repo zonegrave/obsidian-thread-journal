@@ -19,7 +19,12 @@ import {
 	DEFAULT_THREAD_ROLE_TEMPLATE,
 	renderThreadFileTemplate,
 } from './thread-template';
-import type { ThreadJournalSettings, ThreadMemberInfo } from './types';
+import { nextActiveThreadRolePath } from './thread-switcher-model';
+import type {
+	ThreadJournalSettings,
+	ThreadMemberInfo,
+	ThreadRoleStatus,
+} from './types';
 import { leafFilePath } from './workspace-leaf';
 
 export interface ThreadRoleTemplate {
@@ -161,6 +166,7 @@ class ThreadFilesModal extends FuzzySuggestModal<ThreadMemberCandidate> {
 		private readonly candidates: ThreadMemberCandidate[],
 		private readonly onOpenFile: (file: TFile) => void,
 		private readonly onSetEntry: (file: TFile) => void,
+		private readonly onSetStatus: (file: TFile, status: ThreadRoleStatus) => void,
 	) {
 		super(app);
 		this.setPlaceholder(`管理 ${title} 的文件`);
@@ -171,7 +177,12 @@ class ThreadFilesModal extends FuzzySuggestModal<ThreadMemberCandidate> {
 	}
 
 	getItemText(item: ThreadMemberCandidate): string {
-		return `${item.member.file.basename} ${item.member.role} ${item.entry ? '入口' : ''}`;
+		return [
+			item.member.file.basename,
+			item.member.role,
+			item.member.roleStatus,
+			item.entry ? '入口' : '',
+		].join(' ');
 	}
 
 	renderSuggestion(match: FuzzyMatch<ThreadMemberCandidate>, el: HTMLElement): void {
@@ -179,8 +190,11 @@ class ThreadFilesModal extends FuzzySuggestModal<ThreadMemberCandidate> {
 		el.addClass('thread-journal-thread-file-suggestion');
 		const copy = el.createDiv({ cls: 'thread-journal-thread-file-copy' });
 		copy.createDiv({ text: `${candidate.member.file.basename}${candidate.entry ? ' · 入口' : ''}` });
-		copy.createDiv({ cls: 'suggestion-note', text: candidate.member.role });
-		if (!candidate.entry) {
+		copy.createDiv({
+			cls: 'suggestion-note',
+			text: `${candidate.member.role} · ${candidate.member.roleStatus}`,
+		});
+		if (!candidate.entry && candidate.member.roleStatus === 'active') {
 			const entry = el.createEl('button', {
 				cls: 'thread-journal-thread-file-entry',
 				text: '设为入口',
@@ -195,6 +209,26 @@ class ThreadFilesModal extends FuzzySuggestModal<ThreadMemberCandidate> {
 				event.stopPropagation();
 				this.close();
 				this.onSetEntry(candidate.member.file);
+			});
+		}
+		if (!candidate.entry) {
+			const nextStatus: ThreadRoleStatus = candidate.member.roleStatus === 'active'
+				? 'terminated'
+				: 'active';
+			const status = el.createEl('button', {
+				cls: 'thread-journal-thread-file-status',
+				text: nextStatus === 'active' ? '重新激活' : '终止',
+				attr: { type: 'button', tabindex: '-1' },
+			});
+			status.addEventListener('mousedown', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+			});
+			status.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				this.close();
+				this.onSetStatus(candidate.member.file, nextStatus);
 			});
 		}
 	}
@@ -246,6 +280,7 @@ export class ThreadFileManager {
 			fileName: path.split('/').at(-1)?.replace(/\.md$/u, '') ?? title,
 			threadId: thread.id,
 			role: template.role,
+			roleStatus: 'active',
 			status: thread.status,
 			parentLink: thread.parentLink,
 			parentTitle: creationContext?.parentTitle ?? this.index.getParent(threadFile)?.label,
@@ -257,6 +292,7 @@ export class ThreadFileManager {
 			if (metadata.type === 'thread') delete metadata.type;
 			metadata.thread_id = thread.id;
 			metadata.thread_role = template.role;
+			metadata.thread_role_status = 'active';
 			metadata.created = scalarText(metadata.created) || created;
 			delete metadata.status;
 			delete metadata.parent;
@@ -282,6 +318,9 @@ export class ThreadFileManager {
 		if (!threadId || invalidMeta || invalidMember) {
 			throw new Error('入口文件必须属于当前 thread。');
 		}
+		if (member?.roleStatus === 'terminated') {
+			throw new Error('terminated thread role 不能设为入口。');
+		}
 		const entryLink = this.app.fileManager.generateMarkdownLink(
 			memberFile,
 			threadFile.path,
@@ -294,6 +333,49 @@ export class ThreadFileManager {
 		if (notify) new Notice(`已将 ${memberFile.basename} 设为 thread 入口。`);
 	}
 
+	async setRoleStatus(
+		threadFile: TFile,
+		memberFile: TFile,
+		status: ThreadRoleStatus,
+	): Promise<void> {
+		const thread = this.index.getThread(threadFile);
+		const member = this.index.getMember(memberFile);
+		if (!thread || member?.threadId !== thread.id) {
+			throw new Error('只能修改当前 thread 的成员文件。');
+		}
+		if (status === 'terminated' && this.index.isEntry(memberFile)) {
+			throw new Error('入口文件不能终止，请先设置新的入口。');
+		}
+		await this.app.fileManager.processFrontMatter(memberFile, (frontmatter) => {
+			(frontmatter as Record<string, unknown>).thread_role_status = status;
+		});
+		new Notice(`${memberFile.basename} 已设为 ${status}。`);
+	}
+
+	async switchActiveThreadRole(file: TFile): Promise<void> {
+		const threadFile = this.index.getThreadFile(file);
+		const thread = threadFile ? this.index.getThread(threadFile) : undefined;
+		if (!thread || !threadFile) throw new Error('当前文件不属于 thread。');
+		const entry = this.index.getEntry(threadFile);
+		const members = this.index.getMembersByThreadId(thread.id)
+			.filter((member) => member.roleStatus === 'active')
+			.sort((left, right) => {
+				const entryOrder = Number(right.file.path === entry?.path)
+					- Number(left.file.path === entry?.path);
+				return entryOrder || left.file.basename.localeCompare(right.file.basename);
+			});
+		const targetPath = nextActiveThreadRolePath(
+			members.map((member) => ({
+				path: member.file.path,
+				status: member.roleStatus,
+			})),
+			file.path,
+		);
+		const target = members.find((member) => member.file.path === targetPath);
+		if (!target) throw new Error('当前 thread 没有 active 成员文件。');
+		await this.openFile(target.file);
+	}
+
 	async openEntry(file: TFile): Promise<void> {
 		const threadFile = this.index.getThreadFile(file);
 		const entry = threadFile ? this.index.getEntry(threadFile) : undefined;
@@ -302,8 +384,9 @@ export class ThreadFileManager {
 	}
 
 	insertInlineLog(editor: Editor, memberFile: TFile): void {
-		if (!this.index.getThreadForMember(memberFile)) {
-			throw new Error('当前文件不是有效的 thread 成员。');
+		const member = this.index.getMember(memberFile);
+		if (member?.roleStatus !== 'active' || !this.index.getThreadForMember(memberFile)) {
+			throw new Error('只能在 active thread role 中插入 log。');
 		}
 		const cursor = editor.getCursor();
 		const frontmatter = this.app.metadataCache.getFileCache(memberFile)?.frontmatterPosition;
@@ -367,7 +450,13 @@ export class ThreadFileManager {
 				member,
 				entry: member.file.path === entry?.path,
 			}))
-			.sort((left, right) => Number(right.entry) - Number(left.entry));
+			.sort((left, right) => {
+				const entryOrder = Number(right.entry) - Number(left.entry);
+				if (entryOrder) return entryOrder;
+				const statusOrder = Number(left.member.roleStatus === 'terminated')
+					- Number(right.member.roleStatus === 'terminated');
+				return statusOrder || left.member.file.basename.localeCompare(right.member.file.basename);
+			});
 		if (candidates.length === 0) {
 			new Notice('当前 thread 没有成员文件。');
 			return;
@@ -381,6 +470,11 @@ export class ThreadFileManager {
 				console.error('Thread Journal failed to set entry', error);
 				new Notice(`设置 thread 入口失败：${String(error)}`);
 			}),
+			(member, status) => void this.setRoleStatus(threadFile, member, status)
+				.catch((error: unknown) => {
+					console.error('Thread Journal failed to update role status', error);
+					new Notice(`设置 thread role 状态失败：${String(error)}`);
+				}),
 		).open();
 	}
 

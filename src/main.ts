@@ -132,7 +132,7 @@ export default class ThreadJournalPlugin extends Plugin {
 			id: 'create-current-thread-checkpoint',
 			name: '创建 checkpoint',
 			checkCallback: (checking) => {
-				if (!this.checkpoints.getCurrentThreadFile()) return false;
+				if (!this.checkpoints.canCreateCurrentCheckpoint()) return false;
 				if (!checking) this.checkpoints.openCurrentCheckpointModal();
 				return true;
 			},
@@ -150,14 +150,14 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'open-thread-workspace',
-			name: '打开 thread 入口',
+			name: '切换 active thread role',
 			checkCallback: (checking) => {
 				const file = this.currentThreadFile();
 				if (!file) return false;
 				if (!checking) {
-					void this.files.openEntry(file).catch((error: unknown) => {
-						console.error('Thread Journal failed to open thread entry', error);
-						new Notice(`打开 thread 入口失败：${String(error)}`);
+					void this.files.switchActiveThreadRole(file).catch((error: unknown) => {
+						console.error('Thread Journal failed to switch active thread role', error);
+						new Notice(`切换 active thread role 失败：${String(error)}`);
 					});
 				}
 				return true;
@@ -200,7 +200,13 @@ export default class ThreadJournalPlugin extends Plugin {
 			checkCallback: (checking) => {
 				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
 				const threadFile = file ? this.index.getThreadForMember(file) : undefined;
-				if (!file || !threadFile || this.index.isEntry(file)) return false;
+				const member = file ? this.index.getMember(file) : undefined;
+				if (
+					!file
+					|| !threadFile
+					|| member?.roleStatus !== 'active'
+					|| this.index.isEntry(file)
+				) return false;
 				if (!checking) {
 					void this.files.setEntry(threadFile, file).catch((error: unknown) => {
 						console.error('Thread Journal failed to set thread entry', error);
@@ -216,7 +222,10 @@ export default class ThreadJournalPlugin extends Plugin {
 			name: '插入 inline log',
 			editorCheckCallback: (checking, editor, view) => {
 				const file = view.file;
-				if (!file || !this.index.getThreadForMember(file)) return false;
+				const member = file ? this.index.getMember(file) : undefined;
+				if (!file || member?.roleStatus !== 'active' || !this.index.getThreadForMember(file)) {
+					return false;
+				}
 				if (!checking) {
 					try {
 						this.files.insertInlineLog(editor, file);
