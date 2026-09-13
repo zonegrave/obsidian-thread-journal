@@ -289,6 +289,18 @@ export class ThreadBreadcrumbManager {
 				const target = this.index.getEntry(item.file) ?? item.file;
 				void this.app.workspace.openLinkText(target.path, threadFile.path);
 			});
+			if (trailIndex === trail.length - 1) {
+				const status = path.createSpan({
+					cls: 'thread-journal-fixed-breadcrumb-status',
+					text: current.status || '未设',
+					attr: { 'data-status': current.status || 'unset' },
+				});
+				this.setBarTooltip(
+					bar,
+					status,
+					`状态：${current.status || '未设'} — ${threadStatusLabel(current.status)}`,
+				);
+			}
 
 			const children = filterBreadcrumbThreads(
 				this.index.getDirectChildren(item.file),

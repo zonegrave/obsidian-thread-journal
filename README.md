@@ -133,7 +133,7 @@ thread_role_status: active
 
 每个 meta 和成员文件都会显示固定 Breadcrumb：
 
-- 左侧展示 thread 树；根节点、祖先和子 thread 都打开各自的入口文件。
+- 左侧展示 thread 树；根节点、祖先和子 thread 都打开各自的入口文件，当前 thread 名称后显示状态徽标。
 - 入口以外的成员会出现首页按钮，可一键返回当前 thread 的入口。
 - 文件按钮显示成员数量，并打开 **管理 thread 文件**；选择成员可跳转，也可设置入口、终止非入口成员或重新激活成员。terminated 成员排在底部且不能成为入口。
 - thread 树图标打开 **管理已打开的 thread**。它按 `thread_id` 合并当前窗口的所有已打开标签，显示角色组成，可打开入口、管理文件或关闭该 thread 的全部标签。
