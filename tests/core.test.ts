@@ -1,4 +1,9 @@
-import { todoDisposition, summarizeAttention, attentionHint } from '../src/thread-attention-model';
+import {
+	attentionHint,
+	filterAttentionTasks,
+	summarizeAttention,
+	todoDisposition,
+} from '../src/thread-attention-model';
 import {
 	breadcrumbMenuSide,
 	breadcrumbRightClearance,
@@ -816,6 +821,24 @@ void test('task readiness separates future, waiting, candidates, completion and 
  assert.equal(todoDisposition('-', '取消', '2026-09-09'), undefined);
  assert.equal(todoDisposition(' ', '', '2026-09-09'), undefined);
  assert.equal(todoDisposition('!', '自定义', '2026-09-09'), 'unknown');
+});
+
+void test('filters overview tasks to today active or all unfinished tasks', () => {
+	const tasks = [
+		{ id: 'ready', disposition: 'ready' as const },
+		{ id: 'future', disposition: 'future' as const },
+		{ id: 'waiting', disposition: 'waiting' as const },
+		{ id: 'candidate', disposition: 'candidate' as const },
+		{ id: 'unknown', disposition: 'unknown' as const },
+	];
+	assert.deepEqual(filterAttentionTasks(tasks, 'today').map((task) => task.id), ['ready']);
+	assert.deepEqual(filterAttentionTasks(tasks, 'all').map((task) => task.id), [
+		'ready',
+		'future',
+		'waiting',
+		'candidate',
+		'unknown',
+	]);
 });
 
 void test('subtree attention includes descendants but suspends frozen branches and deduplicates shared tasks', () => {

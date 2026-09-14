@@ -1080,6 +1080,27 @@
 	font-size: var(--font-ui-smaller);
 }
 
+.thread-journal-overview-task-scope {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-overview-task-scope select {
+	width: auto;
+	min-height: 1.8rem;
+	padding-block: 0.15rem;
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-overview-expand-tasks {
+	min-height: 1.8rem;
+	padding: 0.2rem 0.55rem;
+	font-size: var(--font-ui-smaller);
+}
+
 .thread-journal-overview-map-scroll {
 	max-height: min(72vh, 820px);
 	overflow: auto;

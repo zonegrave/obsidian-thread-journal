@@ -1,4 +1,5 @@
 export type TodoDisposition = 'ready' | 'future' | 'waiting' | 'candidate' | 'unknown';
+export type TaskScope = 'today' | 'all';
 export interface AttentionTask {
  key: string;
  owner: string;
@@ -18,6 +19,15 @@ export interface AttentionSummary {
  unknown: number;
  suspended: number;
  cycle: boolean;
+}
+
+export function filterAttentionTasks<T extends { disposition: TodoDisposition }>(
+ tasks: readonly T[],
+ scope: TaskScope,
+): T[] {
+ return scope === 'today'
+  ? tasks.filter(task => task.disposition === 'ready')
+  : [...tasks];
 }
 
 // Uses Obsidian's parsed task marker; code fences and ordinary lists are excluded by the caller.
