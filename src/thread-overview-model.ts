@@ -13,6 +13,13 @@ export interface ThreadOverviewNode {
 	children: ThreadOverviewNode[];
 }
 
+export function countThreadOverviewDescendants(node: ThreadOverviewNode): number {
+	return node.children.reduce(
+		(total, child) => total + 1 + countThreadOverviewDescendants(child),
+		0,
+	);
+}
+
 function compareItems(left: ThreadOverviewItem, right: ThreadOverviewItem): number {
 	return left.title.localeCompare(right.title) || left.id.localeCompare(right.id);
 }

@@ -10,6 +10,7 @@ import { attentionHint, type TodoDisposition } from './thread-attention-model';
 import type { ThreadIndex } from './thread-index';
 import {
 	buildThreadOverviewTree,
+	countThreadOverviewDescendants,
 	DEFAULT_THREAD_OVERVIEW_STATUSES,
 	type ThreadOverviewNode,
 } from './thread-overview-model';
@@ -235,16 +236,19 @@ class OverviewContent extends MarkdownRenderChild {
 
 		const branchCollapsed = this.collapsedBranches.has(node.item.id);
 		if (node.children.length > 0) {
+			const descendantCount = countThreadOverviewDescendants(node);
 			const toggle = shell.createEl('button', {
 				cls: 'clickable-icon thread-journal-overview-branch-toggle',
 				attr: {
 					type: 'button',
+					'data-collapsed': String(branchCollapsed),
 					'aria-label': branchCollapsed
-						? `Expand ${node.item.title} branches`
+						? `Expand ${node.item.title} branches (${descendantCount} hidden threads)`
 						: `Collapse ${node.item.title} branches`,
 				},
 			});
-			setIcon(toggle, branchCollapsed ? 'plus' : 'minus');
+			if (branchCollapsed) toggle.setText(`+${descendantCount}`);
+			else setIcon(toggle, 'minus');
 			toggle.addEventListener('click', () => {
 				if (branchCollapsed) this.collapsedBranches.delete(node.item.id);
 				else this.collapsedBranches.add(node.item.id);

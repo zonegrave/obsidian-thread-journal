@@ -1347,6 +1347,14 @@
 	transform: translateY(-50%);
 }
 
+.thread-journal-overview-branch-toggle[data-collapsed="true"] {
+	width: auto;
+	min-width: 1.9rem;
+	padding-inline: 0.4rem;
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
 .thread-journal-overview-filter[data-status="active"],
 .thread-journal-overview-node[data-status="active"],
 .thread-journal-overview-filter[data-status="completed"],

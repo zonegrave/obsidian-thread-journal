@@ -64,6 +64,7 @@ import {
 import { replaceThreadDisplayAlias } from '../src/thread-meta-model';
 import {
 	buildThreadOverviewTree,
+	countThreadOverviewDescendants,
 	DEFAULT_THREAD_OVERVIEW_STATUSES,
 } from '../src/thread-overview-model';
 import {
@@ -740,6 +741,7 @@ void test('builds a filtered thread tree while retaining structural ancestors', 
 		{ id: 'paused-root', contextOnly: true, children: ['active-child'] },
 	]);
 	assert.equal(tree[1]?.children[0]?.contextOnly, false);
+	assert.equal(tree[1] ? countThreadOverviewDescendants(tree[1]) : -1, 1);
 	assert.deepEqual(DEFAULT_THREAD_OVERVIEW_STATUSES, ['active', 'dormant']);
 });
 
