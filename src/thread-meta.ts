@@ -11,6 +11,7 @@ import type { ThreadFileManager } from './thread-files';
 import type { ThreadIndex } from './thread-index';
 import { replaceThreadDisplayAlias } from './thread-meta-model';
 import type { ThreadParentManager } from './thread-parent';
+import { t } from './i18n';
 import {
 	THREAD_STATUS_CHOICES,
 	isThreadStatus,
@@ -60,35 +61,35 @@ class ThreadMetaModal extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass('thread-journal-thread-meta-modal');
-		this.setTitle('Manage thread');
+		this.setTitle(t('Manage thread'));
 
 		new Setting(this.contentEl)
 			.setClass('thread-journal-thread-meta-identity')
-			.setName('Thread ID')
+			.setName(t('Thread ID'))
 			.setDesc(this.context.thread.id);
 		new Setting(this.contentEl)
 			.setClass('thread-journal-thread-meta-identity')
-			.setName('Meta file')
+			.setName(t('Meta file'))
 			.setDesc(this.context.thread.file.path)
 			.addButton((button) => button
-				.setButtonText('Open')
+				.setButtonText(t('Open'))
 				.onClick(() => {
 					this.close();
 					this.onOpenMeta();
 				}));
 
 		new Setting(this.contentEl)
-			.setName('Title')
-			.setDesc('Updates aliases[0] without renaming files.')
+			.setName(t('Title'))
+			.setDesc(t('Updates aliases[0] without renaming files.'))
 			.addText((text) => text
-				.setPlaceholder('Thread title')
+				.setPlaceholder(t('Thread title'))
 				.setValue(this.title)
 				.onChange((value) => {
 					this.title = value;
 				}));
 
 		new Setting(this.contentEl)
-			.setName('Status')
+			.setName(t('Status'))
 			.addDropdown((dropdown) => {
 				for (const choice of THREAD_STATUS_CHOICES) {
 					dropdown.addOption(choice.value, threadStatusOptionLabel(choice));
@@ -99,14 +100,14 @@ class ThreadMetaModal extends Modal {
 			});
 
 		new Setting(this.contentEl)
-			.setName('Parent')
-			.setDesc('Only active or dormant threads can become a new parent.')
+			.setName(t('Parent'))
+			.setDesc(t('Only active or dormant threads can become a new parent.'))
 			.addDropdown((dropdown) => {
-				dropdown.addOption('', 'None — root thread');
+				dropdown.addOption('', t('None — root thread'));
 				for (const candidate of this.context.parentCandidates) {
 					dropdown.addOption(
 						candidate.id,
-						`${candidate.title} — ${candidate.status || 'unset'}`,
+						`${candidate.title} — ${candidate.status || t('unset')}`,
 					);
 				}
 				dropdown.setValue(this.parentId).onChange((value) => {
@@ -115,10 +116,10 @@ class ThreadMetaModal extends Modal {
 			});
 
 		new Setting(this.contentEl)
-			.setName('Entry')
-			.setDesc('The default file opened for this thread.')
+			.setName(t('Entry'))
+			.setDesc(t('The default file opened for this thread.'))
 			.addDropdown((dropdown) => {
-				dropdown.addOption('', 'None');
+				dropdown.addOption('', t('None'));
 				for (const candidate of this.context.entryCandidates) {
 					dropdown.addOption(
 						candidate.file.path,
@@ -131,20 +132,23 @@ class ThreadMetaModal extends Modal {
 			});
 
 		new Setting(this.contentEl)
-			.setName('Checkpoint template')
+			.setName(t('Checkpoint template'))
 			.setDesc(this.context.checkpointTemplate)
 			.addButton((button) => button
-				.setButtonText('Edit')
+				.setButtonText(t('Edit'))
 				.onClick(() => {
 					this.close();
 					this.onEditCheckpointTemplate();
 				}));
 
 		new Setting(this.contentEl)
-			.setName('Thread files')
-			.setDesc(`${this.context.memberCount} member files · ${this.context.entryCandidates.length} active`)
+			.setName(t('Thread files'))
+			.setDesc(t('{members} member files · {active} active', {
+				members: this.context.memberCount,
+				active: this.context.entryCandidates.length,
+			}))
 			.addButton((button) => button
-				.setButtonText('Manage')
+				.setButtonText(t('Manage'))
 				.onClick(() => {
 					this.close();
 					this.onManageFiles();
@@ -153,10 +157,10 @@ class ThreadMetaModal extends Modal {
 		new Setting(this.contentEl)
 			.setClass('thread-journal-thread-meta-actions')
 			.addButton((button) => button
-				.setButtonText('Cancel')
+				.setButtonText(t('Cancel'))
 				.onClick(() => this.close()))
 			.addButton((button) => button
-				.setButtonText('Save changes')
+				.setButtonText(t('Save changes'))
 				.setCta()
 				.onClick(async () => {
 					if (this.saving) return;
@@ -172,7 +176,7 @@ class ThreadMetaModal extends Modal {
 						this.close();
 					} catch (error) {
 						console.error('Thread Journal failed to update thread metadata', error);
-						new Notice(`更新 thread meta 失败：${String(error)}`);
+						new Notice(t('Failed to update thread meta: {error}', { error: String(error) }));
 						this.saving = false;
 						button.setDisabled(false);
 					}
@@ -201,7 +205,7 @@ export class ThreadMetaManager {
 	openCurrentMetaModal(): void {
 		const threadFile = this.getCurrentThreadFile();
 		if (!threadFile) {
-			new Notice('当前文件不属于 thread。');
+			new Notice(t('The current file does not belong to a thread.'));
 			return;
 		}
 		this.openMetaModal(threadFile);
@@ -211,7 +215,7 @@ export class ThreadMetaManager {
 		const threadFile = this.index.getThreadFile(file);
 		const thread = threadFile ? this.index.getThread(threadFile) : undefined;
 		if (!threadFile || !thread) {
-			new Notice('当前文件不属于有效的 thread。');
+			new Notice(t('The current file does not belong to a valid thread.'));
 			return;
 		}
 		const parentFile = this.index.getParentFile(threadFile);
@@ -231,8 +235,8 @@ export class ThreadMetaManager {
 			entryCandidates: activeMembers,
 			memberCount: members.length,
 			checkpointTemplate: Array.isArray(ownFields)
-				? `Independent template · ${ownFields.length} fields`
-				: 'Uses the global default template',
+				? t('Independent template · {count} fields', { count: ownFields.length })
+				: t('Uses the global default template'),
 		};
 		new ThreadMetaModal(
 			this.app,
@@ -246,24 +250,24 @@ export class ThreadMetaManager {
 
 	private async save(threadFile: TFile, data: ThreadMetaFormData): Promise<void> {
 		const thread = this.index.getThread(threadFile);
-		if (!thread) throw new Error('Thread meta no longer exists.');
+		if (!thread) throw new Error(t('Thread meta no longer exists.'));
 		const title = data.title.trim();
-		if (!title) throw new Error('Title cannot be empty.');
+		if (!title) throw new Error(t('Title cannot be empty.'));
 
 		const parent = data.parentId ? this.index.getThreadById(data.parentId)?.file : undefined;
-		if (data.parentId && !parent) throw new Error('Selected parent no longer exists.');
+		if (data.parentId && !parent) throw new Error(t('The selected parent no longer exists.'));
 		this.parents.validateParent(threadFile, parent);
 
 		const entry = data.entryPath
 			? this.app.vault.getAbstractFileByPath(data.entryPath)
 			: undefined;
 		if (data.entryPath && !(entry instanceof TFile)) {
-			throw new Error('Selected entry no longer exists.');
+			throw new Error(t('The selected entry no longer exists.'));
 		}
 		if (entry instanceof TFile) {
 			const member = this.index.getMember(entry);
 			if (member?.threadId !== thread.id || member.roleStatus !== 'active') {
-				throw new Error('Entry must be an active member of this thread.');
+				throw new Error(t('Entry must be an active member of this thread.'));
 			}
 		}
 
@@ -292,6 +296,6 @@ export class ThreadMetaManager {
 			if (entryLink) metadata.entry = entryLink;
 			else delete metadata.entry;
 		});
-		new Notice(`已更新 ${title} 的 thread meta。`);
+		new Notice(t('Updated thread meta for {title}.', { title }));
 	}
 }

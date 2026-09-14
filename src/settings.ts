@@ -1,10 +1,12 @@
 import { App, PluginSettingTab, Setting, normalizePath } from 'obsidian';
 import { normalizeCheckpointFields } from './checkpoint-model';
 import { renderCheckpointFieldSettings } from './checkpoint-settings';
+import { t, type LanguageSetting } from './i18n';
 import type ThreadJournalPlugin from './main';
 import type { ThreadJournalSettings } from './types';
 
 export const DEFAULT_SETTINGS: ThreadJournalSettings = {
+	language: 'auto',
 	threadMetaFolder: '50-行动系统/Thread Meta',
 	threadFilesFolder: '50-行动系统/Thread Files',
 	threadRoleTemplatesFolder: 'Templates/Thread Roles',
@@ -19,6 +21,9 @@ export function normalizedSettings(
 	const raw = value ?? {};
 	const merged = { ...DEFAULT_SETTINGS, ...raw };
 	return {
+		language: ['auto', 'zh', 'en'].includes(merged.language)
+			? merged.language
+			: 'auto',
 		threadMetaFolder: normalizePath(
 			merged.threadMetaFolder.trim() || DEFAULT_SETTINGS.threadMetaFolder,
 		),
@@ -47,8 +52,23 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Thread meta 目录')
-			.setDesc('每个 thread 的身份、状态、父子关系与唯一入口保存在这里。')
+			.setName(t('Language'))
+			.setDesc(t('Choose the language used by Thread Journal. Command names update after reloading the plugin.'))
+			.addDropdown((dropdown) => dropdown
+				.addOption('auto', t('Follow Obsidian'))
+				.addOption('zh', t('Chinese'))
+				.addOption('en', t('English'))
+				.setValue(this.plugin.settings.language)
+				.onChange(async (value) => {
+					this.plugin.settings.language = ['zh', 'en'].includes(value)
+						? value as LanguageSetting
+						: 'auto';
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName(t('Thread meta folder'))
+			.setDesc(t('Each thread keeps its identity, status, parent relationship, and unique entry here.'))
 			.addText((text) => text
 				.setPlaceholder(DEFAULT_SETTINGS.threadMetaFolder)
 				.setValue(this.plugin.settings.threadMetaFolder)
@@ -58,8 +78,8 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Thread 文件目录')
-			.setDesc('通过角色模板新建的 thread 成员文件保存在这里。')
+			.setName(t('Thread files folder'))
+			.setDesc(t('Thread member files created from role templates are saved here.'))
 			.addText((text) => text
 				.setPlaceholder(DEFAULT_SETTINGS.threadFilesFolder)
 				.setValue(this.plugin.settings.threadFilesFolder)
@@ -69,8 +89,8 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Thread 角色模板目录')
-			.setDesc('目录中的 Markdown 模板会成为“新建 thread 文件”的可选角色。')
+			.setName(t('Thread role templates folder'))
+			.setDesc(t('Markdown templates in this folder become available when creating a thread file.'))
 			.addText((text) => text
 				.setPlaceholder(DEFAULT_SETTINGS.threadRoleTemplatesFolder)
 				.setValue(this.plugin.settings.threadRoleTemplatesFolder)
@@ -80,8 +100,8 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('默认入口模板')
-			.setDesc('新建 thread 时默认选中的角色模板；模板可通过 thread_role 定义任意角色。')
+			.setName(t('Default entry template'))
+			.setDesc(t('The initially selected role template when creating a thread. Its thread_role may define any role.'))
 			.addText((text) => text
 				.setPlaceholder(DEFAULT_SETTINGS.defaultThreadRoleTemplatePath)
 				.setValue(this.plugin.settings.defaultThreadRoleTemplatePath)
@@ -91,11 +111,11 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Breadcrumb 位置')
-			.setDesc('固定在 thread 正文区域的上方或下方。')
+			.setName(t('Breadcrumb position'))
+			.setDesc(t('Pin the breadcrumb above or below the thread document.'))
 			.addDropdown((dropdown) => dropdown
-				.addOption('top', '正文上方')
-				.addOption('bottom', '正文下方')
+				.addOption('top', t('Above document'))
+				.addOption('bottom', t('Below document'))
 				.setValue(this.plugin.settings.breadcrumbPosition)
 				.onChange(async (value) => {
 					this.plugin.settings.breadcrumbPosition = value === 'bottom' ? 'bottom' : 'top';

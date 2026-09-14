@@ -1,4 +1,5 @@
 import { checkpointFieldKey } from './checkpoint-model';
+import { t } from './i18n';
 import type { CheckpointFieldSpec } from './types';
 
 export type CheckpointValue = string | number | boolean;
@@ -269,7 +270,7 @@ function checkpointEntryRange(lines: string[], blockId: string): CheckpointEntry
 		const unquoted = unquote(line);
 		return /\[checkpoint::\s*true\]/.test(unquoted) && blockPattern.test(unquoted);
 	});
-	if (marker < 0) throw new Error(`Checkpoint 不存在：${blockId}`);
+	if (marker < 0) throw new Error(t('Checkpoint does not exist: {id}', { id: blockId }));
 	const calloutStart = marker > 0
 		&& /^\s*>\s*\[!thread-checkpoint\]/u.test(lines[marker - 1] ?? '')
 		? marker - 1

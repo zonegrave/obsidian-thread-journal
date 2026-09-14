@@ -5,6 +5,7 @@ import {
 	type ThreadParentNode,
 } from './thread-parent-model';
 import { isOperationalThreadStatus } from './thread-status-model';
+import { t } from './i18n';
 import type { ThreadInfo } from './types';
 
 export class ThreadParentManager {
@@ -31,7 +32,7 @@ export class ThreadParentManager {
 
 	validateParent(threadFile: TFile, parent?: TFile): void {
 		const thread = this.index.getThread(threadFile);
-		if (!thread) throw new Error('只能调整有效 thread meta 的父节点。');
+		if (!thread) throw new Error(t('Only a valid thread meta can have its parent changed.'));
 		const currentParent = this.index.getParentFile(threadFile);
 		if (currentParent?.path === parent?.path || (!currentParent && !parent)) {
 			return;
@@ -39,11 +40,11 @@ export class ThreadParentManager {
 		if (parent) {
 			const parentThread = this.index.getThread(parent);
 			if (!parentThread || !isOperationalThreadStatus(parentThread.status)) {
-				throw new Error('父 thread 必须是 active 或 dormant。');
+				throw new Error(t('The parent thread must be active or dormant.'));
 			}
 			const descendants = this.descendantPaths(threadFile);
 			if (parent.path === threadFile.path || descendants.has(parent.path)) {
-				throw new Error('不能把当前 thread 或其后代设为父节点。');
+				throw new Error(t('The current thread or one of its descendants cannot become its parent.'));
 			}
 		}
 	}

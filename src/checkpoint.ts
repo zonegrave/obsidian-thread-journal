@@ -30,6 +30,7 @@ import { CheckpointTemplateModal } from './checkpoint-template';
 import { buildCheckpointModalForm, getModalFormApi } from './modal-form';
 import type { ThreadIndex } from './thread-index';
 import { THREAD_STATUS_CHOICES, type ThreadStatus } from './thread-status-model';
+import { t } from './i18n';
 import type { CheckpointFieldSpec, ThreadJournalSettings } from './types';
 
 function checkpointBlockId(): string {
@@ -115,7 +116,7 @@ class CheckpointModal extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass('thread-journal-checkpoint-modal');
-		this.setTitle(this.initial ? '编辑 checkpoint' : '创建 checkpoint');
+		this.setTitle(this.initial ? t('Edit checkpoint') : t('Create checkpoint'));
 		this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-target',
 			text: this.threadTitle,
@@ -127,8 +128,8 @@ class CheckpointModal extends Modal {
 		new Setting(systemFields)
 			.setClass('thread-journal-checkpoint-form-field')
 			.setClass('is-compact')
-			.setName('日期')
-			.setDesc('Checkpoint 的发生日期。')
+			.setName(t('Date'))
+			.setDesc(t('The date when the checkpoint occurred.'))
 			.addText((text) => {
 				text.inputEl.type = 'date';
 				text.setValue(this.date).onChange((value) => {
@@ -139,8 +140,8 @@ class CheckpointModal extends Modal {
 		new Setting(systemFields)
 			.setClass('thread-journal-checkpoint-form-field')
 			.setClass('is-compact')
-			.setName('时间')
-			.setDesc('Checkpoint 的发生时间。')
+			.setName(t('Time'))
+			.setDesc(t('The time when the checkpoint occurred.'))
 			.addText((text) => {
 				text.inputEl.type = 'time';
 				text.setValue(this.time).onChange((value) => {
@@ -160,8 +161,8 @@ class CheckpointModal extends Modal {
 				.setClass(`is-${field.control}`)
 				.setName(`${field.label}${field.required ? ' *' : ''}`)
 				.setDesc(field.storage === 'inline'
-					? `可查询字段 · ${field.key}`
-					: `Checkpoint 正文 · ${field.key}`);
+					? t('Queryable field · {key}', { key: field.key })
+					: t('Checkpoint body · {key}', { key: field.key }));
 				switch (field.control) {
 				case 'textarea':
 					setting.addTextArea((text) => {
@@ -183,7 +184,7 @@ class CheckpointModal extends Modal {
 					break;
 				case 'select':
 					setting.addDropdown((dropdown) => {
-						if (!field.required) dropdown.addOption('', '未选择');
+						if (!field.required) dropdown.addOption('', t('Not selected'));
 						for (const option of field.options) dropdown.addOption(option, option);
 						const current = this.values[field.key];
 						if (
@@ -217,22 +218,22 @@ class CheckpointModal extends Modal {
 		const actions = new Setting(this.contentEl)
 			.setClass('thread-journal-checkpoint-actions');
 		actions.addButton((button) => button
-			.setButtonText(this.initial ? '保存修改' : '保存 checkpoint')
+			.setButtonText(this.initial ? t('Save changes') : t('Save checkpoint'))
 			.setCta()
 			.onClick(async () => {
 				if (this.saving) return;
 				if (!/^\d{4}-\d{2}-\d{2}$/.test(this.date)) {
-					new Notice('请填写有效的 checkpoint 日期。');
+					new Notice(t('Enter a valid checkpoint date.'));
 					return;
 				}
 				if (!/^\d{2}:\d{2}$/.test(this.time)) {
-					new Notice('请填写有效的 checkpoint 时间。');
+					new Notice(t('Enter a valid checkpoint time.'));
 					return;
 				}
 				const missing = this.fields.find((field) =>
 					field.required && !valueIsPresent(this.values[field.key]));
 				if (missing) {
-					new Notice(`请填写${missing.label}。`);
+					new Notice(t('Enter {field}.', { field: missing.label }));
 					return;
 				}
 				this.saving = true;
@@ -242,7 +243,7 @@ class CheckpointModal extends Modal {
 					this.close();
 				} catch (error) {
 					console.error('Thread Journal failed to save checkpoint', error);
-					new Notice(`保存 Checkpoint 失败：${String(error)}`);
+					new Notice(t('Failed to save checkpoint: {error}', { error: String(error) }));
 					this.saving = false;
 					button.setDisabled(false);
 				}
@@ -269,23 +270,27 @@ class CheckpointDeleteModal extends Modal {
 	}
 
 	onOpen(): void {
-		this.setTitle('删除 checkpoint');
-		const date = this.entry.values.checkpoint_date || '未填写日期';
+		this.setTitle(t('Delete checkpoint'));
+		const date = this.entry.values.checkpoint_date || t('No date entered');
 		const time = this.entry.values.checkpoint_time;
 		this.contentEl.createEl('p', {
-			text: `确定删除 ${date}${time ? ` ${time}` : ''} 的 checkpoint 吗？`,
+			text: t('Delete the checkpoint from {timestamp}?', {
+				timestamp: `${date}${time ? ` ${time}` : ''}`,
+			}),
 		});
 		this.contentEl.createEl('p', {
 			cls: 'mod-warning',
-			text: `只会删除 ${this.threadFile.basename} 中这条 checkpoint 的记录块。`,
+			text: t('Only this checkpoint block in {file} will be deleted.', {
+				file: this.threadFile.basename,
+			}),
 		});
 		const actions = new Setting(this.contentEl)
 			.setClass('thread-journal-checkpoint-actions');
 		actions.addButton((button) => button
-			.setButtonText('取消')
+			.setButtonText(t('Cancel'))
 			.onClick(() => this.close()));
 		actions.addButton((button) => button
-			.setButtonText('删除 checkpoint')
+			.setButtonText(t('Delete checkpoint'))
 			.setWarning()
 			.onClick(async () => {
 				if (this.deleting) return;
@@ -296,7 +301,7 @@ class CheckpointDeleteModal extends Modal {
 					this.close();
 				} catch (error) {
 					console.error('Thread Journal failed to delete checkpoint', error);
-					new Notice(`删除 checkpoint 失败：${String(error)}`);
+					new Notice(t('Failed to delete checkpoint: {error}', { error: String(error) }));
 					this.deleting = false;
 					button.setDisabled(false);
 				}
@@ -350,7 +355,7 @@ export class CheckpointManager {
 		};
 		void this.openCheckpointPanel(request).catch((error: unknown) => {
 			console.error('Thread Journal failed to open checkpoint side panel', error);
-			new Notice('Checkpoint 侧栏打开失败，已使用原表单。');
+			new Notice(t('Failed to open the checkpoint side panel; using the fallback form.'));
 			this.openFallbackCheckpointForm(threadTitle, fields, onSubmit, initial);
 		});
 	}
@@ -363,7 +368,7 @@ export class CheckpointManager {
 		);
 		await leaf.loadIfDeferred();
 		if (!(leaf.view instanceof CheckpointPanelView)) {
-			throw new Error('Checkpoint 侧栏视图未正确加载。');
+			throw new Error(t('The checkpoint side panel did not load correctly.'));
 		}
 		leaf.view.setForm(request);
 		await this.app.workspace.revealLeaf(leaf);
@@ -390,7 +395,10 @@ export class CheckpointManager {
 		const time = initial?.time || moment().format('HH:mm');
 		const values = checkpointFormValues(fields, date, time, initial?.values);
 		const definition = buildCheckpointModalForm(
-			`${initial ? '编辑' : '创建'} checkpoint · ${threadTitle}`,
+			t('{action} checkpoint · {title}', {
+				action: initial ? t('Edit') : t('Create'),
+				title: threadTitle,
+			}),
 			fields,
 			values,
 		);
@@ -400,11 +408,11 @@ export class CheckpointManager {
 			const nextDate = checkpointValue(data.checkpoint_date);
 			const nextTime = checkpointValue(data.checkpoint_time);
 			if (typeof nextDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
-				new Notice('Modal form 未返回有效的 checkpoint 日期。');
+				new Notice(t('Modal Form did not return a valid checkpoint date.'));
 				return;
 			}
 			if (typeof nextTime !== 'string' || !/^\d{2}:\d{2}$/.test(nextTime)) {
-				new Notice('Modal form 未返回有效的 checkpoint 时间。');
+				new Notice(t('Modal Form did not return a valid checkpoint time.'));
 				return;
 			}
 			const nextValues: Record<string, CheckpointValue | undefined> = {};
@@ -413,11 +421,11 @@ export class CheckpointManager {
 				await onSubmit(nextDate, nextTime, nextValues);
 			} catch (error) {
 				console.error('Thread Journal failed to save Modal Form checkpoint', error);
-				new Notice(`保存 Checkpoint 失败：${String(error)}`);
+				new Notice(t('Failed to save checkpoint: {error}', { error: String(error) }));
 			}
 		}).catch((error: unknown) => {
 			console.error('Thread Journal failed to open Modal Form', error);
-			new Notice('Modal form 打开失败，已使用内置表单。');
+			new Notice(t('Failed to open Modal Form; using the built-in form.'));
 			new CheckpointModal(
 				this.app,
 				threadTitle,
@@ -430,7 +438,7 @@ export class CheckpointManager {
 
 	openCheckpointTemplateModal(threadFile: TFile): void {
 		if (!this.index.getThread(threadFile)) {
-			new Notice('当前文件不是有效的 thread meta。');
+			new Notice(t('The current file is not a valid thread meta.'));
 			return;
 		}
 		const ownTemplate = threadCheckpointFields(this.app, threadFile);
@@ -454,7 +462,7 @@ export class CheckpointManager {
 					delete (metadata as Record<string, unknown>).checkpoint_fields;
 				});
 				const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
-				new Notice(`${title} 已改为使用全局默认模板。`);
+				new Notice(t('{title} now uses the global default template.', { title }));
 			},
 		).open();
 	}
@@ -464,12 +472,12 @@ export class CheckpointManager {
 		const activeFile = activeView?.file;
 		const threadFile = activeFile ? this.index.getThreadFile(activeFile) : undefined;
 		if (!threadFile) {
-			new Notice('当前文件不属于 thread。');
+			new Notice(t('The current file does not belong to a thread.'));
 			return;
 		}
 		const member = activeFile ? this.index.getMember(activeFile) : undefined;
 		if (member?.roleStatus === 'terminated') {
-			new Notice('当前 thread role 已终止，不能在其中创建 checkpoint。');
+			new Notice(t('The current thread role is terminated and cannot create checkpoints.'));
 			return;
 		}
 		const originMember = activeFile && member?.roleStatus === 'active'
@@ -493,7 +501,7 @@ export class CheckpointManager {
 	): Promise<void> {
 		const targetFile = originMember ?? this.index.getEntry(threadFile);
 		if (!targetFile) {
-			new Notice('当前 thread 没有有效入口文件，无法保存 checkpoint。');
+			new Notice(t('The current thread has no valid entry file for saving the checkpoint.'));
 			return;
 		}
 		const ownTemplate = threadCheckpointFields(this.app, threadFile);
@@ -522,23 +530,23 @@ export class CheckpointManager {
 					});
 				} catch (error) {
 					console.error('Thread Journal failed to update status after checkpoint', error);
-					new Notice(`Checkpoint 已保存，但状态更新失败：${String(error)}`);
+					new Notice(t('Checkpoint saved, but the status update failed: {error}', { error: String(error) }));
 					return;
 				}
 			}
 			const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
-			new Notice(`已为 ${title} 创建 checkpoint。`);
+			new Notice(t('Created a checkpoint for {title}.', { title }));
 		});
 	}
 
 	openCheckpointEditModal(sourceFile: TFile, entry: ParsedCheckpointEntry): void {
 		if (!entry.blockId) {
-			new Notice('这条 checkpoint 没有块 ID，无法安全编辑。');
+			new Notice(t('This checkpoint has no block ID and cannot be edited safely.'));
 			return;
 		}
 		const threadFile = this.index.getThreadForMember(sourceFile);
 		if (!threadFile) {
-			new Notice('无法根据 thread ID 定位 thread meta。');
+			new Notice(t('Cannot locate the thread meta from the thread ID.'));
 			return;
 		}
 		const ownTemplate = threadCheckpointFields(this.app, threadFile);
@@ -561,7 +569,7 @@ export class CheckpointManager {
 				await this.app.vault.process(sourceFile, (content) =>
 					replaceCheckpointEntry(content, entry.blockId ?? '', replacement));
 				const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
-				new Notice(`已更新 ${title} 的 checkpoint。`);
+				new Notice(t('Updated the checkpoint for {title}.', { title }));
 			},
 			{
 				date: entry.values.checkpoint_date || moment().format('YYYY-MM-DD'),
@@ -573,19 +581,19 @@ export class CheckpointManager {
 
 	openCheckpointDeleteModal(sourceFile: TFile, entry: ParsedCheckpointEntry): void {
 		if (!entry.blockId) {
-			new Notice('这条 checkpoint 没有块 ID，无法安全删除。');
+			new Notice(t('This checkpoint has no block ID and cannot be deleted safely.'));
 			return;
 		}
 		const threadFile = this.index.getThreadForMember(sourceFile);
 		if (!threadFile) {
-			new Notice('无法根据 thread ID 定位 thread meta。');
+			new Notice(t('Cannot locate the thread meta from the thread ID.'));
 			return;
 		}
 		new CheckpointDeleteModal(this.app, sourceFile, entry, async () => {
 			await this.app.vault.process(sourceFile, (content) =>
 				deleteCheckpointEntry(content, entry.blockId ?? ''));
 			const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
-			new Notice(`已删除 ${title} 的 checkpoint。`);
+			new Notice(t('Deleted the checkpoint for {title}.', { title }));
 		}).open();
 	}
 }

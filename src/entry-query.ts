@@ -83,16 +83,16 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 		if (!line || line.startsWith('#')) continue;
 		const separator = line.indexOf(':');
 		if (separator < 1) {
-			errors.push(`第 ${index + 1} 行不是 key: value 格式。`);
+			errors.push(t('Line {line} is not in key: value format.', { line: index + 1 }));
 			continue;
 		}
 		const key = line.slice(0, separator).trim();
 		if (!QUERY_KEYS.has(key)) {
-			errors.push(`不支持查询字段 ${key}。`);
+			errors.push(t('Unsupported query field: {key}.', { key }));
 			continue;
 		}
 		if (values.has(key)) {
-			errors.push(`查询字段 ${key} 重复。`);
+			errors.push(t('Query field {key} is duplicated.', { key }));
 			continue;
 		}
 		values.set(key, line.slice(separator + 1).trim());
@@ -103,7 +103,7 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 	if (rawThreadIds !== undefined) {
 		const parsed = listValues(rawThreadIds);
 		if (parsed.length === 0 || parsed.some((value) => value === 'all' || value === '*')) {
-			if (parsed.length > 1) errors.push('thread_id 的 all 不能与其他值同时使用。');
+			if (parsed.length > 1) errors.push(t('thread_id all cannot be combined with other values.'));
 		} else {
 			threadIds = [...new Set(parsed)];
 		}
@@ -120,12 +120,12 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 				date = { from: exact[1], to: exact[1] };
 			} else if (range?.[1] && range[2]) {
 				if (range[1] > range[2]) {
-					errors.push('date 范围的开始日期不能晚于结束日期。');
+					errors.push(t('The start date of a date range cannot be later than its end date.'));
 				} else {
 					date = { from: range[1], to: range[2] };
 				}
 			} else {
-				errors.push('date 只支持 YYYY-MM-DD 或 YYYY-MM-DD..YYYY-MM-DD。');
+				errors.push(t('date supports only YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD.'));
 			}
 		}
 	}
@@ -137,12 +137,12 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 		if (parsed.length > 0 && !parsed.some((value) => value === 'all' || value === '*')) {
 			const invalid = parsed.filter((value) => !ENTRY_TYPES.has(value as ThreadEntryType));
 			if (invalid.length > 0) {
-				errors.push(`不支持记录类型：${invalid.join('、')}。`);
+				errors.push(t('Unsupported entry types: {types}.', { types: invalid.join(', ') }));
 			} else {
 				types = [...new Set(parsed)] as ThreadEntryType[];
 			}
 		} else if (parsed.length > 1) {
-			errors.push('type 的 all 不能与其他值同时使用。');
+			errors.push(t('type all cannot be combined with other values.'));
 		}
 	}
 
@@ -151,7 +151,7 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 	if (rawGroupBy !== undefined) {
 		const parsed = unquote(rawGroupBy) as ThreadEntryGroupBy;
 		if (!GROUP_VALUES.has(parsed)) {
-			errors.push('group_by 只支持 none、thread 或 type。');
+			errors.push(t('group_by supports only none, thread, or type.'));
 		} else {
 			groupBy = parsed;
 		}
@@ -162,7 +162,7 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 	if (rawThreadDetail !== undefined) {
 		const parsed = unquote(rawThreadDetail) as ThreadEntryDetail;
 		if (!THREAD_DETAIL_VALUES.has(parsed)) {
-			errors.push('thread_detail 只支持 none、name 或 crumb。');
+			errors.push(t('thread_detail supports only none, name, or crumb.'));
 		} else {
 			threadDetail = parsed;
 		}
@@ -173,7 +173,7 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 	if (rawOrder !== undefined) {
 		const parsed = unquote(rawOrder) as ThreadEntryOrder;
 		if (!ORDER_VALUES.has(parsed)) {
-			errors.push('order 只支持 asc 或 desc。');
+			errors.push(t('order supports only asc or desc.'));
 		} else {
 			order = parsed;
 		}
@@ -184,3 +184,4 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 		errors,
 	};
 }
+import { t } from './i18n';

@@ -12,6 +12,7 @@ import {
 } from '../src/thread-breadcrumb-model';
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { resolveLocale, setLocale, translate } from '../src/i18n';
 import {
 	appendCheckpointEntry,
 	buildCheckpointEntry,
@@ -79,6 +80,14 @@ import {
 	openThreadViewsForFile,
 	orderOpenThreadGroups,
 } from '../src/thread-switcher-model';
+
+void test('resolves automatic language and translates interpolated UI text', () => {
+	assert.equal(resolveLocale('auto', 'zh-CN'), 'zh');
+	assert.equal(resolveLocale('auto', 'en-US'), 'en');
+	assert.equal(resolveLocale('zh', 'en-US'), 'zh');
+	assert.equal(translate('en', 'Created {title}', { title: 'Project' }), 'Created Project');
+	assert.equal(translate('zh', 'Created {title}', { title: '项目' }), '已创建 项目');
+});
 
 void test('builds safe thread member file names', () => {
 	assert.equal(buildThreadFileName('睡眠/管理'), '睡眠-管理');
@@ -900,6 +909,23 @@ void test('bottom breadcrumbs reserve space only for overlapping status bars', (
 		breadcrumbRightClearance(bar, { left: 1227, right: 1440, top: 900, bottom: 927 }),
 		0,
 	);
+});
+
+void test('localizes model-provided labels without changing stored values', () => {
+	setLocale('en');
+	try {
+		assert.equal(threadStatusLabel('active'), 'Active');
+		const dormant = THREAD_STATUS_CHOICES.find((choice) => choice.value === 'dormant');
+		assert.ok(dormant);
+		assert.equal(threadStatusOptionLabel(dormant), 'dormant — Dormant');
+		assert.deepEqual(
+			normalizeCheckpointFields(undefined).map((field) => field.label),
+			['Type', 'Summary'],
+		);
+		assert.match(parseThreadEntriesQuery('invalid').errors[0] ?? '', /^Line 1/);
+	} finally {
+		setLocale('zh');
+	}
 });
 
 void test('breadcrumb tooltips face the document area', () => {

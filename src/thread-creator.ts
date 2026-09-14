@@ -20,6 +20,7 @@ import {
 } from './thread-status-model';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager, ThreadRoleTemplate } from './thread-files';
+import { t } from './i18n';
 import type { ThreadJournalSettings } from './types';
 
 function stableThreadId(): string {
@@ -68,28 +69,28 @@ class NewThreadModal extends Modal {
 	private templatePath: string;
 
 	onOpen(): void {
-		this.setTitle('新建 thread');
+		this.setTitle(t('New thread'));
 		let entrySetting: Setting | undefined;
 		const needsEntry = (): boolean => threadStatusUsesMembers(this.status);
 		const updateEntryVisibility = (): void => {
 			entrySetting?.settingEl.toggleClass('is-hidden', !needsEntry());
 		};
 		new Setting(this.contentEl)
-			.setName('标题')
+			.setName(t('Title'))
 			.addText((text) => {
-				text.setPlaceholder('输入 thread 标题').onChange((value) => {
+				text.setPlaceholder(t('Enter a thread title')).onChange((value) => {
 					this.title = value;
 				});
 				window.setTimeout(() => text.inputEl.focus(), 0);
 			});
 
 		new Setting(this.contentEl)
-			.setName('父 thread')
-			.setDesc(this.parent?.path ?? '无父 thread（根节点）');
+			.setName(t('Parent thread'))
+			.setDesc(this.parent?.path ?? t('No parent thread (root)'));
 
 		new Setting(this.contentEl)
-			.setName('初始状态')
-			.setDesc('状态值使用英文，后附中文含义；默认 idea 不要求填写目标或 todo。')
+			.setName(t('Initial status'))
+			.setDesc(t('Status values remain in English; the localized meaning follows. idea does not require a goal or todo.'))
 			.addDropdown((dropdown) => {
 				for (const choice of THREAD_STATUS_CHOICES) {
 					dropdown.addOption(choice.value, threadStatusOptionLabel(choice));
@@ -103,8 +104,8 @@ class NewThreadModal extends Modal {
 			});
 
 		entrySetting = new Setting(this.contentEl)
-			.setName('入口模板')
-			.setDesc('模板中的 thread_role 决定入口文件角色。')
+			.setName(t('Entry template'))
+			.setDesc(t('The template thread_role determines the role of the entry file.'))
 			.addDropdown((dropdown) => {
 				for (const template of this.templates) {
 					dropdown.addOption(template.file.path, `${template.label} · ${template.role}`);
@@ -117,18 +118,18 @@ class NewThreadModal extends Modal {
 
 		new Setting(this.contentEl)
 			.addButton((button) => button
-				.setButtonText('创建')
+				.setButtonText(t('Create'))
 				.setCta()
 				.onClick(async () => {
 					if (this.creating) return;
 					const title = this.title.trim();
 					if (!title) {
-						new Notice('请先输入 thread 标题。');
+						new Notice(t('Enter a thread title first.'));
 						return;
 					}
 					const template = this.templates.find((item) => item.file.path === this.templatePath);
 					if (needsEntry() && !template) {
-						new Notice('请选择有效的入口模板。');
+						new Notice(t('Select a valid entry template.'));
 						return;
 					}
 					this.creating = true;
@@ -142,7 +143,7 @@ class NewThreadModal extends Modal {
 						this.close();
 					} catch (error) {
 						console.error('Thread Journal failed to create thread', error);
-						new Notice(`创建 thread 失败：${String(error)}`);
+						new Notice(t('Failed to create thread: {error}', { error: String(error) }));
 						this.creating = false;
 						button.setDisabled(false);
 					}
@@ -167,7 +168,7 @@ class ParentThreadModal extends FuzzySuggestModal<ParentChoice> {
 		private readonly onChoose: (parent?: TFile) => void,
 	) {
 		super(app);
-		this.setPlaceholder('搜索并选择父 thread');
+		this.setPlaceholder(t('Search and select a parent thread'));
 	}
 
 	getItems(): ParentChoice[] {
@@ -220,7 +221,7 @@ export class ThreadCreator {
 				preferred.push({
 					file: cursor,
 					title: thread.title,
-					detail: `${depth === 0 ? '当前 thread' : '祖先 thread'} · ${thread.status} — ${threadStatusLabel(thread.status)} · ${cursor.path}`,
+					detail: `${depth === 0 ? t('Current thread') : t('Ancestor thread')} · ${thread.status} — ${threadStatusLabel(thread.status)} · ${cursor.path}`,
 				});
 			}
 			cursor = this.index.getParentFile(cursor);
@@ -237,7 +238,7 @@ export class ThreadCreator {
 			.sort((left, right) => left.title.localeCompare(right.title));
 		return [
 			...preferred,
-			{ title: '无父 thread', detail: '创建根节点' },
+			{ title: t('No parent thread'), detail: t('Create a root thread') },
 			...others,
 		];
 	}
@@ -249,7 +250,7 @@ export class ThreadCreator {
 			}).open();
 		}).catch((error: unknown) => {
 			console.error('Thread Journal failed to load entry templates', error);
-			new Notice(`无法读取入口模板：${String(error)}`);
+			new Notice(t('Failed to read entry templates: {error}', { error: String(error) }));
 		});
 	}
 
@@ -262,8 +263,10 @@ export class ThreadCreator {
 		if (parent) {
 			const parentThread = this.index.getThread(parent);
 			if (!parentThread || !isOperationalThreadStatus(parentThread.status)) {
-				new Notice('只有 active 或 dormant thread 可以创建子 thread。');
-				throw new Error(`Thread cannot create children in its current status: ${parent.path}`);
+				new Notice(t('Only active or dormant threads can create child threads.'));
+				throw new Error(t('The thread cannot create children in its current status: {path}', {
+					path: parent.path,
+				}));
 			}
 		}
 		const settings = this.getSettings();
@@ -271,7 +274,9 @@ export class ThreadCreator {
 		await ensureFolder(this.app, folder);
 		const threadId = stableThreadId();
 		const path = normalizePath(`${folder}/${threadId}.md`);
-		if (this.app.vault.getAbstractFileByPath(path)) throw new Error(`Thread meta 已存在：${path}`);
+		if (this.app.vault.getAbstractFileByPath(path)) {
+			throw new Error(t('Thread meta already exists: {path}', { path }));
+		}
 		const parentLink = parent
 			? this.app.fileManager.generateMarkdownLink(
 				parent,
@@ -296,11 +301,11 @@ export class ThreadCreator {
 		});
 		if (!threadStatusUsesMembers(status)) {
 			await this.files.openFile(file);
-			new Notice(`已创建 ${title}`);
+			new Notice(t('Created {title}', { title }));
 			return file;
 		}
 		const selectedTemplate = template ?? (await this.files.getRoleTemplates())[0];
-		if (!selectedTemplate) throw new Error('没有可用的 thread 文件模板。');
+		if (!selectedTemplate) throw new Error(t('No thread file template is available.'));
 		const entry = await this.files.createThreadFile(
 			file,
 			selectedTemplate,
@@ -316,7 +321,7 @@ export class ThreadCreator {
 		);
 		await this.files.setEntry(file, entry, false, threadId);
 		await this.files.openFile(entry);
-		new Notice(`已创建 ${title}`);
+		new Notice(t('Created {title}', { title }));
 		return file;
 	}
 }

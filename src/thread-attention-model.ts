@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 export type TodoDisposition = 'ready' | 'future' | 'waiting' | 'candidate' | 'unknown';
 export type TaskScope = 'today' | 'all';
 export interface AttentionTask {
@@ -88,13 +90,19 @@ export function summarizeAttention(root: string, nodes: AttentionNode[], tasks: 
 }
 
 export function attentionHint(status: string, summary: AttentionSummary): string {
- if (summary.cycle) return '父子关系存在循环，请检查';
- if (status === 'idea') return '保留想法；决定投入后可设为已承诺';
- if (status === 'committed') return summary.open ? '已承诺，等待开始' : '已承诺；请明确承诺内容或下一步';
- if (status === 'active' && summary.open === 0) return '子树没有未完成 todo：补充下一步，或考虑休眠';
- if (status === 'dormant') return summary.ready ? '有可执行 todo，需要处理' : '按需记录，无需持续关注';
- if (status === 'paused') return '已冻结；保留事项，暂停投入';
- if (status === 'review') return '等待复盘与收尾';
- if (status === 'completed' || status === 'closed') return summary.open ? '仍保留未完成事项，请复核' : '保留历史';
- return summary.ready ? '有可执行 todo' : '当前无可执行 todo';
+ if (summary.cycle) return t('The parent relationship contains a cycle; check it');
+ if (status === 'idea') return t('Keep the idea; set it to committed when you decide to invest');
+ if (status === 'committed') return summary.open
+  ? t('Committed and waiting to begin')
+  : t('Committed; define the commitment or next action');
+ if (status === 'active' && summary.open === 0) return t('The subtree has no unfinished todo; add the next action or consider making it dormant');
+ if (status === 'dormant') return summary.ready
+  ? t('Ready todo needs attention')
+  : t('Record on demand; no continuous attention needed');
+ if (status === 'paused') return t('Frozen; retain items without investing attention');
+ if (status === 'review') return t('Waiting for review and wrap-up');
+ if (status === 'completed' || status === 'closed') return summary.open
+  ? t('Unfinished items remain; review them')
+  : t('Retain as history');
+ return summary.ready ? t('Ready todo available') : t('No ready todo');
 }

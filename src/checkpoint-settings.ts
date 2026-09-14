@@ -1,5 +1,6 @@
 import { Setting } from 'obsidian';
 import { cloneDefaultCheckpointFields } from './checkpoint-model';
+import { t } from './i18n';
 import type ThreadJournalPlugin from './main';
 import type { CheckpointFieldSpec } from './types';
 
@@ -19,10 +20,10 @@ export function renderCheckpointFieldSettings(
 	plugin: ThreadJournalPlugin,
 	refresh: () => void,
 ): void {
-	containerEl.createEl('h3', { text: '默认 checkpoint 模板' });
+	containerEl.createEl('h3', { text: t('Default checkpoint template') });
 	containerEl.createEl('p', {
 		cls: 'setting-item-description',
-		text: '未设置独立模板的 thread 使用这里的字段。废弃字段不再出现在新表单中，但仍用于解释历史 checkpoint，并统一排列在底部。',
+		text: t('Threads without an independent template use these fields. Deprecated fields are hidden from new forms, retained for historical checkpoints, and placed last.'),
 	});
 
 	plugin.settings.checkpointFields.forEach((field, index) => {
@@ -33,10 +34,10 @@ export function renderCheckpointFieldSettings(
 		});
 		new Setting(card)
 			.setName(field.label || field.key)
-			.setDesc(`${field.key}${field.deprecated ? ' · 已废弃' : ''}`)
+			.setDesc(`${field.key}${field.deprecated ? ` · ${t('Deprecated')}` : ''}`)
 			.addExtraButton((button) => button
 				.setIcon('arrow-up')
-				.setTooltip('上移')
+				.setTooltip(t('Move up'))
 				.setDisabled(!previous || previous.deprecated !== field.deprecated)
 				.onClick(async () => {
 					const fields = plugin.settings.checkpointFields;
@@ -51,7 +52,7 @@ export function renderCheckpointFieldSettings(
 				}))
 			.addExtraButton((button) => button
 				.setIcon('arrow-down')
-				.setTooltip('下移')
+				.setTooltip(t('Move down'))
 				.setDisabled(!next || next.deprecated !== field.deprecated)
 				.onClick(async () => {
 					const fields = plugin.settings.checkpointFields;
@@ -66,7 +67,7 @@ export function renderCheckpointFieldSettings(
 				}))
 			.addExtraButton((button) => button
 				.setIcon('trash-2')
-				.setTooltip('删除字段')
+				.setTooltip(t('Delete field'))
 				.onClick(async () => {
 					plugin.settings.checkpointFields.splice(index, 1);
 					await plugin.saveSettings();
@@ -74,33 +75,33 @@ export function renderCheckpointFieldSettings(
 				}));
 
 		new Setting(card)
-			.setName('显示名称')
+			.setName(t('Display name'))
 			.addText((text) => text
 				.setValue(field.label)
-				.setPlaceholder('摘要')
+				.setPlaceholder(t('Summary'))
 				.onChange(async (value) => {
 					await updateField(plugin, index, { label: value });
 				}));
 
 		new Setting(card)
-			.setName('字段键')
-			.setDesc('Dataview 查询时使用；checkpoint、checkpoint_date 和 checkpoint_time 为保留键。')
+			.setName(t('Field key'))
+			.setDesc(t('Used in Dataview queries. checkpoint, checkpoint_date, and checkpoint_time are reserved.'))
 			.addText((text) => text
 				.setValue(field.key)
-				.setPlaceholder('字段键')
+				.setPlaceholder(t('Field key'))
 				.onChange(async (value) => {
 					await updateField(plugin, index, { key: value });
 				}));
 
 		new Setting(card)
-			.setName('控件')
+			.setName(t('Control'))
 			.addDropdown((dropdown) => dropdown
-				.addOption('text', '单行文本')
-				.addOption('textarea', '多行文本')
-				.addOption('number', '数字')
-				.addOption('toggle', '开关')
-				.addOption('date', '日期')
-				.addOption('select', '选择项')
+				.addOption('text', t('Single-line text'))
+				.addOption('textarea', t('Multiline text'))
+				.addOption('number', t('Number'))
+				.addOption('toggle', t('Toggle'))
+				.addOption('date', t('Date'))
+				.addOption('select', t('Select'))
 				.setValue(field.control)
 				.onChange(async (value) => {
 					await updateField(plugin, index, {
@@ -110,11 +111,11 @@ export function renderCheckpointFieldSettings(
 				}));
 
 		new Setting(card)
-			.setName('保存位置')
-			.setDesc('可查询字段会写入 checkpoint 首行；正文字段显示为缩进内容。')
+			.setName(t('Storage'))
+			.setDesc(t('Queryable fields are written to the checkpoint header; body fields appear as indented content.'))
 			.addDropdown((dropdown) => dropdown
-				.addOption('inline', '可查询字段')
-				.addOption('body', 'Checkpoint 正文')
+				.addOption('inline', t('Queryable field'))
+				.addOption('body', t('Checkpoint body'))
 				.setValue(field.storage)
 				.onChange(async (value) => {
 					await updateField(plugin, index, {
@@ -123,7 +124,7 @@ export function renderCheckpointFieldSettings(
 				}));
 
 		new Setting(card)
-			.setName('必填')
+			.setName(t('Required'))
 			.addToggle((toggle) => toggle
 				.setValue(field.required)
 				.setDisabled(field.control === 'toggle' || field.deprecated)
@@ -132,8 +133,8 @@ export function renderCheckpointFieldSettings(
 				}));
 
 		new Setting(card)
-			.setName('废弃')
-			.setDesc('停止用于新 checkpoint；已有记录仍按实际数据展示。')
+			.setName(t('Deprecate'))
+			.setDesc(t('Stop using this field in new checkpoints. Existing records still display their saved data.'))
 			.addToggle((toggle) => toggle
 				.setValue(field.deprecated)
 				.onChange(async (value) => {
@@ -146,11 +147,11 @@ export function renderCheckpointFieldSettings(
 
 		if (field.control === 'select') {
 			new Setting(card)
-				.setName('选项')
-				.setDesc('使用英文逗号分隔；保存值与显示文字相同。')
+				.setName(t('Options'))
+				.setDesc(t('Separate options with commas. Saved values and displayed labels are identical.'))
 				.addText((text) => text
 					.setValue(field.options.join(', '))
-					.setPlaceholder('使用逗号分隔')
+					.setPlaceholder(t('Separate with commas'))
 					.onChange(async (value) => {
 						await updateField(plugin, index, {
 							options: value.split(',').map((item) => item.trim()).filter(Boolean),
@@ -160,15 +161,15 @@ export function renderCheckpointFieldSettings(
 	});
 
 	new Setting(containerEl)
-		.setName('自定义模板字段')
-		.setDesc('历史卡片只展示每条 checkpoint 当时实际保存的字段；模板不会补空值或改写历史。')
+		.setName(t('Custom template fields'))
+		.setDesc(t('Historical cards show only the fields saved at the time. The template does not add empty values or rewrite history.'))
 		.addButton((button) => button
-			.setButtonText('添加字段')
+			.setButtonText(t('Add field'))
 			.onClick(async () => {
 				const index = plugin.settings.checkpointFields.length + 1;
 				plugin.settings.checkpointFields.push({
 					key: `checkpoint_field_${index}`,
-					label: `自定义字段 ${index}`,
+					label: t('Custom field {index}', { index }),
 					control: 'text',
 					storage: 'inline',
 					required: false,
@@ -179,7 +180,7 @@ export function renderCheckpointFieldSettings(
 				refresh();
 			}))
 		.addButton((button) => button
-			.setButtonText('恢复精简默认模板')
+			.setButtonText(t('Restore minimal defaults'))
 			.onClick(async () => {
 				plugin.settings.checkpointFields = cloneDefaultCheckpointFields();
 				await plugin.saveSettings();

@@ -7,6 +7,7 @@ import type {
 	CheckpointValue,
 } from './checkpoint-core';
 import type { CheckpointFieldSpec } from './types';
+import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
 
 export const CHECKPOINT_PANEL_VIEW_TYPE = 'thread-journal-checkpoint-panel';
 
@@ -53,7 +54,7 @@ export class CheckpointPanelView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return 'Checkpoint 表单';
+		return t('Checkpoint form');
 	}
 
 	getIcon(): string {
@@ -67,6 +68,12 @@ export class CheckpointPanelView extends ItemView {
 			event.preventDefault();
 			void this.save();
 		});
+		const onLanguageChange = (): void => {
+			if (this.request) this.renderForm();
+			else this.renderEmpty();
+		};
+		window.addEventListener(LANGUAGE_CHANGE_EVENT, onLanguageChange);
+		this.register(() => window.removeEventListener(LANGUAGE_CHANGE_EVENT, onLanguageChange));
 		this.renderEmpty();
 	}
 
@@ -79,7 +86,7 @@ export class CheckpointPanelView extends ItemView {
 
 	setForm(request: CheckpointPanelRequest): boolean {
 		if (this.request && this.dirty) {
-			new Notice('Checkpoint 侧栏中还有未保存内容，请先保存或关闭。');
+			new Notice(t('The checkpoint side panel has unsaved changes. Save or close it first.'));
 			return false;
 		}
 		this.request = request;
@@ -125,10 +132,10 @@ export class CheckpointPanelView extends ItemView {
 
 	private renderEmpty(): void {
 		this.contentEl.empty();
-		this.contentEl.createEl('h4', { text: 'Checkpoint 表单' });
+		this.contentEl.createEl('h4', { text: t('Checkpoint form') });
 		this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-panel-empty',
-			text: '从任一 thread 文件运行“创建 checkpoint”，或在卡片上选择“编辑”。',
+			text: t('Run “Create checkpoint” from any thread file, or select “Edit” on a card.'),
 		});
 	}
 
@@ -141,7 +148,7 @@ export class CheckpointPanelView extends ItemView {
 		this.contentEl.empty();
 		this.contentEl.createEl('h4', {
 			cls: 'thread-journal-checkpoint-panel-title',
-			text: request.mode === 'edit' ? '编辑 checkpoint' : '创建 checkpoint',
+			text: request.mode === 'edit' ? t('Edit checkpoint') : t('Create checkpoint'),
 		});
 		this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-panel-target',
@@ -151,10 +158,10 @@ export class CheckpointPanelView extends ItemView {
 		const systemFields = this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-panel-system-fields',
 		});
-		this.addTextField(systemFields, 'checkpoint-date', '日期', 'date', this.date, (value) => {
+		this.addTextField(systemFields, 'checkpoint-date', t('Date'), 'date', this.date, (value) => {
 			this.date = value;
 		});
-		this.addTextField(systemFields, 'checkpoint-time', '时间', 'time', this.time, (value) => {
+		this.addTextField(systemFields, 'checkpoint-time', t('Time'), 'time', this.time, (value) => {
 			this.time = value;
 		});
 
@@ -203,7 +210,7 @@ export class CheckpointPanelView extends ItemView {
 			if (field.control === 'select') {
 				const select = row.createEl('select', { attr: { id: inputId } });
 				if (!field.required) select.createEl('option', {
-					text: '未选择',
+					text: t('Not selected'),
 					attr: { value: '' },
 				});
 				for (const option of field.options) {
@@ -241,11 +248,11 @@ export class CheckpointPanelView extends ItemView {
 		const actions = this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-panel-actions',
 		});
-		const close = actions.createEl('button', { text: '关闭' });
+		const close = actions.createEl('button', { text: t('Close') });
 		close.addEventListener('click', () => this.leaf.detach());
 		this.saveButton = actions.createEl('button', {
 			cls: 'mod-cta',
-			text: request.mode === 'edit' ? '保存修改' : '保存 checkpoint',
+			text: request.mode === 'edit' ? t('Save changes') : t('Save checkpoint'),
 		});
 		this.saveButton.addEventListener('click', () => void this.save());
 
@@ -280,17 +287,17 @@ export class CheckpointPanelView extends ItemView {
 		const request = this.request;
 		if (!request || this.saving) return;
 		if (!/^\d{4}-\d{2}-\d{2}$/u.test(this.date)) {
-			new Notice('请填写有效的 checkpoint 日期。');
+			new Notice(t('Enter a valid checkpoint date.'));
 			return;
 		}
 		if (!/^\d{2}:\d{2}$/u.test(this.time)) {
-			new Notice('请填写有效的 checkpoint 时间。');
+			new Notice(t('Enter a valid checkpoint time.'));
 			return;
 		}
 		const missing = request.fields.find((field) =>
 			field.required && !valueIsPresent(this.values[field.key]));
 		if (missing) {
-			new Notice(`请填写${missing.label}。`);
+			new Notice(t('Enter {field}.', { field: missing.label }));
 			return;
 		}
 
@@ -302,7 +309,7 @@ export class CheckpointPanelView extends ItemView {
 			this.leaf.detach();
 		} catch (error) {
 			console.error('Thread Journal failed to save checkpoint from side panel', error);
-			new Notice(`保存 Checkpoint 失败：${String(error)}`);
+			new Notice(t('Failed to save checkpoint: {error}', { error: String(error) }));
 			this.saving = false;
 			if (this.saveButton) this.saveButton.disabled = false;
 		}

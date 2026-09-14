@@ -17,6 +17,7 @@ import {
 	filterBreadcrumbThreads,
 } from './thread-breadcrumb-model';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
+import { t } from './i18n';
 
 interface MountedBar {
 	bar: HTMLElement;
@@ -136,7 +137,10 @@ export class ThreadBreadcrumbManager {
 		this.closeChildMenu();
 		const menu = document.body.createDiv({
 			cls: 'thread-journal-breadcrumb-child-menu',
-			attr: { role: 'menu', 'aria-label': `Child threads of ${parent.label}` },
+			attr: {
+				role: 'menu',
+				'aria-label': t('Child threads of {title}', { title: parent.label }),
+			},
 		});
 		this.childMenu = menu;
 		trigger.setAttr('aria-expanded', 'true');
@@ -154,7 +158,7 @@ export class ThreadBreadcrumbManager {
 			item.createSpan({ cls: 'thread-journal-breadcrumb-child-menu-name', text: child.title });
 			item.createSpan({
 				cls: 'thread-journal-breadcrumb-child-menu-status',
-				text: child.status || 'unset',
+				text: child.status || t('unset'),
 			});
 			item.addEventListener('click', () => {
 				this.closeChildMenu();
@@ -241,10 +245,10 @@ export class ThreadBreadcrumbManager {
 		);
 		const root = bar.createEl('button', {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-root',
-			attr: { type: 'button', 'aria-label': 'Open thread overview' },
+			attr: { type: 'button', 'aria-label': t('Open thread overview') },
 		});
 		setIcon(root, 'git-branch');
-		this.setBarTooltip(bar, root, 'Open thread overview');
+		this.setBarTooltip(bar, root, t('Open thread overview'));
 		root.addEventListener('click', () => {
 			void openThreadOverview(this.app);
 		});
@@ -264,12 +268,12 @@ export class ThreadBreadcrumbManager {
 			this.setBarTooltip(
 				bar,
 				rootSeparator,
-				`Switch root threads (${rootThreads.length} alive)`,
+				t('Switch root threads ({count} alive)', { count: rootThreads.length }),
 			);
 			rootSeparator.addEventListener('click', () => {
 				this.openChildMenu(
 					rootSeparator,
-					{ label: 'Thread' },
+					{ label: t('Thread') },
 					rootThreads,
 					trail[0]?.file.path,
 					currentFile,
@@ -284,7 +288,7 @@ export class ThreadBreadcrumbManager {
 				cls: 'clickable-icon thread-journal-fixed-breadcrumb-segment',
 				text: item.label,
 			});
-			this.setBarTooltip(bar, button, `Open ${item.label}`);
+			this.setBarTooltip(bar, button, t('Open {title}', { title: item.label }));
 			button.addEventListener('click', () => {
 				const target = this.index.getEntry(item.file) ?? item.file;
 				void this.app.workspace.openLinkText(target.path, threadFile.path);
@@ -305,7 +309,10 @@ export class ThreadBreadcrumbManager {
 				this.setBarTooltip(
 					bar,
 					separator,
-					`Switch child threads of ${item.label} (${children.length} alive)`,
+					t('Switch child threads of {title} ({count} alive)', {
+						title: item.label,
+						count: children.length,
+					}),
 				);
 				separator.addEventListener('click', () => {
 					this.openChildMenu(
@@ -321,20 +328,24 @@ export class ThreadBreadcrumbManager {
 			}
 		}
 		if (this.index.getAncestors(threadFile).cycle) {
-			path.createSpan({ cls: 'thread-journal-warning', text: 'Parent cycle' });
+			path.createSpan({ cls: 'thread-journal-warning', text: t('Parent cycle') });
 		}
 
 		const actions = bar.createDiv({ cls: 'thread-journal-fixed-breadcrumb-actions' });
 		const status = actions.createEl('button', {
 			cls: 'thread-journal-fixed-breadcrumb-status',
-			text: current.status || 'unset',
+			text: current.status || t('unset'),
 			attr: {
 				type: 'button',
 				'data-status': current.status || 'unset',
-				'aria-label': `Manage thread; current status: ${current.status || 'unset'}`,
+				'aria-label': t('Manage thread; current status: {status}', {
+					status: current.status || t('unset'),
+				}),
 			},
 		});
-		this.setBarTooltip(bar, status, `Manage thread (status: ${current.status || 'unset'})`);
+		this.setBarTooltip(bar, status, t('Manage thread (status: {status})', {
+			status: current.status || t('unset'),
+		}));
 		status.addEventListener('click', () => {
 			this.meta.openMetaModal(threadFile);
 		});
@@ -344,7 +355,7 @@ export class ThreadBreadcrumbManager {
 				cls: 'clickable-icon',
 			});
 			setIcon(entryButton, 'home');
-			this.setBarTooltip(bar, entryButton, 'Open thread entry');
+			this.setBarTooltip(bar, entryButton, t('Open thread entry'));
 			entryButton.addEventListener('click', () => {
 				void this.files.openEntry(threadFile);
 			});
@@ -354,7 +365,9 @@ export class ThreadBreadcrumbManager {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-files',
 		});
 		setIcon(filesButton, 'files');
-		this.setBarTooltip(bar, filesButton, `Manage thread files (${members.length})`);
+		this.setBarTooltip(bar, filesButton, t('Manage thread files ({count})', {
+			count: members.length,
+		}));
 		filesButton.createSpan({ text: String(members.length) });
 		filesButton.addEventListener('click', () => {
 			this.files.openThreadFilesModal(currentFile);
@@ -365,7 +378,9 @@ export class ThreadBreadcrumbManager {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-picker',
 		});
 		setIcon(pickerButton, 'git-fork');
-		this.setBarTooltip(bar, pickerButton, `Manage open threads (${openThreadCount})`);
+		this.setBarTooltip(bar, pickerButton, t('Manage open threads ({count})', {
+			count: openThreadCount,
+		}));
 		pickerButton.createSpan({ text: String(openThreadCount) });
 		pickerButton.addEventListener('click', () => {
 			this.switcher.open();

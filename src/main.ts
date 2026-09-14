@@ -10,6 +10,7 @@ import {
 	Notice,
 	Plugin,
 	TFile,
+	getLanguage,
 } from 'obsidian';
 import { CheckpointManager } from './checkpoint';
 import { checkpointEditorExtension } from './checkpoint-editor';
@@ -29,6 +30,12 @@ import { ThreadIndex } from './thread-index';
 import { ThreadMetaManager } from './thread-meta';
 import { ThreadParentManager } from './thread-parent';
 import { ThreadSwitcherManager } from './thread-switcher';
+import {
+	LANGUAGE_CHANGE_EVENT,
+	resolveLocale,
+	setLocale,
+	t,
+} from './i18n';
 import type { ThreadJournalSettings } from './types';
 
 export default class ThreadJournalPlugin extends Plugin {
@@ -125,21 +132,27 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = normalizedSettings(
-			(await this.loadData()) as Partial<ThreadJournalSettings> | null,
-		);
+		const stored = (await this.loadData()) as Partial<ThreadJournalSettings> | null;
+		const language = stored?.language === 'zh' || stored?.language === 'en'
+			? stored.language
+			: 'auto';
+		setLocale(resolveLocale(language, getLanguage()));
+		this.settings = normalizedSettings(stored);
 	}
 
 	async saveSettings(): Promise<void> {
 		this.settings = normalizedSettings(this.settings);
+		setLocale(resolveLocale(this.settings.language, getLanguage()));
 		await this.saveData(this.settings);
+		this.refreshBreadcrumbBars();
+		window.dispatchEvent(new Event(LANGUAGE_CHANGE_EVENT));
 	}
 
 	private registerCommands(): void {
-		this.addCommand({ id: 'thread-overview', name: 'Open thread overview', callback: () => void openThreadOverview(this.app) });
+		this.addCommand({ id: 'thread-overview', name: t('Open thread overview'), callback: () => void openThreadOverview(this.app) });
 		this.addCommand({
 			id: 'manage-thread',
-			name: 'Manage thread',
+			name: t('Manage thread'),
 			checkCallback: (checking) => {
 				if (!this.meta.getCurrentThreadFile()) return false;
 				if (!checking) this.meta.openCurrentMetaModal();
@@ -149,7 +162,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'create-current-thread-checkpoint',
-			name: 'Create checkpoint',
+			name: t('Create checkpoint'),
 			checkCallback: (checking) => {
 				if (!this.checkpoints.canCreateCurrentCheckpoint()) return false;
 				if (!checking) this.checkpoints.openCurrentCheckpointModal();
@@ -159,14 +172,14 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'open-thread-workspace',
-			name: 'Switch active thread role',
+			name: t('Switch active thread role'),
 			checkCallback: (checking) => {
 				const file = this.currentThreadFile();
 				if (!file) return false;
 				if (!checking) {
 					void this.files.switchActiveThreadRole(file).catch((error: unknown) => {
 						console.error('Thread Journal failed to switch active thread role', error);
-						new Notice(`切换 active thread role 失败：${String(error)}`);
+						new Notice(t('Failed to switch active thread role: {error}', { error: String(error) }));
 					});
 				}
 				return true;
@@ -175,7 +188,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'switch-open-thread',
-			name: 'Manage open threads',
+			name: t('Manage open threads'),
 			callback: () => {
 				this.switcher.open();
 			},
@@ -183,7 +196,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'manage-thread-files',
-			name: 'Manage thread files',
+			name: t('Manage thread files'),
 			checkCallback: (checking) => {
 				const file = this.currentThreadFile();
 				if (!file) return false;
@@ -194,7 +207,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'new-thread-file',
-			name: 'Create thread file',
+			name: t('Create thread file'),
 			checkCallback: (checking) => {
 				const file = this.currentThreadFile();
 				if (!file) return false;
@@ -205,7 +218,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'insert-inline-log',
-			name: 'Insert inline log',
+			name: t('Insert inline log'),
 			editorCheckCallback: (checking, editor, view) => {
 				const file = view.file;
 				const member = file ? this.index.getMember(file) : undefined;
@@ -217,7 +230,7 @@ export default class ThreadJournalPlugin extends Plugin {
 						this.files.insertInlineLog(editor, file);
 					} catch (error) {
 						console.error('Thread Journal failed to insert inline log', error);
-						new Notice(`插入 inline log 失败：${String(error)}`);
+						new Notice(t('Failed to insert inline log: {error}', { error: String(error) }));
 					}
 				}
 				return true;
@@ -226,7 +239,7 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'new-thread',
-			name: 'Create thread',
+			name: t('Create thread'),
 			callback: () => {
 				this.creator.openNewThreadModal();
 			},

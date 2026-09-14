@@ -1,21 +1,23 @@
+import { t, type TranslationKey } from './i18n';
+
 export type ThreadStatus = 'idea' | 'committed' | 'active' | 'dormant' | 'paused' | 'review' | 'completed' | 'closed';
 export type OperationalThreadStatus = Extract<ThreadStatus, 'active' | 'dormant'>;
 
 export interface ThreadStatusChoice {
  value: ThreadStatus;
- label: string;
- description: string;
+ label: TranslationKey;
+ description: TranslationKey;
 }
 
 export const THREAD_STATUS_CHOICES: readonly ThreadStatusChoice[] = [
- { value: 'idea', label: '想法', description: '保留可能性，尚未承诺投入' },
- { value: 'committed', label: '已承诺', description: '已决定投入，等待开始；在入口或相应角色文件中说明承诺' },
- { value: 'active', label: '持续关注', description: '已经展开，需要持续关注；子树无 todo 时复核状态' },
- { value: 'dormant', label: '休眠', description: '保持开放，按需记录；有可执行 todo 时需要处理' },
- { value: 'paused', label: '冻结', description: '明确暂停投入，保留未完成事项；不自动取消承诺' },
- { value: 'review', label: '待复盘', description: '等待复盘、知识整理或收尾' },
- { value: 'completed', label: '已完成', description: '目标达成且收尾完成' },
- { value: 'closed', label: '已结束', description: '决定不再延续，保留历史' },
+ { value: 'idea', label: 'Idea', description: 'Keep the possibility without committing attention yet' },
+ { value: 'committed', label: 'Committed', description: 'Committed to the work and waiting to begin; describe the commitment in the entry or a role file' },
+ { value: 'active', label: 'Active', description: 'In progress and requiring continued attention; review the status when the subtree has no todo' },
+ { value: 'dormant', label: 'Dormant', description: 'Open but handled on demand; ready todos require attention' },
+ { value: 'paused', label: 'Paused', description: 'Explicitly frozen; keep unfinished items without cancelling the commitment' },
+ { value: 'review', label: 'Review', description: 'Waiting for review, knowledge capture, or closure' },
+ { value: 'completed', label: 'Completed', description: 'The goal is achieved and wrap-up is complete' },
+ { value: 'closed', label: 'Closed', description: 'No longer continuing; retain the history' },
 ];
 
 export function isThreadStatus(value: string): value is ThreadStatus {
@@ -31,9 +33,14 @@ export function threadStatusUsesMembers(value: string): boolean {
 }
 
 export function threadStatusLabel(value: string): string {
- return THREAD_STATUS_CHOICES.find(choice => choice.value === value)?.label || value || '未设状态';
+	const choice = THREAD_STATUS_CHOICES.find(candidate => candidate.value === value);
+	return choice ? t(choice.label) : value || t('No status');
 }
 
 export function threadStatusOptionLabel(choice: ThreadStatusChoice): string {
- return `${choice.value} — ${choice.label}`;
+	return `${choice.value} — ${t(choice.label)}`;
+}
+
+export function threadStatusDescription(choice: ThreadStatusChoice): string {
+	return t(choice.description);
 }

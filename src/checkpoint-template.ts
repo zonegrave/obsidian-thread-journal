@@ -11,6 +11,7 @@ import {
 	getModalFormApi,
 	type ModalFormApi,
 } from './modal-form';
+import { t, type TranslationKey } from './i18n';
 import type { CheckpointFieldSpec } from './types';
 
 export class CheckpointTemplateModal extends Modal {
@@ -40,7 +41,7 @@ export class CheckpointTemplateModal extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass('thread-journal-checkpoint-template-modal');
-		this.setTitle('编辑 checkpoint 模板');
+		this.setTitle(t('Edit checkpoint template'));
 		this.render();
 	}
 
@@ -53,12 +54,12 @@ export class CheckpointTemplateModal extends Modal {
 		this.contentEl.createEl('p', {
 			cls: 'setting-item-description',
 			text: this.inherited
-				? '当前继承全局默认模板。首次更改会自动建立独立模板。废弃字段不再用于新 checkpoint，但仍解释历史数据。'
-				: '当前使用此 thread 的独立模板。所有更改自动保存；废弃字段仍解释历史数据。',
+				? t('This thread currently inherits the global default template. The first change creates an independent template. Deprecated fields are hidden from new checkpoints but still explain historical data.')
+				: t('This thread uses an independent template. All changes save automatically; deprecated fields still explain historical data.'),
 		});
 		this.saveStatusEl = this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-save-status',
-			text: '更改会自动保存',
+			text: t('Changes save automatically'),
 		});
 
 		this.fields.forEach((field, index) => {
@@ -67,15 +68,15 @@ export class CheckpointTemplateModal extends Modal {
 		});
 
 		new Setting(this.contentEl)
-			.setName('模板字段')
-			.setDesc('字段可以全部删除；此时 checkpoint 只保留固定的日期、时间和标记。')
+			.setName(t('Template fields'))
+			.setDesc(t('All fields may be removed. A checkpoint then keeps only its fixed date, time, and marker.'))
 			.addButton((button) => button
-				.setButtonText('添加字段')
+				.setButtonText(t('Add field'))
 				.onClick(() => {
 					const next = this.fields.length + 1;
 					const field: CheckpointFieldSpec = {
 						key: `checkpoint_field_${next}`,
-						label: `自定义字段 ${next}`,
+						label: t('Custom field {index}', { index: next }),
 						control: 'text',
 						storage: 'inline',
 						required: false,
@@ -92,7 +93,7 @@ export class CheckpointTemplateModal extends Modal {
 		const actions = new Setting(this.contentEl)
 			.setClass('thread-journal-checkpoint-actions');
 		actions.addButton((button) => button
-			.setButtonText('使用全局默认模板')
+			.setButtonText(t('Use global default template'))
 			.onClick(async () => {
 				if (this.saving) return;
 				this.saving = true;
@@ -104,7 +105,7 @@ export class CheckpointTemplateModal extends Modal {
 					this.close();
 				} catch (error) {
 					console.error('Thread Journal failed to reset checkpoint template', error);
-					new Notice(`恢复默认模板失败：${String(error)}`);
+					new Notice(t('Failed to restore the default template: {error}', { error: String(error) }));
 					this.saving = false;
 					button.setDisabled(false);
 				}
@@ -125,23 +126,23 @@ export class CheckpointTemplateModal extends Modal {
 		this.inherited = false;
 		const revision = ++this.saveRevision;
 		const snapshot = normalizeCheckpointFields(this.fields);
-		this.updateSaveStatus('保存中…');
+		this.updateSaveStatus(t('Saving…'));
 		this.saveQueue = this.saveQueue.then(
 			() => this.onSave(snapshot),
 			() => this.onSave(snapshot),
 		).then(() => {
-			if (revision === this.saveRevision) this.updateSaveStatus('已自动保存');
+			if (revision === this.saveRevision) this.updateSaveStatus(t('Saved automatically'));
 		}, (error: unknown) => {
 			console.error('Thread Journal failed to auto-save checkpoint template', error);
-			if (revision === this.saveRevision) this.updateSaveStatus('自动保存失败', true);
-			new Notice(`自动保存 Checkpoint 模板失败：${String(error)}`);
+			if (revision === this.saveRevision) this.updateSaveStatus(t('Auto-save failed'), true);
+			new Notice(t('Failed to auto-save checkpoint template: {error}', { error: String(error) }));
 		});
 	}
 
 	private scheduleSave(): void {
 		if (this.saveTimer !== undefined) window.clearTimeout(this.saveTimer);
 		this.inherited = false;
-		this.updateSaveStatus('等待自动保存…');
+		this.updateSaveStatus(t('Waiting to save…'));
 		this.saveTimer = window.setTimeout(() => {
 			this.saveTimer = undefined;
 			this.queueSave();
@@ -173,20 +174,20 @@ export class CheckpointTemplateModal extends Modal {
 	private renderFieldSummary(field: CheckpointFieldSpec, index: number): void {
 		const previous = this.fields[index - 1];
 		const next = this.fields[index + 1];
-		const controlNames: Record<CheckpointFieldSpec['control'], string> = {
-			text: '单行文本',
-			textarea: '多行文本',
-			number: '数字',
-			toggle: '开关',
-			date: '日期',
-			select: '选择项',
+		const controlNames: Record<CheckpointFieldSpec['control'], TranslationKey> = {
+			text: 'Single-line text',
+			textarea: 'Multiline text',
+			number: 'Number',
+			toggle: 'Toggle',
+			date: 'Date',
+			select: 'Select',
 		};
 		const details = [
 			field.key,
-			controlNames[field.control],
-			field.storage === 'inline' ? '可查询字段' : 'Checkpoint 正文',
-			field.required ? '必填' : '',
-			field.deprecated ? '已废弃' : '',
+			t(controlNames[field.control]),
+			field.storage === 'inline' ? t('Queryable field') : t('Checkpoint body'),
+			field.required ? t('Required') : '',
+			field.deprecated ? t('Deprecated') : '',
 		].filter(Boolean).join(' · ');
 		const card = this.contentEl.createDiv({
 			cls: `thread-journal-checkpoint-field-setting is-summary${field.deprecated ? ' is-deprecated' : ''}`,
@@ -197,8 +198,8 @@ export class CheckpointTemplateModal extends Modal {
 			.addExtraButton((button) => button
 				.setIcon(field.deprecated ? 'eye-off' : 'eye')
 				.setTooltip(field.deprecated
-					? '已废弃：点击恢复用于新 checkpoint'
-					: '新 checkpoint 中可见：点击废弃')
+					? t('Deprecated; select to restore in new checkpoints')
+					: t('Visible in new checkpoints; select to deprecate'))
 				.onClick(() => {
 					field.deprecated = !field.deprecated;
 					if (field.deprecated) field.required = false;
@@ -206,21 +207,21 @@ export class CheckpointTemplateModal extends Modal {
 					this.renderAndSave();
 				}))
 			.addButton((button) => button
-				.setButtonText('编辑')
+				.setButtonText(t('Edit'))
 				.onClick(() => void this.openFieldForm(field, index)))
 			.addExtraButton((button) => button
 				.setIcon('arrow-up')
-				.setTooltip('上移')
+				.setTooltip(t('Move up'))
 				.setDisabled(!previous || previous.deprecated !== field.deprecated)
 				.onClick(() => this.moveField(field, index, -1)))
 			.addExtraButton((button) => button
 				.setIcon('arrow-down')
-				.setTooltip('下移')
+				.setTooltip(t('Move down'))
 				.setDisabled(!next || next.deprecated !== field.deprecated)
 				.onClick(() => this.moveField(field, index, 1)))
 			.addExtraButton((button) => button
 				.setIcon('trash-2')
-				.setTooltip('删除字段')
+				.setTooltip(t('Delete field'))
 				.onClick(() => {
 					this.fields.splice(index, 1);
 					this.renderAndSave();
@@ -233,7 +234,7 @@ export class CheckpointTemplateModal extends Modal {
 			const values = checkpointTemplateFieldValues(field);
 			const result = await this.modalFormApi.openForm(
 				buildCheckpointTemplateFieldModalForm(
-					index === undefined ? '添加 checkpoint 字段' : '编辑 checkpoint 字段',
+					index === undefined ? t('Add checkpoint field') : t('Edit checkpoint field'),
 				),
 				{ values },
 			);
@@ -245,7 +246,7 @@ export class CheckpointTemplateModal extends Modal {
 			this.renderAndSave();
 		} catch (error) {
 			console.error('Thread Journal failed to open checkpoint field form', error);
-			new Notice(`打开字段表单失败：${String(error)}`);
+			new Notice(t('Failed to open field form: {error}', { error: String(error) }));
 		}
 	}
 
@@ -257,55 +258,55 @@ export class CheckpointTemplateModal extends Modal {
 		});
 		new Setting(card)
 			.setName(field.label || field.key)
-			.setDesc(`${field.key}${field.deprecated ? ' · 已废弃' : ''}`)
+			.setDesc(`${field.key}${field.deprecated ? ` · ${t('Deprecated')}` : ''}`)
 			.addExtraButton((button) => button
 				.setIcon('arrow-up')
-				.setTooltip('上移')
+				.setTooltip(t('Move up'))
 				.setDisabled(!previous || previous.deprecated !== field.deprecated)
 				.onClick(() => this.moveField(field, index, -1)))
 			.addExtraButton((button) => button
 				.setIcon('arrow-down')
-				.setTooltip('下移')
+				.setTooltip(t('Move down'))
 				.setDisabled(!next || next.deprecated !== field.deprecated)
 				.onClick(() => this.moveField(field, index, 1)))
 			.addExtraButton((button) => button
 				.setIcon('trash-2')
-				.setTooltip('删除字段')
+				.setTooltip(t('Delete field'))
 				.onClick(() => {
 					this.fields.splice(index, 1);
 					this.renderAndSave();
 				}));
 
 		new Setting(card)
-			.setName('显示名称')
+			.setName(t('Display name'))
 			.addText((text) => text
 				.setValue(field.label)
-				.setPlaceholder('摘要')
+				.setPlaceholder(t('Summary'))
 				.onChange((value) => {
 					field.label = value;
 					this.scheduleSave();
 				}));
 
 		new Setting(card)
-			.setName('字段键')
-			.setDesc('用于 dataview 查询；系统保留 checkpoint、checkpoint_date 和 checkpoint_time。')
+			.setName(t('Field key'))
+			.setDesc(t('Used in Dataview queries. checkpoint, checkpoint_date, and checkpoint_time are reserved by the system.'))
 			.addText((text) => text
 				.setValue(field.key)
-				.setPlaceholder('字段键')
+				.setPlaceholder(t('Field key'))
 				.onChange((value) => {
 					field.key = value;
 					this.scheduleSave();
 				}));
 
 		new Setting(card)
-			.setName('控件')
+			.setName(t('Control'))
 			.addDropdown((dropdown) => dropdown
-				.addOption('text', '单行文本')
-				.addOption('textarea', '多行文本')
-				.addOption('number', '数字')
-				.addOption('toggle', '开关')
-				.addOption('date', '日期')
-				.addOption('select', '选择项')
+				.addOption('text', t('Single-line text'))
+				.addOption('textarea', t('Multiline text'))
+				.addOption('number', t('Number'))
+				.addOption('toggle', t('Toggle'))
+				.addOption('date', t('Date'))
+				.addOption('select', t('Select'))
 				.setValue(field.control)
 				.onChange((value) => {
 					field.control = value as CheckpointFieldSpec['control'];
@@ -314,11 +315,11 @@ export class CheckpointTemplateModal extends Modal {
 				}));
 
 		new Setting(card)
-			.setName('保存位置')
-			.setDesc('可查询字段写在首行；正文字段适合较长内容。')
+			.setName(t('Storage'))
+			.setDesc(t('Queryable fields are written to the header; body fields are better for longer content.'))
 			.addDropdown((dropdown) => dropdown
-				.addOption('inline', '可查询字段')
-				.addOption('body', 'Checkpoint 正文')
+				.addOption('inline', t('Queryable field'))
+				.addOption('body', t('Checkpoint body'))
 				.setValue(field.storage)
 				.onChange((value) => {
 					field.storage = value as CheckpointFieldSpec['storage'];
@@ -326,7 +327,7 @@ export class CheckpointTemplateModal extends Modal {
 				}));
 
 		new Setting(card)
-			.setName('必填')
+			.setName(t('Required'))
 			.addToggle((toggle) => toggle
 				.setValue(field.required)
 				.setDisabled(field.control === 'toggle' || field.deprecated)
@@ -336,8 +337,8 @@ export class CheckpointTemplateModal extends Modal {
 				}));
 
 		new Setting(card)
-			.setName('废弃')
-			.setDesc('停止用于新 checkpoint；已有记录仍按实际数据展示。')
+			.setName(t('Deprecate'))
+			.setDesc(t('Stop using this field in new checkpoints. Existing records still display their saved data.'))
 			.addToggle((toggle) => toggle
 				.setValue(field.deprecated)
 				.onChange((value) => {
@@ -349,8 +350,8 @@ export class CheckpointTemplateModal extends Modal {
 
 		if (field.control === 'select') {
 			new Setting(card)
-				.setName('选项')
-				.setDesc('使用英文逗号分隔。')
+				.setName(t('Options'))
+				.setDesc(t('Separate options with commas.'))
 				.addText((text) => text
 					.setValue(field.options.join(', '))
 					.setPlaceholder('Milestone, review')

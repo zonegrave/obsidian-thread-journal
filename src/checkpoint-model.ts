@@ -3,6 +3,7 @@ import type {
 	CheckpointFieldSpec,
 	CheckpointFieldStorage,
 } from './types';
+import { t } from './i18n';
 
 export type CheckpointFieldRenderMode = 'plain' | 'inline-markdown' | 'block-markdown';
 
@@ -21,7 +22,7 @@ const RESERVED_KEYS = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time
 export const DEFAULT_CHECKPOINT_FIELDS: CheckpointFieldSpec[] = [
 	{
 		key: 'checkpoint_kind',
-		label: '类型',
+		label: 'Type',
 		control: 'select',
 		storage: 'inline',
 		required: true,
@@ -30,7 +31,7 @@ export const DEFAULT_CHECKPOINT_FIELDS: CheckpointFieldSpec[] = [
 	},
 	{
 		key: 'checkpoint_summary',
-		label: '摘要',
+		label: 'Summary',
 		control: 'text',
 		storage: 'inline',
 		required: true,
@@ -65,7 +66,10 @@ export function checkpointFieldKey(value: unknown, fallback: string): string {
 }
 
 export function cloneDefaultCheckpointFields(): CheckpointFieldSpec[] {
-	return cloneCheckpointFields(DEFAULT_CHECKPOINT_FIELDS);
+	return cloneCheckpointFields(DEFAULT_CHECKPOINT_FIELDS).map((field) => ({
+		...field,
+		label: field.key === 'checkpoint_kind' ? t('Type') : t('Summary'),
+	}));
 }
 
 export function cloneCheckpointFields(

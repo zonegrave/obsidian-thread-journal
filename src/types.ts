@@ -1,4 +1,5 @@
 import type { TFile } from 'obsidian';
+import type { LanguageSetting } from './i18n';
 
 export type CheckpointFieldControl =
 	| 'text'
@@ -38,6 +39,7 @@ export interface ThreadMemberInfo {
 }
 
 export interface ThreadJournalSettings {
+	language: LanguageSetting;
 	threadMetaFolder: string;
 	threadFilesFolder: string;
 	threadRoleTemplatesFolder: string;

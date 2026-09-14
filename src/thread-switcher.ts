@@ -17,6 +17,7 @@ import {
 	type OpenThreadView,
 } from './thread-switcher-model';
 import { threadStatusLabel } from './thread-status-model';
+import { t } from './i18n';
 import type { ThreadInfo } from './types';
 import { leafFilePath } from './workspace-leaf';
 
@@ -48,10 +49,10 @@ class OpenThreadManagerModal extends FuzzySuggestModal<OpenThreadCandidate> {
 		) => void,
 	) {
 		super(app);
-		this.setPlaceholder('管理已打开的 thread');
+		this.setPlaceholder(t('Manage open threads'));
 		this.setInstructions([
-			{ command: '↵', purpose: '选择操作' },
-			{ command: 'esc', purpose: '关闭' },
+			{ command: '↵', purpose: t('Select action') },
+			{ command: 'esc', purpose: t('Close') },
 		]);
 	}
 
@@ -74,15 +75,15 @@ class OpenThreadManagerModal extends FuzzySuggestModal<OpenThreadCandidate> {
 		const candidate = match.item;
 		el.addClass('thread-journal-open-thread-suggestion');
 		const copy = el.createDiv({ cls: 'thread-journal-open-thread-copy' });
-		copy.createDiv({ text: `${candidate.breadcrumb}${candidate.current ? ' · 当前' : ''}` });
+		copy.createDiv({ text: `${candidate.breadcrumb}${candidate.current ? ` · ${t('Current')}` : ''}` });
 		copy.createDiv({
 			cls: 'suggestion-note',
 			text: `${threadStatusLabel(candidate.thread.status)} · ${candidate.openSummary}`,
 		});
 		const actions = el.createDiv({ cls: 'thread-journal-open-thread-actions' });
-		this.addActionButton(actions, candidate, 'entry', '入口');
-		this.addActionButton(actions, candidate, 'files', '文件');
-		this.addActionButton(actions, candidate, 'close', '关闭标签');
+		this.addActionButton(actions, candidate, 'entry', t('Entry file'));
+		this.addActionButton(actions, candidate, 'files', t('Files'));
+		this.addActionButton(actions, candidate, 'close', t('Close tabs'));
 	}
 
 	onChooseItem(candidate: OpenThreadCandidate): void {
@@ -105,8 +106,8 @@ class OpenThreadManagerModal extends FuzzySuggestModal<OpenThreadCandidate> {
 				type: 'button',
 				tabindex: '-1',
 				'aria-label': action === 'close'
-					? `关闭 ${candidate.thread.title} 的所有已打开标签`
-					: `${label}：${candidate.thread.title}`,
+					? t('Close every open tab for {title}', { title: candidate.thread.title })
+					: t('{action}: {title}', { action: label, title: candidate.thread.title }),
 			},
 		});
 		button.addEventListener('mousedown', (event) => {
@@ -129,7 +130,7 @@ class ThreadActionModal extends FuzzySuggestModal<ThreadActionChoice> {
 		private readonly onAction: (action: ThreadManagerAction) => void,
 	) {
 		super(app);
-		this.setPlaceholder(`管理 ${thread.title}`);
+		this.setPlaceholder(t('Manage {title}', { title: thread.title }));
 	}
 
 	getItems(): ThreadActionChoice[] {
@@ -172,7 +173,7 @@ export class ThreadSwitcherManager {
 	open(): void {
 		const groups = orderOpenThreadGroups(this.collectOpenThreadGroups(), this.recentThreadIds);
 		if (groups.length === 0) {
-			new Notice('当前没有已打开的 thread。');
+			new Notice(t('No threads are currently open.'));
 			return;
 		}
 		const currentThreadId = this.currentThreadId();
@@ -248,9 +249,9 @@ export class ThreadSwitcherManager {
 
 	private openActions(candidate: OpenThreadCandidate): void {
 		const choices: ThreadActionChoice[] = [
-			{ action: 'entry', label: '打开入口', detail: '打开 meta 指定的唯一入口文件' },
-			{ action: 'files', label: '管理文件', detail: `${candidate.memberCount} 个成员文件` },
-			{ action: 'close', label: '关闭全部标签', detail: `${candidate.openCount} 个已打开标签；不修改 thread 状态` },
+			{ action: 'entry', label: t('Open entry'), detail: t('Open the unique entry file specified by the meta') },
+			{ action: 'files', label: t('Manage files'), detail: t('{count} member files', { count: candidate.memberCount }) },
+			{ action: 'close', label: t('Close all tabs'), detail: t('{count} open tabs; does not change thread status', { count: candidate.openCount }) },
 		];
 		new ThreadActionModal(
 			this.app,
@@ -263,13 +264,13 @@ export class ThreadSwitcherManager {
 	private runAction(threadId: string, action: ThreadManagerAction): void {
 		void this.performAction(threadId, action).catch((error: unknown) => {
 			console.error('Thread Journal failed to manage open thread', error);
-			new Notice(`管理已打开的 thread 失败：${String(error)}`);
+			new Notice(t('Failed to manage open thread: {error}', { error: String(error) }));
 		});
 	}
 
 	private async performAction(threadId: string, action: ThreadManagerAction): Promise<void> {
 		const thread = this.index.getThreadById(threadId);
-		if (!thread) throw new Error(`找不到 thread_id: ${threadId}`);
+		if (!thread) throw new Error(t('Cannot find thread_id: {id}', { id: threadId }));
 		if (action === 'close') {
 			this.closeThread(threadId);
 			return;
@@ -284,13 +285,13 @@ export class ThreadSwitcherManager {
 	private closeThread(threadId: string): void {
 		const group = this.collectOpenThreadGroups().find((item) => item.threadId === threadId);
 		if (!group) {
-			new Notice('这个 thread 已经不在打开的标签页中。');
+			new Notice(t('This thread is no longer open in a tab.'));
 			return;
 		}
 		const leaves = [...new Set(group.views.map((view) => view.target))];
 		for (const leaf of leaves) leaf.detach();
 		const recent = this.recentThreadIds.indexOf(threadId);
 		if (recent >= 0) this.recentThreadIds.splice(recent, 1);
-		new Notice(`已关闭 ${leaves.length} 个标签；thread 状态未改变。`);
+		new Notice(t('Closed {count} tabs; thread status was not changed.', { count: leaves.length }));
 	}
 }

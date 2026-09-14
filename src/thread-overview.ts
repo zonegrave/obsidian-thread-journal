@@ -23,10 +23,12 @@ import {
 } from './thread-overview-model';
 import {
 	THREAD_STATUS_CHOICES,
+	threadStatusDescription,
 	threadStatusLabel,
 } from './thread-status-model';
+import { LANGUAGE_CHANGE_EVENT, t, type TranslationKey } from './i18n';
 
-const TASK_DISPOSITION_LABELS: Record<TodoDisposition, string> = {
+const TASK_DISPOSITION_LABELS: Record<TodoDisposition, TranslationKey> = {
 	ready: 'ready',
 	future: 'future',
 	waiting: 'waiting',
@@ -72,12 +74,15 @@ class OverviewContent extends MarkdownRenderChild {
 		this.containerEl.addClass('thread-journal-overview');
 		this.containerEl.createEl('p', {
 			cls: 'thread-journal-empty',
-			text: 'Loading thread map…',
+			text: t('Loading thread map…'),
 		});
 		this.registerEvent(this.app.metadataCache.on('changed', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('delete', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('rename', () => this.scheduleRefresh()));
 		this.registerDomEvent(window, 'resize', () => this.scheduleConnectorDraw());
+		const onLanguageChange = (): void => this.render();
+		window.addEventListener(LANGUAGE_CHANGE_EVENT, onLanguageChange);
+		this.register(() => window.removeEventListener(LANGUAGE_CHANGE_EVENT, onLanguageChange));
 		this.registerInterval(window.setInterval(() => this.scheduleRefresh(), 60000));
 		void this.refresh();
 	}
@@ -108,7 +113,7 @@ class OverviewContent extends MarkdownRenderChild {
 			this.teardownMap();
 			this.containerEl.empty();
 			this.containerEl.createEl('p', {
-				text: `无法读取 thread 总览：${String(error)}`,
+				text: t('Failed to read thread overview: {error}', { error: String(error) }),
 			});
 		}
 	}
@@ -122,14 +127,14 @@ class OverviewContent extends MarkdownRenderChild {
 		if (this.selectedStatuses.size === 0) {
 			el.createEl('p', {
 				cls: 'thread-journal-empty',
-				text: '请选择至少一个状态。',
+				text: t('Select at least one status.'),
 			});
 			return;
 		}
 		if (tree.length === 0) {
 			el.createEl('p', {
 				cls: 'thread-journal-empty',
-				text: '所选状态下没有 thread。',
+				text: t('No threads match the selected statuses.'),
 			});
 			return;
 		}
@@ -151,23 +156,23 @@ class OverviewContent extends MarkdownRenderChild {
 		});
 		const filterSummary = filters.createEl('summary', {
 			cls: 'thread-journal-overview-filter-summary',
-			attr: { 'aria-label': 'Select thread statuses' },
+			attr: { 'aria-label': t('Select thread statuses') },
 		});
 		setIcon(filterSummary.createSpan(), 'list-filter');
-		filterSummary.createSpan({ text: `Status · ${this.selectedStatuses.size}` });
+		filterSummary.createSpan({ text: t('Status · {count}', { count: this.selectedStatuses.size }) });
 		const filterPanel = filters.createDiv({
 			cls: 'thread-journal-overview-filter-panel',
-			attr: { role: 'group', 'aria-label': 'Thread status filters' },
+			attr: { role: 'group', 'aria-label': t('Thread status filters') },
 		});
 		for (const choice of THREAD_STATUS_CHOICES) {
 			const selected = this.selectedStatuses.has(choice.value);
 			const option = filterPanel.createEl('label', {
 				cls: 'thread-journal-overview-filter-option',
-				attr: { title: choice.description },
+				attr: { title: threadStatusDescription(choice) },
 			});
 			const checkbox = option.createEl('input', { type: 'checkbox' });
 			checkbox.checked = selected;
-			option.createSpan({ text: `${choice.value} — ${choice.label}` });
+			option.createSpan({ text: `${choice.value} — ${threadStatusLabel(choice.value)}` });
 			option.createSpan({
 				cls: 'thread-journal-overview-filter-count',
 				text: String(counts.get(choice.value) ?? 0),
@@ -182,12 +187,12 @@ class OverviewContent extends MarkdownRenderChild {
 		const taskScope = toolbar.createEl('label', {
 			cls: 'thread-journal-overview-task-scope',
 		});
-		taskScope.createSpan({ text: 'Tasks' });
+		taskScope.createSpan({ text: t('Tasks') });
 		const taskScopeSelect = taskScope.createEl('select', {
-			attr: { 'aria-label': 'Filter thread tasks' },
+			attr: { 'aria-label': t('Filter thread tasks') },
 		});
-		taskScopeSelect.createEl('option', { text: 'Active today', value: 'today' });
-		taskScopeSelect.createEl('option', { text: 'All', value: 'all' });
+		taskScopeSelect.createEl('option', { text: t('Active today'), value: 'today' });
+		taskScopeSelect.createEl('option', { text: t('All'), value: 'all' });
 		taskScopeSelect.value = this.taskScope;
 		taskScopeSelect.addEventListener('change', () => {
 			this.taskScope = taskScopeSelect.value === 'all' ? 'all' : 'today';
@@ -200,12 +205,12 @@ class OverviewContent extends MarkdownRenderChild {
 			&& branchIds.every((id) => !this.collapsedBranches.has(id));
 		const expandButton = toolbar.createEl('button', {
 			cls: 'thread-journal-overview-expand-tasks',
-			text: allTasksExpanded ? 'Collapse tasks' : 'Expand all tasks',
+			text: allTasksExpanded ? t('Collapse tasks') : t('Expand all tasks'),
 			attr: {
 				type: 'button',
 				'aria-label': allTasksExpanded
-					? 'Collapse all task lists'
-					: 'Expand all task lists',
+					? t('Collapse all task lists')
+					: t('Expand all task lists'),
 			},
 		});
 		expandButton.disabled = taskIds.length === 0;
@@ -220,7 +225,7 @@ class OverviewContent extends MarkdownRenderChild {
 		});
 		const refreshButton = toolbar.createEl('button', {
 			cls: 'clickable-icon thread-journal-overview-refresh',
-			attr: { type: 'button', 'aria-label': 'Refresh thread overview' },
+			attr: { type: 'button', 'aria-label': t('Refresh thread overview') },
 		});
 		setIcon(refreshButton, 'refresh-cw');
 		refreshButton.addEventListener('click', () => void this.refresh());
@@ -287,7 +292,7 @@ class OverviewContent extends MarkdownRenderChild {
 		const layout = map.createDiv({ cls: 'thread-journal-overview-map-layout' });
 		const root = layout.createDiv({ cls: 'thread-journal-overview-map-root' });
 		setIcon(root.createSpan(), 'git-branch');
-		root.createSpan({ text: 'Threads' });
+		root.createSpan({ text: t('Threads') });
 		const roots = layout.createDiv({ cls: 'thread-journal-overview-map-children' });
 		for (const node of tree) {
 			const child = this.renderBranch(roots, node, rowById);
@@ -338,8 +343,11 @@ class OverviewContent extends MarkdownRenderChild {
 					type: 'button',
 					'data-collapsed': String(branchCollapsed),
 					'aria-label': branchCollapsed
-						? `Expand ${node.item.title} branches (${descendantCount} hidden threads)`
-						: `Collapse ${node.item.title} branches`,
+						? t('Expand {title} branches ({count} hidden threads)', {
+							title: node.item.title,
+							count: descendantCount,
+						})
+						: t('Collapse {title} branches', { title: node.item.title }),
 				},
 			});
 			if (branchCollapsed) toggle.setText(`+${descendantCount}`);
@@ -406,8 +414,8 @@ class OverviewContent extends MarkdownRenderChild {
 				text: String(visibleTasks.length),
 				attr: {
 					title: this.taskScope === 'today'
-						? `${visibleTasks.length} active tasks today`
-						: `${visibleTasks.length} unfinished tasks`,
+						? t('{count} active tasks today', { count: visibleTasks.length })
+						: t('{count} unfinished tasks', { count: visibleTasks.length }),
 				},
 			});
 		}
@@ -422,7 +430,7 @@ class OverviewContent extends MarkdownRenderChild {
 		if (node.contextOnly) {
 			content.createDiv({
 				cls: 'thread-journal-overview-context-note',
-				text: 'Ancestor retained for hierarchy',
+				text: t('Ancestor retained for hierarchy'),
 			});
 			return;
 		}
@@ -438,7 +446,7 @@ class OverviewContent extends MarkdownRenderChild {
 
 	private renderMetrics(parent: HTMLElement, row: AttentionRow): void {
 		const metrics = parent.createDiv({ cls: 'thread-journal-overview-metrics' });
-		const values: [string, number][] = [
+		const values: [TranslationKey, number][] = [
 			['open', row.summary.open],
 			['ready', row.summary.ready],
 			['future', row.summary.future],
@@ -449,7 +457,7 @@ class OverviewContent extends MarkdownRenderChild {
 		if (row.summary.unknown > 0) values.push(['other', row.summary.unknown]);
 		for (const [label, value] of values) {
 			const metric = metrics.createSpan({ cls: 'thread-journal-overview-metric' });
-			metric.createSpan({ text: label });
+			metric.createSpan({ text: t(label) });
 			metric.createEl('strong', { text: String(value) });
 		}
 	}
@@ -459,14 +467,14 @@ class OverviewContent extends MarkdownRenderChild {
 		const tasks = parent.createDiv({ cls: 'thread-journal-overview-tasks' });
 		tasks.createDiv({
 			cls: 'thread-journal-overview-tasks-title',
-			text: `${this.taskScope === 'today' ? 'Active today' : 'All unfinished'} · ${visibleTasks.length}`,
+			text: `${this.taskScope === 'today' ? t('Active today') : t('All unfinished')} · ${visibleTasks.length}`,
 		});
 		if (visibleTasks.length === 0) {
 			tasks.createDiv({
 				cls: 'thread-journal-empty',
 				text: this.taskScope === 'today'
-					? 'No active tasks today in this thread.'
-					: 'No unfinished tasks in this thread.',
+					? t('No active tasks today in this thread.')
+					: t('No unfinished tasks in this thread.'),
 			});
 			return;
 		}
@@ -475,7 +483,7 @@ class OverviewContent extends MarkdownRenderChild {
 			const meta = item.createDiv({ cls: 'thread-journal-overview-task-meta' });
 			meta.createSpan({
 				cls: 'thread-journal-overview-task-kind',
-				text: TASK_DISPOSITION_LABELS[task.disposition],
+				text: t(TASK_DISPOSITION_LABELS[task.disposition]),
 				attr: { 'data-disposition': task.disposition },
 			});
 			const taskLink = item.createEl('a', {
@@ -595,7 +603,7 @@ export class ThreadOverviewView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return 'Thread overview';
+		return t('Thread overview');
 	}
 
 	getIcon(): string {
@@ -630,7 +638,7 @@ export async function openThreadOverview(app: App): Promise<void> {
 		app.workspace.setActiveLeaf(leaf, { focus: true });
 	} catch (error) {
 		console.error('Thread Journal failed to open thread overview', error);
-		new Notice(`无法打开 Thread overview：${String(error)}`);
+		new Notice(t('Failed to open thread overview: {error}', { error: String(error) }));
 	}
 }
 

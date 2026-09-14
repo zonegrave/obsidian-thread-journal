@@ -1,5 +1,6 @@
 import type { App } from 'obsidian';
 import { checkpointFieldKey } from './checkpoint-model';
+import { t } from './i18n';
 import type { CheckpointFieldSpec } from './types';
 
 type ModalFormInput =
@@ -76,15 +77,15 @@ export function buildCheckpointModalForm(
 		fields: [
 			{
 				name: 'checkpoint_date',
-				label: '日期',
-				description: 'Checkpoint 的发生日期。',
+				label: t('Date'),
+				description: t('The date when the checkpoint occurred.'),
 				isRequired: true,
 				input: { type: 'date', hidden: false },
 			},
 			{
 				name: 'checkpoint_time',
-				label: '时间',
-				description: 'Checkpoint 的发生时间。',
+				label: t('Time'),
+				description: t('The time when the checkpoint occurred.'),
 				isRequired: true,
 				input: { type: 'time', hidden: false },
 			},
@@ -92,8 +93,8 @@ export function buildCheckpointModalForm(
 				name: field.key,
 				label: field.label,
 				description: field.storage === 'inline'
-					? `可查询字段 · ${field.key}`
-					: `Checkpoint 正文 · ${field.key}`,
+					? t('Queryable field · {key}', { key: field.key })
+					: t('Checkpoint body · {key}', { key: field.key }),
 				isRequired: field.required,
 				input: fieldInput(field, values[field.key]),
 			})),
@@ -101,19 +102,23 @@ export function buildCheckpointModalForm(
 	};
 }
 
-const CHECKPOINT_CONTROL_OPTIONS = [
-	{ value: 'text', label: '单行文本' },
-	{ value: 'textarea', label: '多行文本' },
-	{ value: 'number', label: '数字' },
-	{ value: 'toggle', label: '开关' },
-	{ value: 'date', label: '日期' },
-	{ value: 'select', label: '选择项' },
-];
+function checkpointControlOptions(): Array<{ value: string; label: string }> {
+	return [
+		{ value: 'text', label: t('Single-line text') },
+		{ value: 'textarea', label: t('Multiline text') },
+		{ value: 'number', label: t('Number') },
+		{ value: 'toggle', label: t('Toggle') },
+		{ value: 'date', label: t('Date') },
+		{ value: 'select', label: t('Select') },
+	];
+}
 
-const CHECKPOINT_STORAGE_OPTIONS = [
-	{ value: 'inline', label: '可查询字段' },
-	{ value: 'body', label: 'Checkpoint 正文' },
-];
+function checkpointStorageOptions(): Array<{ value: string; label: string }> {
+	return [
+		{ value: 'inline', label: t('Queryable field') },
+		{ value: 'body', label: t('Checkpoint body') },
+	];
+}
 
 export function buildCheckpointTemplateFieldModalForm(
 	title: string,
@@ -126,51 +131,51 @@ export function buildCheckpointTemplateFieldModalForm(
 		fields: [
 			{
 				name: 'label',
-				label: '显示名称',
-				description: '显示在 checkpoint 表单和卡片中的名称。',
+				label: t('Display name'),
+				description: t('The name shown in checkpoint forms and cards.'),
 				isRequired: true,
 				input: { type: 'text', hidden: false },
 			},
 			{
 				name: 'key',
-				label: '字段键',
-				description: '用于 Dataview 查询；保存时会自动清理无效字符。',
+				label: t('Field key'),
+				description: t('Used in Dataview queries; invalid characters are cleaned when saving.'),
 				isRequired: true,
 				input: { type: 'text', hidden: false },
 			},
 			{
 				name: 'control',
-				label: '控件',
-				description: '填写 checkpoint 时使用的输入控件。',
+				label: t('Control'),
+				description: t('The input control used when filling in a checkpoint.'),
 				isRequired: true,
 				input: {
 					type: 'select',
 					source: 'fixed',
-					options: CHECKPOINT_CONTROL_OPTIONS,
+					options: checkpointControlOptions(),
 				},
 			},
 			{
 				name: 'storage',
-				label: '保存位置',
-				description: '可查询字段写在首行；正文字段适合较长内容。',
+				label: t('Storage'),
+				description: t('Queryable fields are written to the header; body fields are better for longer content.'),
 				isRequired: true,
 				input: {
 					type: 'select',
 					source: 'fixed',
-					options: CHECKPOINT_STORAGE_OPTIONS,
+					options: checkpointStorageOptions(),
 				},
 			},
 			{
 				name: 'required',
-				label: '必填',
-				description: '开关字段和废弃字段会在保存时自动取消必填。',
+				label: t('Required'),
+				description: t('Toggle and deprecated fields automatically become optional when saved.'),
 				isRequired: false,
 				input: { type: 'toggle', hidden: false },
 			},
 			{
 				name: 'options',
-				label: '选择项',
-				description: '仅选择项控件使用；每行一个选项，也支持英文逗号分隔。',
+				label: t('Select'),
+				description: t('Used only by select controls. Enter one option per line; commas are also supported.'),
 				isRequired: false,
 				input: { type: 'textarea', hidden: false },
 			},

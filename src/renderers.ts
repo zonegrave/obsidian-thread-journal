@@ -24,6 +24,7 @@ import {
 import { parseInlineLogEntries, type ParsedInlineLogEntry } from './inline-log';
 import type { ThreadIndex } from './thread-index';
 import { threadStatusLabel } from './thread-status-model';
+import { t } from './i18n';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
 
 interface CheckpointEntryRecord {
@@ -102,7 +103,7 @@ export class ThreadRenderers {
 		const children = this.index.getDirectChildren(threadFile);
 		el.addClass('thread-journal-children');
 		if (children.length === 0) {
-			el.createDiv({ cls: 'thread-journal-empty', text: '暂无子 thread。' });
+			el.createDiv({ cls: 'thread-journal-empty', text: t('No child threads.') });
 			return;
 		}
 		const list = el.createEl('ul');
@@ -189,7 +190,7 @@ export class ThreadRenderers {
 		this.sourceCheckpointSignatures.set(callout, signature);
 		callout.addClass('thread-journal-source-checkpoint-card');
 
-		const date = entry.values.checkpoint_date || '未填写日期';
+		const date = entry.values.checkpoint_date || t('No date entered');
 		const time = entry.values.checkpoint_time || '';
 		titleInner.setText(formatThreadEntryTimestamp(date, time));
 		title.querySelector('.thread-journal-source-checkpoint-controls')?.remove();
@@ -205,8 +206,8 @@ export class ThreadRenderers {
 		}
 		const edit = controls.createEl('button', {
 			cls: 'thread-journal-checkpoint-edit',
-			text: '编辑',
-			attr: { type: 'button', 'aria-label': '编辑当前 checkpoint' },
+			text: t('Edit'),
+			attr: { type: 'button', 'aria-label': t('Edit current checkpoint') },
 		});
 		edit.addEventListener('mousedown', (event) => {
 			event.preventDefault();
@@ -274,7 +275,7 @@ export class ThreadRenderers {
 			threads = uniqueIds.flatMap((id) => {
 				const thread = this.index.getThreadById(id);
 				if (!thread) {
-					errors.push(`找不到 thread_id: ${id}。`);
+					errors.push(t('Cannot find thread_id: {id}.', { id }));
 					return [];
 				}
 				return [thread];
@@ -340,7 +341,7 @@ export class ThreadRenderers {
 			return timestamp || a.thread.title.localeCompare(b.thread.title);
 		});
 		if (records.length === 0) {
-			el.createDiv({ cls: 'thread-journal-empty', text: '没有符合条件的记录。' });
+			el.createDiv({ cls: 'thread-journal-empty', text: t('No matching entries.') });
 			return;
 		}
 		await this.renderEntryResults(
@@ -367,7 +368,7 @@ export class ThreadRenderers {
 
 	private renderEntryQueryErrors(container: HTMLElement, errors: string[]): void {
 		const warning = container.createDiv({ cls: 'thread-journal-entry-query-error' });
-		warning.createDiv({ text: '记录查询无法执行：' });
+		warning.createDiv({ text: t('The entry query could not run:') });
 		const list = warning.createEl('ul');
 		for (const error of errors) list.createEl('li', { text: error });
 	}
@@ -413,7 +414,7 @@ export class ThreadRenderers {
 				if (group.length === 0) continue;
 				const section = this.createEntryGroup(container);
 				const summary = section.createEl('summary', {
-					text: type === 'checkpoint' ? 'Checkpoint' : 'Log',
+					text: type === 'checkpoint' ? t('Checkpoint') : t('Log'),
 				});
 				this.addEntryCount(summary, group.length);
 				const cards = section.createDiv({ cls: 'thread-journal-entry-cards' });
@@ -439,7 +440,7 @@ export class ThreadRenderers {
 	}
 
 	private addEntryCount(container: HTMLElement, count: number): void {
-		container.createSpan({ cls: 'thread-journal-entry-count', text: `${count} 条` });
+		container.createSpan({ cls: 'thread-journal-entry-count', text: t('{count} entries', { count }) });
 	}
 
 	private renderThreadDetail(
@@ -486,7 +487,7 @@ export class ThreadRenderers {
 			target.createSpan({
 				cls: 'thread-journal-warning',
 				text: '↻',
-				attr: { 'aria-label': '检测到父 thread 循环' },
+				attr: { 'aria-label': t('A parent thread cycle was detected') },
 			});
 		}
 	}
@@ -551,10 +552,10 @@ export class ThreadRenderers {
 		const blockId = record.entry.blockId;
 		const locate = controls.createEl('a', {
 			cls: 'thread-journal-log-locate',
-			text: '定位',
+			text: t('Locate'),
 			attr: {
 				href: `${record.memberFile.path}#^${blockId}`,
-				'aria-label': '在 thread 文件中定位 log',
+				'aria-label': t('Locate log in thread file'),
 			},
 		});
 		locate.addEventListener('click', (event) => {
@@ -570,7 +571,7 @@ export class ThreadRenderers {
 		ctx.addChild(child);
 		await MarkdownRenderer.render(
 			this.app,
-			record.entry.text || '（空日志）',
+			record.entry.text || t('(empty log)'),
 			content,
 			record.memberFile.path,
 			child,
@@ -594,7 +595,7 @@ export class ThreadRenderers {
 			const identity = header.createDiv({
 				cls: 'thread-journal-checkpoint-card-identity',
 			});
-			const date = entry.values.checkpoint_date || '未填写日期';
+			const date = entry.values.checkpoint_date || t('No date entered');
 			const time = entry.values.checkpoint_time || '';
 			identity.createSpan({
 				cls: 'thread-journal-checkpoint-card-date',
@@ -616,10 +617,10 @@ export class ThreadRenderers {
 				const blockId = entry.blockId;
 				const locate = controls.createEl('a', {
 					cls: 'thread-journal-checkpoint-locate',
-					text: '定位',
+					text: t('Locate'),
 					attr: {
 						href: `${sourceFile.path}#^${blockId}`,
-						'aria-label': '在 thread 文件中定位 checkpoint',
+						'aria-label': t('Locate checkpoint in thread file'),
 					},
 				});
 				locate.addEventListener('click', (event) => {
@@ -632,16 +633,16 @@ export class ThreadRenderers {
 				});
 				const edit = controls.createEl('button', {
 					cls: 'thread-journal-checkpoint-edit',
-					text: '编辑',
-					attr: { type: 'button', 'aria-label': '编辑 checkpoint' },
+					text: t('Edit'),
+					attr: { type: 'button', 'aria-label': t('Edit checkpoint') },
 				});
 				edit.addEventListener('click', () => {
 					this.onEditCheckpoint(sourceFile, entry);
 				});
 				const remove = controls.createEl('button', {
 					cls: 'thread-journal-checkpoint-delete',
-					text: '删除',
-					attr: { type: 'button', 'aria-label': '删除 checkpoint' },
+					text: t('Delete'),
+					attr: { type: 'button', 'aria-label': t('Delete checkpoint') },
 				});
 				remove.addEventListener('click', () => {
 					this.onDeleteCheckpoint(sourceFile, entry);
