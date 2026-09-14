@@ -981,8 +981,17 @@
 	}
 }
 
-.thread-journal-overview-modal {
-	width: min(1240px, 96vw);
+.thread-journal-overview-view {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	padding: 1rem;
+}
+
+.thread-journal-overview-view > .thread-journal-overview-map-scroll {
+	min-height: 12rem;
+	max-height: none;
+	flex: 1 1 auto;
 }
 
 .thread-journal-overview-header {

@@ -246,7 +246,7 @@ export class ThreadBreadcrumbManager {
 		setIcon(root, 'git-branch');
 		this.setBarTooltip(bar, root, 'Open thread overview');
 		root.addEventListener('click', () => {
-			openThreadOverview(this.app, this.index);
+			void openThreadOverview(this.app);
 		});
 		const trail = [...this.index.getAncestors(threadFile).items, {
 			file: threadFile,

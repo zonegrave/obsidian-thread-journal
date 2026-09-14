@@ -1,9 +1,11 @@
 import {
 	App,
+	ItemView,
 	MarkdownRenderChild,
-	Modal,
+	Notice,
 	setIcon,
 	type MarkdownPostProcessorContext,
+	type WorkspaceLeaf,
 } from 'obsidian';
 import { collectAttention, type AttentionRow } from './thread-attention';
 import { attentionHint, type TodoDisposition } from './thread-attention-model';
@@ -26,6 +28,8 @@ const TASK_DISPOSITION_LABELS: Record<TodoDisposition, string> = {
 	candidate: 'candidate',
 	unknown: 'other',
 };
+
+export const THREAD_OVERVIEW_VIEW_TYPE = 'thread-journal-overview';
 
 interface MindMapEdge {
 	from: HTMLElement;
@@ -432,22 +436,58 @@ class OverviewContent extends MarkdownRenderChild {
 	}
 }
 
-export function openThreadOverview(app: App, index: ThreadIndex): void {
-	class OverviewModal extends Modal {
-		private view?: OverviewContent;
+export class ThreadOverviewView extends ItemView {
+	private content?: OverviewContent;
 
-		onOpen(): void {
-			this.modalEl.addClass('thread-journal-overview-modal');
-			this.view = new OverviewContent(this.contentEl, app, index);
-			this.view.load();
-		}
-
-		onClose(): void {
-			this.view?.unload();
-			this.contentEl.empty();
-		}
+	constructor(
+		leaf: WorkspaceLeaf,
+		private readonly index: ThreadIndex,
+	) {
+		super(leaf);
 	}
-	new OverviewModal(app).open();
+
+	getViewType(): string {
+		return THREAD_OVERVIEW_VIEW_TYPE;
+	}
+
+	getDisplayText(): string {
+		return 'Thread overview';
+	}
+
+	getIcon(): string {
+		return 'git-branch';
+	}
+
+	async onOpen(): Promise<void> {
+		this.contentEl.addClass('thread-journal-overview-view');
+		this.content = new OverviewContent(this.contentEl, this.app, this.index);
+		this.content.load();
+	}
+
+	async onClose(): Promise<void> {
+		this.content?.unload();
+		this.content = undefined;
+		this.contentEl.empty();
+		this.contentEl.removeClass('thread-journal-overview-view');
+	}
+}
+
+export async function openThreadOverview(app: App): Promise<void> {
+	try {
+		let leaf = app.workspace.getLeavesOfType(THREAD_OVERVIEW_VIEW_TYPE)[0];
+		if (!leaf) {
+			leaf = app.workspace.getLeaf('tab');
+			await leaf.setViewState({
+				type: THREAD_OVERVIEW_VIEW_TYPE,
+				active: true,
+			});
+		}
+		await app.workspace.revealLeaf(leaf);
+		app.workspace.setActiveLeaf(leaf, { focus: true });
+	} catch (error) {
+		console.error('Thread Journal failed to open thread overview', error);
+		new Notice(`无法打开 Thread overview：${String(error)}`);
+	}
 }
 
 export function renderThreadOverview(

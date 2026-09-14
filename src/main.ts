@@ -1,4 +1,9 @@
-import { openThreadOverview, renderThreadOverview } from './thread-overview';
+import {
+	openThreadOverview,
+	renderThreadOverview,
+	THREAD_OVERVIEW_VIEW_TYPE,
+	ThreadOverviewView,
+} from './thread-overview';
 import { ThreadBreadcrumbManager } from './thread-breadcrumb';
 import {
 	MarkdownView,
@@ -46,6 +51,10 @@ export default class ThreadJournalPlugin extends Plugin {
 		);
 		const getSettings = () => this.settings;
 		this.index = new ThreadIndex(this.app);
+		this.registerView(
+			THREAD_OVERVIEW_VIEW_TYPE,
+			(leaf) => new ThreadOverviewView(leaf, this.index),
+		);
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
 		this.switcher = new ThreadSwitcherManager(this.app, this.index, this.files);
 		this.parents = new ThreadParentManager(this.index);
@@ -127,7 +136,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerCommands(): void {
-		this.addCommand({ id: 'thread-overview', name: 'Open thread overview', callback: () => openThreadOverview(this.app, this.index) });
+		this.addCommand({ id: 'thread-overview', name: 'Open thread overview', callback: () => void openThreadOverview(this.app) });
 		this.addCommand({
 			id: 'manage-thread',
 			name: 'Manage thread',
