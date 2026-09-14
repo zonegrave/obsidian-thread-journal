@@ -8,6 +8,7 @@ import {
 import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager } from './thread-files';
 import type { ThreadMetaManager } from './thread-meta';
+import { openThreadOverview } from './thread-overview';
 import type { ThreadSwitcherManager } from './thread-switcher';
 import {
 	breadcrumbMenuSide,
@@ -238,11 +239,15 @@ export class ThreadBreadcrumbManager {
 		const rootThreads = filterBreadcrumbThreads(
 			this.index.getAllThreads().filter((thread) => !this.index.getParentFile(thread.file)),
 		);
-		const root = bar.createSpan({
-			cls: 'thread-journal-fixed-breadcrumb-root',
+		const root = bar.createEl('button', {
+			cls: 'clickable-icon thread-journal-fixed-breadcrumb-root',
+			attr: { type: 'button', 'aria-label': 'Open thread overview' },
 		});
 		setIcon(root, 'git-branch');
-		this.setBarTooltip(bar, root, 'Thread root');
+		this.setBarTooltip(bar, root, 'Open thread overview');
+		root.addEventListener('click', () => {
+			openThreadOverview(this.app, this.index);
+		});
 		const trail = [...this.index.getAncestors(threadFile).items, {
 			file: threadFile,
 			label: current.title,

@@ -135,10 +135,10 @@ thread_role_status: active
 
 每个 meta 和成员文件都会显示固定 Breadcrumb：
 
-- 左侧展示 thread 树；根节点、祖先和子 thread 都打开各自的入口文件。当前 thread 的状态显示在右侧操作区，点击会打开 **Manage thread**。
+- 最左侧线程树图标打开 **Open thread overview**；其后的 breadcrumb 展示 thread 层级，根节点、祖先和子 thread 都打开各自的入口文件。当前 thread 的状态显示在右侧操作区，点击会打开 **Manage thread**。
 - 入口以外的成员会出现首页按钮，可一键返回当前 thread 的入口。
 - 文件按钮显示成员数量，并打开 **Manage thread files**；选择成员可跳转，也可设置入口、终止非入口成员或重新激活成员。terminated 成员排在底部且不能成为入口。
-- thread 树图标打开 **Manage open threads**。它按 `thread_id` 合并当前窗口的所有已打开标签，显示角色组成，可打开入口、管理文件或关闭该 thread 的全部标签。
+- 右侧分叉图标打开 **Manage open threads**。它按 `thread_id` 合并当前窗口的所有已打开标签，显示角色组成，可打开入口、管理文件或关闭该 thread 的全部标签。
 - thread 树和层级菜单固定只显示 `active` 与 `dormant` thread。
 
 目标文件已经打开时，插件直接聚焦已有标签；否则创建普通标签。插件不绑定、移动或自动关闭分栏，也不依赖 Vertical Tabs 等布局插件。
