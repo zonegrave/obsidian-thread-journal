@@ -49,7 +49,10 @@ class OverviewContent extends MarkdownRenderChild {
 	private connectorSvg?: SVGSVGElement;
 	private resizeObserver?: ResizeObserver;
 	private connectorFrame?: number;
+	private revealFrame?: number;
+	private pendingBranchReveal?: string;
 	private edges: MindMapEdge[] = [];
+	private branchElements = new Map<string, HTMLElement>();
 
 	constructor(
 		el: HTMLElement,
@@ -219,6 +222,7 @@ class OverviewContent extends MarkdownRenderChild {
 		this.resizeObserver = new ResizeObserver(() => this.scheduleConnectorDraw());
 		this.resizeObserver.observe(layout);
 		this.scheduleConnectorDraw();
+		this.scheduleBranchReveal();
 	}
 
 	private renderBranch(
@@ -228,7 +232,11 @@ class OverviewContent extends MarkdownRenderChild {
 	): HTMLElement | undefined {
 		const row = rowById.get(node.item.id);
 		if (!row) return undefined;
-		const branch = parent.createDiv({ cls: 'thread-journal-overview-map-branch' });
+		const branch = parent.createDiv({
+			cls: 'thread-journal-overview-map-branch',
+			attr: { 'data-thread-id': node.item.id },
+		});
+		this.branchElements.set(node.item.id, branch);
 		const shell = branch.createDiv({ cls: 'thread-journal-overview-node-shell' });
 		const details = shell.createEl('details', {
 			cls: `thread-journal-overview-node${node.contextOnly ? ' is-context-only' : ''}`,
@@ -262,8 +270,12 @@ class OverviewContent extends MarkdownRenderChild {
 			if (branchCollapsed) toggle.setText(`+${descendantCount}`);
 			else setIcon(toggle, 'minus');
 			toggle.addEventListener('click', () => {
-				if (branchCollapsed) this.collapsedBranches.delete(node.item.id);
-				else this.collapsedBranches.add(node.item.id);
+				if (branchCollapsed) {
+					this.collapsedBranches.delete(node.item.id);
+					this.pendingBranchReveal = node.item.id;
+				} else {
+					this.collapsedBranches.add(node.item.id);
+				}
 				this.render();
 			});
 		}
@@ -433,14 +445,52 @@ class OverviewContent extends MarkdownRenderChild {
 		}
 	}
 
+	private scheduleBranchReveal(): void {
+		if (!this.pendingBranchReveal) return;
+		if (this.revealFrame !== undefined) window.cancelAnimationFrame(this.revealFrame);
+		this.revealFrame = window.requestAnimationFrame(() => {
+			this.revealFrame = undefined;
+			const threadId = this.pendingBranchReveal;
+			this.pendingBranchReveal = undefined;
+			if (threadId) this.revealBranch(threadId);
+		});
+	}
+
+	private revealBranch(threadId: string): void {
+		const branch = this.branchElements.get(threadId);
+		const scroll = branch?.closest<HTMLElement>('.thread-journal-overview-map-scroll');
+		if (!branch?.isConnected || !scroll) return;
+		const branchRect = branch.getBoundingClientRect();
+		const scrollRect = scroll.getBoundingClientRect();
+		const branchLeft = branchRect.left - scrollRect.left + scroll.scrollLeft;
+		const branchTop = branchRect.top - scrollRect.top + scroll.scrollTop;
+		const padding = 24;
+		const desiredLeft = branchRect.width + padding * 2 <= scroll.clientWidth
+			? branchLeft - (scroll.clientWidth - branchRect.width) / 2
+			: branchLeft - padding;
+		const desiredTop = branchRect.height + padding * 2 <= scroll.clientHeight
+			? branchTop - (scroll.clientHeight - branchRect.height) / 2
+			: branchTop - padding;
+		const maxLeft = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
+		const maxTop = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+		scroll.scrollTo({
+			left: Math.max(0, Math.min(desiredLeft, maxLeft)),
+			top: Math.max(0, Math.min(desiredTop, maxTop)),
+			behavior: 'smooth',
+		});
+	}
+
 	private teardownMap(): void {
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = undefined;
 		if (this.connectorFrame !== undefined) window.cancelAnimationFrame(this.connectorFrame);
 		this.connectorFrame = undefined;
+		if (this.revealFrame !== undefined) window.cancelAnimationFrame(this.revealFrame);
+		this.revealFrame = undefined;
 		this.mapEl = undefined;
 		this.connectorSvg = undefined;
 		this.edges = [];
+		this.branchElements.clear();
 	}
 }
 
