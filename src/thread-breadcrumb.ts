@@ -7,7 +7,7 @@ import {
 } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager } from './thread-files';
-import type { ThreadStatusManager } from './thread-status';
+import type { ThreadMetaManager } from './thread-meta';
 import type { ThreadSwitcherManager } from './thread-switcher';
 import {
 	breadcrumbMenuSide,
@@ -33,7 +33,7 @@ export class ThreadBreadcrumbManager {
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 		private readonly files: ThreadFileManager,
-		private readonly statuses: ThreadStatusManager,
+		private readonly meta: ThreadMetaManager,
 		private readonly switcher: ThreadSwitcherManager,
 		private readonly getSettings: () => ThreadJournalSettings,
 	) {
@@ -326,12 +326,12 @@ export class ThreadBreadcrumbManager {
 			attr: {
 				type: 'button',
 				'data-status': current.status || 'unset',
-				'aria-label': `Change thread status; current status: ${current.status || 'unset'}`,
+				'aria-label': `Manage thread; current status: ${current.status || 'unset'}`,
 			},
 		});
-		this.setBarTooltip(bar, status, `Change thread status (current: ${current.status || 'unset'})`);
+		this.setBarTooltip(bar, status, `Manage thread (status: ${current.status || 'unset'})`);
 		status.addEventListener('click', () => {
-			this.statuses.openStatusModal(threadFile);
+			this.meta.openMetaModal(threadFile);
 		});
 		const entry = this.index.getEntry(threadFile);
 		if (entry && entry.path !== currentFile.path) {

@@ -61,6 +61,7 @@ import {
 	availableThreadParentIds,
 	wouldCreateThreadParentCycle,
 } from '../src/thread-parent-model';
+import { replaceThreadDisplayAlias } from '../src/thread-meta-model';
 import {
 	describeOpenThreadRoles,
 	groupOpenThreadViews,
@@ -305,6 +306,15 @@ void test('uses aliases then the filename as the thread display name', () => {
 	assert.equal(index.getDisplayName(aliased as never), '同名项目');
 	assert.equal(index.getThread(plain as never)?.title, '普通项目');
 	assert.equal(index.getDisplayName(plain as never), '普通项目');
+});
+
+void test('updates only the primary thread display alias', () => {
+	assert.deepEqual(
+		replaceThreadDisplayAlias(['旧标题', '次要别名', '新标题'], ' 新标题 '),
+		['新标题', '次要别名'],
+	);
+	assert.deepEqual(replaceThreadDisplayAlias('旧标题', '新标题'), ['新标题']);
+	assert.deepEqual(replaceThreadDisplayAlias(undefined, '新标题'), ['新标题']);
 });
 
 void test('uses a minimal default role template', () => {

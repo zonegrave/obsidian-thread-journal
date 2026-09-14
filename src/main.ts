@@ -21,8 +21,8 @@ import {
 import { ThreadCreator } from './thread-creator';
 import { ThreadFileManager } from './thread-files';
 import { ThreadIndex } from './thread-index';
+import { ThreadMetaManager } from './thread-meta';
 import { ThreadParentManager } from './thread-parent';
-import { ThreadStatusManager } from './thread-status';
 import { ThreadSwitcherManager } from './thread-switcher';
 import type { ThreadJournalSettings } from './types';
 
@@ -32,8 +32,8 @@ export default class ThreadJournalPlugin extends Plugin {
 	private creator!: ThreadCreator;
 	private renderers!: ThreadRenderers;
 	private files!: ThreadFileManager;
+	private meta!: ThreadMetaManager;
 	private parents!: ThreadParentManager;
-	private statuses!: ThreadStatusManager;
 	private checkpoints!: CheckpointManager;
 	private switcher!: ThreadSwitcherManager;
 	private breadcrumbs!: ThreadBreadcrumbManager;
@@ -48,19 +48,25 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.index = new ThreadIndex(this.app);
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
 		this.switcher = new ThreadSwitcherManager(this.app, this.index, this.files);
-		this.parents = new ThreadParentManager(this.app, this.index);
-		this.statuses = new ThreadStatusManager(this.app, this.index);
+		this.parents = new ThreadParentManager(this.index);
+		this.checkpoints = new CheckpointManager(
+			this.app,
+			this.index,
+			getSettings,
+		);
+		this.meta = new ThreadMetaManager(
+			this.app,
+			this.index,
+			this.parents,
+			this.files,
+			this.checkpoints,
+		);
 		this.breadcrumbs = new ThreadBreadcrumbManager(
 			this.app,
 			this.index,
 			this.files,
-			this.statuses,
+			this.meta,
 			this.switcher,
-			getSettings,
-		);
-		this.checkpoints = new CheckpointManager(
-			this.app,
-			this.index,
 			getSettings,
 		);
 		this.creator = new ThreadCreator(this.app, this.index, this.files, getSettings);
@@ -121,13 +127,13 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerCommands(): void {
-		this.addCommand({ id: 'thread-overview', name: 'Open thread overview', callback: () => openThreadOverview(this.app, this.index, this.statuses) });
+		this.addCommand({ id: 'thread-overview', name: 'Open thread overview', callback: () => openThreadOverview(this.app, this.index) });
 		this.addCommand({
-			id: 'edit-current-thread-checkpoint-template',
-			name: 'Edit checkpoint template',
+			id: 'manage-thread',
+			name: 'Manage thread',
 			checkCallback: (checking) => {
-				if (!this.checkpoints.getCurrentThreadFile()) return false;
-				if (!checking) this.checkpoints.openCurrentCheckpointTemplateModal();
+				if (!this.meta.getCurrentThreadFile()) return false;
+				if (!checking) this.meta.openCurrentMetaModal();
 				return true;
 			},
 		});
@@ -138,26 +144,6 @@ export default class ThreadJournalPlugin extends Plugin {
 			checkCallback: (checking) => {
 				if (!this.checkpoints.canCreateCurrentCheckpoint()) return false;
 				if (!checking) this.checkpoints.openCurrentCheckpointModal();
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: 'set-current-thread-status',
-			name: 'Set thread status',
-			checkCallback: (checking) => {
-				if (!this.statuses.getCurrentThreadFile()) return false;
-				if (!checking) this.statuses.openCurrentStatusModal();
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: 'set-thread-parent',
-			name: 'Change thread parent',
-			checkCallback: (checking) => {
-				if (!this.parents.getCurrentThreadFile()) return false;
-				if (!checking) this.parents.openCurrentParentModal();
 				return true;
 			},
 		});
@@ -209,29 +195,6 @@ export default class ThreadJournalPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: 'set-thread-entry',
-			name: 'Set as thread entry',
-			checkCallback: (checking) => {
-				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
-				const threadFile = file ? this.index.getThreadForMember(file) : undefined;
-				const member = file ? this.index.getMember(file) : undefined;
-				if (
-					!file
-					|| !threadFile
-					|| member?.roleStatus !== 'active'
-					|| this.index.isEntry(file)
-				) return false;
-				if (!checking) {
-					void this.files.setEntry(threadFile, file).catch((error: unknown) => {
-						console.error('Thread Journal failed to set thread entry', error);
-						new Notice(`设置 thread 入口失败：${String(error)}`);
-					});
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
 			id: 'insert-inline-log',
 			name: 'Insert inline log',
 			editorCheckCallback: (checking, editor, view) => {
@@ -263,7 +226,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerRenderers(): void {
-		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.statuses, el, ctx));
+		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, el, ctx));
 		this.registerMarkdownPostProcessor(async (el, ctx) => {
 			await this.renderers.enhanceCheckpointCallouts(el, ctx);
 			this.renderers.enhanceLogCallouts(el, ctx);

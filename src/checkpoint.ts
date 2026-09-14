@@ -428,10 +428,9 @@ export class CheckpointManager {
 		});
 	}
 
-	openCurrentCheckpointTemplateModal(): void {
-		const threadFile = this.getCurrentThreadFile();
-		if (!threadFile) {
-			new Notice('当前文件不属于 thread。');
+	openCheckpointTemplateModal(threadFile: TFile): void {
+		if (!this.index.getThread(threadFile)) {
+			new Notice('当前文件不是有效的 thread meta。');
 			return;
 		}
 		const ownTemplate = threadCheckpointFields(this.app, threadFile);

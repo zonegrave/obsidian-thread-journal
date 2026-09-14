@@ -41,7 +41,7 @@ thread meta（唯一）
 1. 一条独立工作线自然形成后，再运行 **Create thread**；不要为了使用工具而提前拆 thread。
 2. `idea` 和 `committed` 只创建 meta，不创建成员或 entry。选择其他初始状态时才选择入口模板；默认 `workspace` 模板几乎为空，可以立刻开始自由工作。
 3. 内容变长或出现稳定分工后，运行 **Create thread file**，从 `context`、`research` 等自定义角色模板扩展 pack。
-4. 用 **Set as thread entry** 决定当前最适合恢复工作的文件，用 **Manage thread files** 在 pack 内切换。
+4. 用 **Manage thread** 维护显示名称、状态、父节点和默认入口；用 **Manage thread files** 在 pack 内切换并管理成员。
 5. 随手进展用 inline log；阶段节点、方向变化和复盘结果用 checkpoint。
 6. 在入口、日记或 MOC 中使用 `thread-entries` 汇总所需视角。
 
@@ -70,6 +70,8 @@ created: 2026-09-13
 - `entry` 指向同一 `thread_id` 下的唯一入口成员。
 - `checkpoint_fields` 可保存当前 thread 独立的 checkpoint 模板。
 - Meta 不保存成员列表；成员通过自己的 `thread_id` 自动归属。
+
+在 meta 或任意成员中运行 **Manage thread**，可以在一个界面中查看 Thread ID 与 meta 路径，并修改 `aliases[0]`、`status`、`parent` 和 `entry`。同一界面也提供 checkpoint 模板与成员管理入口；修改显示名称不会重命名文件。
 
 ### Thread 成员
 
@@ -133,7 +135,7 @@ thread_role_status: active
 
 每个 meta 和成员文件都会显示固定 Breadcrumb：
 
-- 左侧展示 thread 树；根节点、祖先和子 thread 都打开各自的入口文件。当前 thread 的状态徽标显示在右侧操作区，点击即可切换状态。
+- 左侧展示 thread 树；根节点、祖先和子 thread 都打开各自的入口文件。当前 thread 的状态显示在右侧操作区，点击会打开 **Manage thread**。
 - 入口以外的成员会出现首页按钮，可一键返回当前 thread 的入口。
 - 文件按钮显示成员数量，并打开 **Manage thread files**；选择成员可跳转，也可设置入口、终止非入口成员或重新激活成员。terminated 成员排在底部且不能成为入口。
 - thread 树图标打开 **Manage open threads**。它按 `thread_id` 合并当前窗口的所有已打开标签，显示角色组成，可打开入口、管理文件或关闭该 thread 的全部标签。
@@ -242,16 +244,13 @@ order: asc
 | --- | --- | --- |
 | **Create thread** | 任意位置 | 创建 meta；非 idea/committed 状态同时选择模板并创建入口 |
 | **Create thread file** | meta 或成员 | 从角色模板向当前 pack 添加成员 |
+| **Manage thread** | meta 或成员 | 查看 Thread ID 与 meta 路径；修改显示名称、状态、父节点和入口；进入 checkpoint 模板与成员管理 |
 | **Manage thread files** | meta 或成员 | 打开成员、设置入口、终止或重新激活成员 |
 | **Switch active thread role** | meta 或成员 | 在当前 pack 的 active 成员间循环切换；从 meta 或 terminated 成员进入入口 |
-| **Set as thread entry** | 非入口成员 | 将当前成员设为唯一入口 |
 | **Manage open threads** | 任意位置 | 按 thread 管理当前窗口里的标签 |
 | **Open thread overview** | 任意位置 | 查看状态、子树任务提示并定位原任务 |
 | **Insert inline log** | active 成员编辑视图 | 在光标处插入 log |
-| **Edit checkpoint template** | meta 或成员 | 编辑当前 thread 的独立字段模板 |
 | **Create checkpoint** | meta 或成员 | 打开 checkpoint 侧栏表单 |
-| **Set thread status** | meta 或成员 | 修改 meta 中的状态 |
-| **Change thread parent** | meta 或成员 | 选择新的 active/dormant 父 thread，或将当前 thread 设为根节点 |
 
 ## 设置
 

@@ -1,7 +1,6 @@
 import { App, Modal, Setting, MarkdownRenderChild, type MarkdownPostProcessorContext } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
-import type { ThreadStatusManager } from './thread-status';
-import { THREAD_STATUS_CHOICES, isThreadStatus, threadStatusLabel, threadStatusOptionLabel } from './thread-status-model';
+import { THREAD_STATUS_CHOICES, threadStatusLabel, threadStatusOptionLabel } from './thread-status-model';
 import { collectAttention } from './thread-attention';
 import { attentionHint } from './thread-attention-model';
 
@@ -9,7 +8,7 @@ class OverviewContent extends MarkdownRenderChild {
  private filter = 'all';
  private request = 0;
  private timer: number | undefined;
- constructor(el: HTMLElement, private app: App, private index: ThreadIndex, private statuses: ThreadStatusManager) { super(el); }
+ constructor(el: HTMLElement, private app: App, private index: ThreadIndex) { super(el); }
  onload(): void {
   this.registerEvent(this.app.metadataCache.on('changed', () => this.schedule()));
   this.registerEvent(this.app.vault.on('delete', () => this.schedule()));
@@ -44,14 +43,6 @@ class OverviewContent extends MarkdownRenderChild {
     card.createSpan({ cls: 'thread-journal-meta', text: threadStatusLabel(thread.status) });
     card.createEl('p', { text: attentionHint(thread.status, summary) });
     card.createEl('p', { cls: 'setting-item-description', text: `子树未完成 ${summary.open} · 可执行 ${summary.ready} · 未来 ${summary.future} · 等待 ${summary.waiting} · 候选 ${summary.candidate} · 自定义标记 ${summary.unknown} · 暂不投入 ${summary.suspended}` });
-    new Setting(card).setName('状态').addDropdown(dropdown => {
-     for (const choice of THREAD_STATUS_CHOICES) dropdown.addOption(choice.value, threadStatusOptionLabel(choice));
-     dropdown.setValue(thread.status).onChange(async value => {
-      if (!isThreadStatus(value)) return;
-      await this.statuses.setStatus(thread.file, value);
-      this.schedule();
-     });
-    });
     if (tasks.length) {
      const details = card.createEl('details'); details.createEl('summary', { text: `本 thread 的 ${tasks.length} 条未完成事项` });
      for (const task of tasks) {
@@ -69,18 +60,18 @@ class OverviewContent extends MarkdownRenderChild {
  }
 }
 
-export function openThreadOverview(app: App, index: ThreadIndex, statuses: ThreadStatusManager): void {
+export function openThreadOverview(app: App, index: ThreadIndex): void {
  class OverviewModal extends Modal {
   private view?: OverviewContent;
   onOpen(): void {
    this.modalEl.addClass('thread-journal-overview-modal');
-   this.view = new OverviewContent(this.contentEl, app, index, statuses); this.view.load();
+   this.view = new OverviewContent(this.contentEl, app, index); this.view.load();
   }
   onClose(): void { this.view?.unload(); this.contentEl.empty(); }
  }
  new OverviewModal(app).open();
 }
 
-export function renderThreadOverview(app: App, index: ThreadIndex, statuses: ThreadStatusManager, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
- ctx.addChild(new OverviewContent(el, app, index, statuses));
+export function renderThreadOverview(app: App, index: ThreadIndex, el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
+ ctx.addChild(new OverviewContent(el, app, index));
 }
