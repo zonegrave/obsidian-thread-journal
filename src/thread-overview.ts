@@ -26,13 +26,24 @@ const TASK_DISPOSITION_LABELS: Record<TodoDisposition, string> = {
 	unknown: 'other',
 };
 
+interface MindMapEdge {
+	from: HTMLElement;
+	to: HTMLElement;
+	status: string;
+}
+
 class OverviewContent extends MarkdownRenderChild {
 	private readonly selectedStatuses = new Set<string>(DEFAULT_THREAD_OVERVIEW_STATUSES);
-	private readonly expanded = new Set<string>();
-	private readonly collapsed = new Set<string>();
+	private readonly expandedNodes = new Set<string>();
+	private readonly collapsedBranches = new Set<string>();
 	private rows: AttentionRow[] = [];
 	private request = 0;
 	private timer: number | undefined;
+	private mapEl?: HTMLElement;
+	private connectorSvg?: SVGSVGElement;
+	private resizeObserver?: ResizeObserver;
+	private connectorFrame?: number;
+	private edges: MindMapEdge[] = [];
 
 	constructor(
 		el: HTMLElement,
@@ -46,11 +57,12 @@ class OverviewContent extends MarkdownRenderChild {
 		this.containerEl.addClass('thread-journal-overview');
 		this.containerEl.createEl('p', {
 			cls: 'thread-journal-empty',
-			text: 'Loading thread tree…',
+			text: 'Loading thread map…',
 		});
 		this.registerEvent(this.app.metadataCache.on('changed', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('delete', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('rename', () => this.scheduleRefresh()));
+		this.registerDomEvent(window, 'resize', () => this.scheduleConnectorDraw());
 		this.registerInterval(window.setInterval(() => this.scheduleRefresh(), 60000));
 		void this.refresh();
 	}
@@ -58,6 +70,7 @@ class OverviewContent extends MarkdownRenderChild {
 	onunload(): void {
 		this.request += 1;
 		if (this.timer !== undefined) window.clearTimeout(this.timer);
+		this.teardownMap();
 	}
 
 	private scheduleRefresh(): void {
@@ -77,6 +90,7 @@ class OverviewContent extends MarkdownRenderChild {
 			this.render();
 		} catch (error) {
 			if (request !== this.request) return;
+			this.teardownMap();
 			this.containerEl.empty();
 			this.containerEl.createEl('p', {
 				text: `无法读取 thread 总览：${String(error)}`,
@@ -85,13 +99,14 @@ class OverviewContent extends MarkdownRenderChild {
 	}
 
 	private render(): void {
+		this.teardownMap();
 		const el = this.containerEl;
 		el.empty();
 		const header = el.createDiv({ cls: 'thread-journal-overview-header' });
 		const heading = header.createDiv({ cls: 'thread-journal-overview-heading' });
 		heading.createEl('h3', { text: 'Thread overview' });
 		heading.createEl('p', {
-			text: '展开节点查看子树统计和直属 tasks；淡色节点仅用于保留筛选结果的真实层级。',
+			text: '点击节点展开信息，使用节点右侧的 +/− 折叠分支；画布可横向和纵向滚动。',
 		});
 		const refreshButton = header.createEl('button', {
 			cls: 'clickable-icon',
@@ -100,11 +115,31 @@ class OverviewContent extends MarkdownRenderChild {
 		setIcon(refreshButton, 'refresh-cw');
 		refreshButton.addEventListener('click', () => void this.refresh());
 
+		this.renderFilters(el);
+		const tree = buildThreadOverviewTree(this.overviewItems(), this.selectedStatuses);
+		if (this.selectedStatuses.size === 0) {
+			el.createEl('p', {
+				cls: 'thread-journal-empty',
+				text: '请选择至少一个状态。',
+			});
+			return;
+		}
+		if (tree.length === 0) {
+			el.createEl('p', {
+				cls: 'thread-journal-empty',
+				text: '所选状态下没有 thread。',
+			});
+			return;
+		}
+		this.renderMindMap(el, tree);
+	}
+
+	private renderFilters(parent: HTMLElement): void {
 		const counts = new Map<string, number>();
 		for (const row of this.rows) {
 			counts.set(row.thread.status, (counts.get(row.thread.status) ?? 0) + 1);
 		}
-		const filters = el.createDiv({
+		const filters = parent.createDiv({
 			cls: 'thread-journal-overview-filters',
 			attr: { role: 'group', 'aria-label': 'Thread status filters' },
 		});
@@ -128,8 +163,15 @@ class OverviewContent extends MarkdownRenderChild {
 				this.render();
 			});
 		}
+	}
 
-		const items = this.rows.map((row) => {
+	private overviewItems(): {
+		id: string;
+		parent?: string;
+		status: string;
+		title: string;
+	}[] {
+		return this.rows.map((row) => {
 			const parentFile = this.index.getParentFile(row.thread.file);
 			return {
 				id: row.thread.id,
@@ -138,54 +180,98 @@ class OverviewContent extends MarkdownRenderChild {
 				title: row.thread.title,
 			};
 		});
-		const tree = buildThreadOverviewTree(items, this.selectedStatuses);
-		if (this.selectedStatuses.size === 0) {
-			el.createEl('p', {
-				cls: 'thread-journal-empty',
-				text: '请选择至少一个状态。',
-			});
-			return;
-		}
-		if (tree.length === 0) {
-			el.createEl('p', {
-				cls: 'thread-journal-empty',
-				text: '所选状态下没有 thread。',
-			});
-			return;
-		}
-		const rowById = new Map(this.rows.map((row) => [row.thread.id, row]));
-		const treeEl = el.createDiv({ cls: 'thread-journal-overview-tree' });
-		for (const node of tree) this.renderNode(treeEl, node, rowById, 0);
 	}
 
-	private renderNode(
+	private renderMindMap(parent: HTMLElement, tree: ThreadOverviewNode[]): void {
+		const rowById = new Map(this.rows.map((row) => [row.thread.id, row]));
+		const scroll = parent.createDiv({ cls: 'thread-journal-overview-map-scroll' });
+		const map = scroll.createDiv({ cls: 'thread-journal-overview-map' });
+		this.mapEl = map;
+		const svg = createSvg('svg');
+		svg.classList.add('thread-journal-overview-connectors');
+		svg.setAttribute('aria-hidden', 'true');
+		map.appendChild(svg);
+		this.connectorSvg = svg;
+
+		const layout = map.createDiv({ cls: 'thread-journal-overview-map-layout' });
+		const root = layout.createDiv({ cls: 'thread-journal-overview-map-root' });
+		setIcon(root.createSpan(), 'git-branch');
+		root.createSpan({ text: 'Threads' });
+		const roots = layout.createDiv({ cls: 'thread-journal-overview-map-children' });
+		for (const node of tree) {
+			const child = this.renderBranch(roots, node, rowById);
+			if (child) this.edges.push({ from: root, to: child, status: node.item.status });
+		}
+
+		this.resizeObserver = new ResizeObserver(() => this.scheduleConnectorDraw());
+		this.resizeObserver.observe(layout);
+		this.scheduleConnectorDraw();
+	}
+
+	private renderBranch(
 		parent: HTMLElement,
 		node: ThreadOverviewNode,
 		rowById: ReadonlyMap<string, AttentionRow>,
-		depth: number,
-	): void {
+	): HTMLElement | undefined {
 		const row = rowById.get(node.item.id);
-		if (!row) return;
-		const details = parent.createEl('details', {
+		if (!row) return undefined;
+		const branch = parent.createDiv({ cls: 'thread-journal-overview-map-branch' });
+		const shell = branch.createDiv({ cls: 'thread-journal-overview-node-shell' });
+		const details = shell.createEl('details', {
 			cls: `thread-journal-overview-node${node.contextOnly ? ' is-context-only' : ''}`,
 			attr: {
 				'data-thread-id': node.item.id,
 				'data-status': node.item.status || 'unset',
 			},
 		});
-		const defaultOpen = depth === 0 || node.contextOnly;
-		details.open = this.expanded.has(node.item.id)
-			|| (defaultOpen && !this.collapsed.has(node.item.id));
+		details.open = this.expandedNodes.has(node.item.id);
 		details.addEventListener('toggle', () => {
-			if (details.open) {
-				this.expanded.add(node.item.id);
-				this.collapsed.delete(node.item.id);
-			} else {
-				this.expanded.delete(node.item.id);
-				this.collapsed.add(node.item.id);
-			}
+			if (details.open) this.expandedNodes.add(node.item.id);
+			else this.expandedNodes.delete(node.item.id);
+			this.scheduleConnectorDraw();
 		});
+		this.renderNodeHeader(details, row, node);
+		this.renderNodeContent(details, row, node);
 
+		const branchCollapsed = this.collapsedBranches.has(node.item.id);
+		if (node.children.length > 0) {
+			const toggle = shell.createEl('button', {
+				cls: 'clickable-icon thread-journal-overview-branch-toggle',
+				attr: {
+					type: 'button',
+					'aria-label': branchCollapsed
+						? `Expand ${node.item.title} branches`
+						: `Collapse ${node.item.title} branches`,
+				},
+			});
+			setIcon(toggle, branchCollapsed ? 'plus' : 'minus');
+			toggle.addEventListener('click', () => {
+				if (branchCollapsed) this.collapsedBranches.delete(node.item.id);
+				else this.collapsedBranches.add(node.item.id);
+				this.render();
+			});
+		}
+		if (node.children.length > 0 && !branchCollapsed) {
+			const children = branch.createDiv({ cls: 'thread-journal-overview-map-children' });
+			for (const childNode of node.children) {
+				const child = this.renderBranch(children, childNode, rowById);
+				if (child) {
+					this.edges.push({
+						from: details,
+						to: child,
+						status: childNode.item.status,
+					});
+				}
+			}
+		}
+		return details;
+	}
+
+	private renderNodeHeader(
+		details: HTMLDetailsElement,
+		row: AttentionRow,
+		node: ThreadOverviewNode,
+	): void {
 		const summary = details.createEl('summary', {
 			cls: 'thread-journal-overview-node-header',
 		});
@@ -213,36 +299,31 @@ class OverviewContent extends MarkdownRenderChild {
 		if (row.tasks.length > 0) {
 			summary.createSpan({
 				cls: 'thread-journal-overview-node-count',
-				text: `${row.tasks.length} tasks`,
+				text: String(row.tasks.length),
+				attr: { title: `${row.tasks.length} unfinished tasks` },
 			});
 		}
-		if (node.children.length > 0) {
-			summary.createSpan({
-				cls: 'thread-journal-overview-node-count',
-				text: `${node.children.length} branches`,
-			});
-		}
+	}
 
+	private renderNodeContent(
+		details: HTMLDetailsElement,
+		row: AttentionRow,
+		node: ThreadOverviewNode,
+	): void {
 		const content = details.createDiv({ cls: 'thread-journal-overview-node-content' });
 		if (node.contextOnly) {
 			content.createDiv({
 				cls: 'thread-journal-overview-context-note',
 				text: 'Ancestor retained for hierarchy',
 			});
-		} else {
-			content.createEl('p', {
-				cls: 'thread-journal-overview-hint',
-				text: attentionHint(row.thread.status, row.summary),
-			});
-			this.renderMetrics(content, row);
-			this.renderTasks(content, row);
+			return;
 		}
-		if (node.children.length > 0) {
-			const children = content.createDiv({ cls: 'thread-journal-overview-children' });
-			for (const child of node.children) {
-				this.renderNode(children, child, rowById, depth + 1);
-			}
-		}
+		content.createEl('p', {
+			cls: 'thread-journal-overview-hint',
+			text: attentionHint(row.thread.status, row.summary),
+		});
+		this.renderMetrics(content, row);
+		this.renderTasks(content, row);
 	}
 
 	private renderMetrics(parent: HTMLElement, row: AttentionRow): void {
@@ -295,6 +376,56 @@ class OverviewContent extends MarkdownRenderChild {
 				text: task.file.basename,
 			});
 		}
+	}
+
+	private scheduleConnectorDraw(): void {
+		if (!this.mapEl || !this.connectorSvg) return;
+		if (this.connectorFrame !== undefined) window.cancelAnimationFrame(this.connectorFrame);
+		this.connectorFrame = window.requestAnimationFrame(() => {
+			this.connectorFrame = undefined;
+			this.drawConnectors();
+		});
+	}
+
+	private drawConnectors(): void {
+		const map = this.mapEl;
+		const svg = this.connectorSvg;
+		if (!map || !svg || !map.isConnected) return;
+		const mapRect = map.getBoundingClientRect();
+		const width = Math.max(map.scrollWidth, Math.ceil(mapRect.width));
+		const height = Math.max(map.scrollHeight, Math.ceil(mapRect.height));
+		svg.setAttribute('width', String(width));
+		svg.setAttribute('height', String(height));
+		svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+		svg.replaceChildren();
+		for (const edge of this.edges) {
+			if (!edge.from.isConnected || !edge.to.isConnected) continue;
+			const from = edge.from.getBoundingClientRect();
+			const to = edge.to.getBoundingClientRect();
+			const startX = from.right - mapRect.left;
+			const startY = from.top + from.height / 2 - mapRect.top;
+			const endX = to.left - mapRect.left;
+			const endY = to.top + to.height / 2 - mapRect.top;
+			const controlX = startX + Math.max(24, (endX - startX) / 2);
+			const path = createSvg('path');
+			path.classList.add('thread-journal-overview-connector');
+			path.setAttribute('data-status', edge.status || 'unset');
+			path.setAttribute(
+				'd',
+				`M ${startX} ${startY} C ${controlX} ${startY}, ${controlX} ${endY}, ${endX} ${endY}`,
+			);
+			svg.appendChild(path);
+		}
+	}
+
+	private teardownMap(): void {
+		this.resizeObserver?.disconnect();
+		this.resizeObserver = undefined;
+		if (this.connectorFrame !== undefined) window.cancelAnimationFrame(this.connectorFrame);
+		this.connectorFrame = undefined;
+		this.mapEl = undefined;
+		this.connectorSvg = undefined;
+		this.edges = [];
 	}
 }
 
