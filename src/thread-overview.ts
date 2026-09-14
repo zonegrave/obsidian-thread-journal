@@ -41,6 +41,7 @@ class OverviewContent extends MarkdownRenderChild {
 	private readonly selectedStatuses = new Set<string>(DEFAULT_THREAD_OVERVIEW_STATUSES);
 	private readonly expandedNodes = new Set<string>();
 	private readonly collapsedBranches = new Set<string>();
+	private filterOpen = false;
 	private rows: AttentionRow[] = [];
 	private request = 0;
 	private timer: number | undefined;
@@ -107,20 +108,7 @@ class OverviewContent extends MarkdownRenderChild {
 		this.teardownMap();
 		const el = this.containerEl;
 		el.empty();
-		const header = el.createDiv({ cls: 'thread-journal-overview-header' });
-		const heading = header.createDiv({ cls: 'thread-journal-overview-heading' });
-		heading.createEl('h3', { text: 'Thread overview' });
-		heading.createEl('p', {
-			text: '点击节点展开信息，使用节点右侧的 +/− 折叠分支；画布可横向和纵向滚动。',
-		});
-		const refreshButton = header.createEl('button', {
-			cls: 'clickable-icon',
-			attr: { type: 'button', 'aria-label': 'Refresh thread overview' },
-		});
-		setIcon(refreshButton, 'refresh-cw');
-		refreshButton.addEventListener('click', () => void this.refresh());
-
-		this.renderFilters(el);
+		this.renderToolbar(el);
 		const tree = buildThreadOverviewTree(this.overviewItems(), this.selectedStatuses);
 		if (this.selectedStatuses.size === 0) {
 			el.createEl('p', {
@@ -139,35 +127,55 @@ class OverviewContent extends MarkdownRenderChild {
 		this.renderMindMap(el, tree);
 	}
 
-	private renderFilters(parent: HTMLElement): void {
+	private renderToolbar(parent: HTMLElement): void {
 		const counts = new Map<string, number>();
 		for (const row of this.rows) {
 			counts.set(row.thread.status, (counts.get(row.thread.status) ?? 0) + 1);
 		}
-		const filters = parent.createDiv({
-			cls: 'thread-journal-overview-filters',
+		const toolbar = parent.createDiv({ cls: 'thread-journal-overview-toolbar' });
+		const filters = toolbar.createEl('details', {
+			cls: 'thread-journal-overview-filter-menu',
+		});
+		filters.open = this.filterOpen;
+		filters.addEventListener('toggle', () => {
+			this.filterOpen = filters.open;
+		});
+		const filterSummary = filters.createEl('summary', {
+			cls: 'thread-journal-overview-filter-summary',
+			attr: { 'aria-label': 'Select thread statuses' },
+		});
+		setIcon(filterSummary.createSpan(), 'list-filter');
+		filterSummary.createSpan({ text: `Status · ${this.selectedStatuses.size}` });
+		const filterPanel = filters.createDiv({
+			cls: 'thread-journal-overview-filter-panel',
 			attr: { role: 'group', 'aria-label': 'Thread status filters' },
 		});
-		filters.createSpan({ cls: 'thread-journal-overview-filter-label', text: 'Status' });
 		for (const choice of THREAD_STATUS_CHOICES) {
 			const selected = this.selectedStatuses.has(choice.value);
-			const button = filters.createEl('button', {
-				cls: 'thread-journal-overview-filter',
-				text: `${choice.value} ${counts.get(choice.value) ?? 0}`,
-				attr: {
-					type: 'button',
-					'aria-pressed': String(selected),
-					'aria-label': `${choice.value} — ${choice.label}: ${choice.description}`,
-					'data-status': choice.value,
-				},
+			const option = filterPanel.createEl('label', {
+				cls: 'thread-journal-overview-filter-option',
+				attr: { title: choice.description },
 			});
-			button.toggleClass('is-selected', selected);
-			button.addEventListener('click', () => {
-				if (selected) this.selectedStatuses.delete(choice.value);
-				else this.selectedStatuses.add(choice.value);
+			const checkbox = option.createEl('input', { type: 'checkbox' });
+			checkbox.checked = selected;
+			option.createSpan({ text: `${choice.value} — ${choice.label}` });
+			option.createSpan({
+				cls: 'thread-journal-overview-filter-count',
+				text: String(counts.get(choice.value) ?? 0),
+			});
+			checkbox.addEventListener('change', () => {
+				if (checkbox.checked) this.selectedStatuses.add(choice.value);
+				else this.selectedStatuses.delete(choice.value);
+				this.filterOpen = true;
 				this.render();
 			});
 		}
+		const refreshButton = toolbar.createEl('button', {
+			cls: 'clickable-icon thread-journal-overview-refresh',
+			attr: { type: 'button', 'aria-label': 'Refresh thread overview' },
+		});
+		setIcon(refreshButton, 'refresh-cw');
+		refreshButton.addEventListener('click', () => void this.refresh());
 	}
 
 	private overviewItems(): {
