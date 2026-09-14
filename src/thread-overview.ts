@@ -322,7 +322,9 @@ class OverviewContent extends MarkdownRenderChild {
 			cls: 'thread-journal-overview-hint',
 			text: attentionHint(row.thread.status, row.summary),
 		});
-		this.renderMetrics(content, row);
+		if (this.index.getDirectChildren(row.thread.file).length > 0) {
+			this.renderMetrics(content, row);
+		}
 		this.renderTasks(content, row);
 	}
 
