@@ -356,7 +356,8 @@ class OverviewContent extends MarkdownRenderChild {
 		}
 		for (const task of row.tasks) {
 			const item = tasks.createDiv({ cls: 'thread-journal-overview-task' });
-			item.createSpan({
+			const meta = item.createDiv({ cls: 'thread-journal-overview-task-meta' });
+			meta.createSpan({
 				cls: 'thread-journal-overview-task-kind',
 				text: TASK_DISPOSITION_LABELS[task.disposition],
 				attr: { 'data-disposition': task.disposition },
@@ -370,10 +371,6 @@ class OverviewContent extends MarkdownRenderChild {
 				void this.app.workspace.getLeaf(false).openFile(task.file, {
 					eState: { line: task.line },
 				});
-			});
-			item.createSpan({
-				cls: 'thread-journal-overview-task-source',
-				text: task.file.basename,
 			});
 		}
 	}
