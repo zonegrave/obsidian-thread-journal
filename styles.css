@@ -981,5 +981,301 @@
 	}
 }
 
-.thread-journal-overview-modal { width: min(850px, 90vw); }
-.thread-journal-overview-card { border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 12px; margin: 12px 0; }
+.thread-journal-overview-modal {
+	width: min(1100px, 94vw);
+}
+
+.thread-journal-overview-header {
+	display: flex;
+	align-items: flex-start;
+	gap: 1rem;
+	margin-bottom: 0.65rem;
+}
+
+.thread-journal-overview-heading {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.thread-journal-overview-heading h3,
+.thread-journal-overview-heading p {
+	margin: 0;
+}
+
+.thread-journal-overview-heading p {
+	margin-top: 0.25rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-overview-filters {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin-bottom: 1rem;
+	padding: 0.55rem 0.65rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-secondary);
+}
+
+.thread-journal-overview-filter-label {
+	margin-right: 0.25rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+}
+
+.thread-journal-overview-filter {
+	--thread-journal-overview-status-color: var(--text-faint);
+	position: relative;
+	padding: 0.18rem 0.55rem 0.18rem 1.05rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	background: var(--background-primary);
+	color: var(--text-muted);
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-smaller);
+	cursor: pointer;
+}
+
+.thread-journal-overview-filter::before {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 0.48rem;
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--thread-journal-overview-status-color);
+	transform: translateY(-50%);
+}
+
+.thread-journal-overview-filter:hover,
+.thread-journal-overview-filter:focus-visible {
+	background: var(--background-modifier-hover);
+}
+
+.thread-journal-overview-filter.is-selected {
+	border-color: var(--thread-journal-overview-status-color);
+	background: color-mix(in srgb, var(--thread-journal-overview-status-color) 12%, transparent);
+	color: var(--text-normal);
+}
+
+.thread-journal-overview-tree {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.thread-journal-overview-node {
+	--thread-journal-overview-status-color: var(--text-faint);
+	position: relative;
+	min-width: 0;
+}
+
+.thread-journal-overview-node-header {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-height: 2.35rem;
+	padding: 0.35rem 0.65rem;
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--thread-journal-overview-status-color);
+	border-radius: var(--radius-m);
+	background: var(--background-primary-alt);
+	cursor: pointer;
+	list-style: none;
+}
+
+.thread-journal-overview-node-header::-webkit-details-marker {
+	display: none;
+}
+
+.thread-journal-overview-node-header::before {
+	content: '›';
+	flex: 0 0 auto;
+	color: var(--text-faint);
+	font-size: 1.15rem;
+	line-height: 1;
+	transition: transform 120ms ease;
+}
+
+.thread-journal-overview-node[open] > .thread-journal-overview-node-header::before {
+	transform: rotate(90deg);
+}
+
+.thread-journal-overview-node-header:hover {
+	background: var(--background-modifier-hover);
+}
+
+.thread-journal-overview-node-status-dot {
+	width: 7px;
+	height: 7px;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	background: var(--thread-journal-overview-status-color);
+}
+
+.thread-journal-overview-node-title {
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
+	font-weight: var(--font-semibold);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.thread-journal-overview-node-status,
+.thread-journal-overview-node-count {
+	flex: 0 0 auto;
+	padding: 0.08rem 0.4rem;
+	border-radius: 999px;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-overview-node-content {
+	margin: 0 0 0 1.05rem;
+	padding: 0.55rem 0 0.15rem 1.05rem;
+	border-left: 1px solid var(--background-modifier-border);
+}
+
+.thread-journal-overview-node.is-context-only > .thread-journal-overview-node-header {
+	border-style: dashed;
+	opacity: 0.62;
+}
+
+.thread-journal-overview-context-note {
+	margin-bottom: 0.45rem;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	font-style: italic;
+}
+
+.thread-journal-overview-hint {
+	margin: 0 0 0.5rem;
+	color: var(--text-normal);
+}
+
+.thread-journal-overview-metrics {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin-bottom: 0.65rem;
+}
+
+.thread-journal-overview-metric {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.3rem;
+	padding: 0.12rem 0.42rem;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-overview-metric strong {
+	color: var(--text-normal);
+	font-variant-numeric: tabular-nums;
+}
+
+.thread-journal-overview-tasks {
+	margin-bottom: 0.65rem;
+	padding: 0.5rem 0.6rem;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.thread-journal-overview-tasks-title {
+	margin-bottom: 0.35rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+}
+
+.thread-journal-overview-task {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: baseline;
+	gap: 0.5rem;
+	padding: 0.28rem 0;
+}
+
+.thread-journal-overview-task + .thread-journal-overview-task {
+	border-top: 1px solid var(--background-modifier-border-hover);
+}
+
+.thread-journal-overview-task-kind {
+	padding: 0.05rem 0.35rem;
+	border-radius: 999px;
+	background: var(--background-primary-alt);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-overview-task-kind[data-disposition="ready"] {
+	color: var(--text-success);
+}
+
+.thread-journal-overview-task-kind[data-disposition="waiting"],
+.thread-journal-overview-task-kind[data-disposition="future"] {
+	color: var(--text-warning);
+}
+
+.thread-journal-overview-task-source {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-overview-children {
+	display: grid;
+	gap: 0.55rem;
+}
+
+.thread-journal-overview-children > .thread-journal-overview-node::before {
+	content: '';
+	position: absolute;
+	top: 1.15rem;
+	left: -1.05rem;
+	width: 1.05rem;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.thread-journal-overview-filter[data-status="active"],
+.thread-journal-overview-node[data-status="active"],
+.thread-journal-overview-filter[data-status="completed"],
+.thread-journal-overview-node[data-status="completed"] {
+	--thread-journal-overview-status-color: var(--text-success);
+}
+
+.thread-journal-overview-filter[data-status="dormant"],
+.thread-journal-overview-node[data-status="dormant"],
+.thread-journal-overview-filter[data-status="committed"],
+.thread-journal-overview-node[data-status="committed"] {
+	--thread-journal-overview-status-color: var(--text-accent);
+}
+
+.thread-journal-overview-filter[data-status="paused"],
+.thread-journal-overview-node[data-status="paused"],
+.thread-journal-overview-filter[data-status="review"],
+.thread-journal-overview-node[data-status="review"] {
+	--thread-journal-overview-status-color: var(--text-warning);
+}
+
+@media (max-width: 650px) {
+	.thread-journal-overview-node-status {
+		display: none;
+	}
+
+	.thread-journal-overview-task {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+
+	.thread-journal-overview-task-source {
+		grid-column: 2;
+	}
+}

@@ -63,6 +63,10 @@ import {
 } from '../src/thread-parent-model';
 import { replaceThreadDisplayAlias } from '../src/thread-meta-model';
 import {
+	buildThreadOverviewTree,
+	DEFAULT_THREAD_OVERVIEW_STATUSES,
+} from '../src/thread-overview-model';
+import {
 	describeOpenThreadRoles,
 	groupOpenThreadViews,
 	nextActiveThreadRolePath,
@@ -716,6 +720,33 @@ void test('allows only operational non-descendants as a new thread parent', () =
 	assert.equal(wouldCreateThreadParentCycle(nodes, 'current', 'child'), true);
 	assert.equal(wouldCreateThreadParentCycle(nodes, 'current', 'root'), false);
 	assert.deepEqual(availableThreadParentIds(nodes, 'current'), ['root', 'other']);
+});
+
+void test('builds a filtered thread tree while retaining structural ancestors', () => {
+	const tree = buildThreadOverviewTree([
+		{ id: 'paused-root', title: 'Paused root', status: 'paused' },
+		{ id: 'active-child', title: 'Active child', status: 'active', parent: 'paused-root' },
+		{ id: 'review-child', title: 'Review child', status: 'review', parent: 'active-child' },
+		{ id: 'dormant-root', title: 'Dormant root', status: 'dormant' },
+		{ id: 'closed-root', title: 'Closed root', status: 'closed' },
+	], new Set(DEFAULT_THREAD_OVERVIEW_STATUSES));
+
+	assert.deepEqual(tree.map((node) => ({
+		id: node.item.id,
+		contextOnly: node.contextOnly,
+		children: node.children.map((child) => child.item.id),
+	})), [
+		{ id: 'dormant-root', contextOnly: false, children: [] },
+		{ id: 'paused-root', contextOnly: true, children: ['active-child'] },
+	]);
+	assert.equal(tree[1]?.children[0]?.contextOnly, false);
+	assert.deepEqual(DEFAULT_THREAD_OVERVIEW_STATUSES, ['active', 'dormant']);
+});
+
+void test('returns no overview nodes when no status is selected', () => {
+	assert.deepEqual(buildThreadOverviewTree([
+		{ id: 'active', title: 'Active', status: 'active' },
+	], new Set()), []);
 });
 
 void test('groups and orders open thread views without duplicating logical threads', () => {

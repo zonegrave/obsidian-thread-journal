@@ -1,12 +1,12 @@
 import { App, TFile, moment } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
-import { summarizeAttention, todoDisposition, type AttentionTask, type AttentionNode, type AttentionSummary } from './thread-attention-model';
+import { summarizeAttention, todoDisposition, type AttentionTask, type AttentionNode, type AttentionSummary, type TodoDisposition } from './thread-attention-model';
 import type { ThreadInfo } from './types';
 
 export interface AttentionRow {
  thread: ThreadInfo;
  summary: AttentionSummary;
- tasks: { file: TFile; line: number; text: string }[];
+ tasks: { file: TFile; line: number; text: string; disposition: TodoDisposition }[];
 }
 
 export async function collectAttention(app: App, index: ThreadIndex): Promise<AttentionRow[]> {
@@ -51,6 +51,9 @@ export async function collectAttention(app: App, index: ThreadIndex): Promise<At
  return threads.map(thread => ({
   thread,
   summary: summarizeAttention(thread.id, nodes, tasks),
-  tasks: tasks.filter(task => task.owner === thread.id).map(task => taskSources.get(task.key)!),
+  tasks: tasks.filter(task => task.owner === thread.id).map(task => ({
+   ...taskSources.get(task.key)!,
+   disposition: task.disposition,
+  })),
  }));
 }

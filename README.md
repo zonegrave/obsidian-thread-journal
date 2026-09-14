@@ -229,7 +229,7 @@ order: asc
 
 只有 `active` 和 `dormant` thread 可以成为新子 thread 的父节点。父节点之后改变状态不会破坏已有层级。
 
-**Open thread overview** 或 `thread-overview` 代码块会读取 meta 和 pack 全部成员中的 Markdown 任务，统计当前 thread 及其子树，并可定位原任务；它只提示，不自动改变状态。外部笔记中的任务只有在同一行明确链接某个 meta 或成员时才归属该 thread。
+**Open thread overview** 或 `thread-overview` 代码块会把 thread 层级渲染成可展开的树。状态筛选默认选择 `active` 与 `dormant`，八种状态可以任意多选；筛选结果所依赖的未选中祖先会作为淡色结构节点保留，避免层级断裂。节点展开后显示子树注意力统计、直属未完成 tasks 和下级 thread，任务链接可定位到原文。它只提示，不自动改变状态。外部笔记中的任务只有在同一行明确链接某个 meta 或成员时才归属该 thread。
 
 `thread-children` 代码块动态显示直接子 thread，并链接到各自入口：
 
@@ -248,7 +248,7 @@ order: asc
 | **Manage thread files** | meta 或成员 | 打开成员、设置入口、终止或重新激活成员 |
 | **Switch active thread role** | meta 或成员 | 在当前 pack 的 active 成员间循环切换；从 meta 或 terminated 成员进入入口 |
 | **Manage open threads** | 任意位置 | 按 thread 管理当前窗口里的标签 |
-| **Open thread overview** | 任意位置 | 查看状态、子树任务提示并定位原任务 |
+| **Open thread overview** | 任意位置 | 打开可筛选、可展开的 thread 树，查看子树统计和直属 tasks，并定位原任务 |
 | **Insert inline log** | active 成员编辑视图 | 在光标处插入 log |
 | **Create checkpoint** | meta 或成员 | 打开 checkpoint 侧栏表单 |
 
