@@ -77,7 +77,9 @@ import {
 import {
 	clampMapZoom,
 	fitMapZoom,
+	mapScrollForCenter,
 	mapStageGeometry,
+	mapViewportCenter,
 } from '../src/thread-overview-layout';
 import {
 	describeOpenThreadRoles,
@@ -108,6 +110,19 @@ void test('overview canvas can center content edges at every zoom level', () => 
 	assert.equal(clampMapZoom(0), 0.05);
 	assert.equal(clampMapZoom(10), 2.5);
 	assert.equal(fitMapZoom(1200, 800, 600, 400), 0.44);
+});
+
+void test('overview restores the same map viewpoint after a tab resize or redraw', () => {
+	const before = mapStageGeometry(1200, 800, 600, 400, 1.5);
+	const center = mapViewportCenter(450, 125, 600, 400, before.left, before.top, 1.5);
+	assert.deepEqual(center, { x: 300, y: 125 / 1.5 });
+	const after = mapStageGeometry(1200, 800, 800, 500, 1.5);
+	const restored = mapScrollForCenter(center, 800, 500, after.left, after.top, 1.5);
+	assert.deepEqual(restored, { left: 450, top: 125 });
+	assert.deepEqual(
+		mapViewportCenter(restored.left, restored.top, 800, 500, after.left, after.top, 1.5),
+		center,
+	);
 });
 
 void test('builds safe thread member file names', () => {

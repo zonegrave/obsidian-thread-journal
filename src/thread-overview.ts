@@ -25,7 +25,10 @@ import {
 	clampMapZoom,
 	fitMapZoom,
 	MAP_ZOOM_STEP,
+	mapScrollForCenter,
 	mapStageGeometry,
+	mapViewportCenter,
+	type MapViewportCenter,
 } from './thread-overview-layout';
 import {
 	THREAD_STATUS_CHOICES,
@@ -64,6 +67,10 @@ class OverviewContent extends MarkdownRenderChild {
 	private scrollEl?: HTMLElement;
 	private stageEl?: HTMLElement;
 	private mapEl?: HTMLElement;
+	private savedViewportCenter?: MapViewportCenter;
+	private viewportWidth = 0;
+	private viewportHeight = 0;
+	private readonly onMapScroll = (): void => this.captureMapViewport();
 	private connectorSvg?: SVGSVGElement;
 	private resizeObserver?: ResizeObserver;
 	private connectorFrame?: number;
@@ -278,10 +285,15 @@ class OverviewContent extends MarkdownRenderChild {
 		const scroll = this.scrollEl;
 		if (!map || !scroll || !this.stageEl) return;
 		const nextZoom = clampMapZoom(value);
-		const logicalCenterX = (scroll.scrollLeft + scroll.clientWidth / 2 - map.offsetLeft)
-			/ this.zoom;
-		const logicalCenterY = (scroll.scrollTop + scroll.clientHeight / 2 - map.offsetTop)
-			/ this.zoom;
+		const center = mapViewportCenter(
+			scroll.scrollLeft,
+			scroll.scrollTop,
+			scroll.clientWidth,
+			scroll.clientHeight,
+			map.offsetLeft,
+			map.offsetTop,
+			this.zoom,
+		);
 		this.zoom = nextZoom;
 		map.style.transform = `scale(${this.zoom})`;
 		this.updateMapStage();
@@ -289,11 +301,18 @@ class OverviewContent extends MarkdownRenderChild {
 		if (centerMap) {
 			this.centerMap();
 		} else {
-			scroll.scrollLeft = map.offsetLeft + logicalCenterX * this.zoom
-				- scroll.clientWidth / 2;
-			scroll.scrollTop = map.offsetTop + logicalCenterY * this.zoom
-				- scroll.clientHeight / 2;
+			const offset = mapScrollForCenter(
+				center,
+				scroll.clientWidth,
+				scroll.clientHeight,
+				map.offsetLeft,
+				map.offsetTop,
+				this.zoom,
+			);
+			scroll.scrollLeft = offset.left;
+			scroll.scrollTop = offset.top;
 		}
+		this.captureMapViewport();
 		this.scheduleConnectorDraw();
 	}
 
@@ -337,6 +356,51 @@ class OverviewContent extends MarkdownRenderChild {
 			- scroll.clientWidth / 2;
 		scroll.scrollTop = map.offsetTop + map.offsetHeight * this.zoom / 2
 			- scroll.clientHeight / 2;
+	}
+
+	private captureMapViewport(): void {
+		const scroll = this.scrollEl;
+		const map = this.mapEl;
+		if (
+			!scroll || !map || !this.stageEl
+			|| scroll.clientWidth <= 0 || scroll.clientHeight <= 0
+			|| scroll.clientWidth !== this.viewportWidth
+			|| scroll.clientHeight !== this.viewportHeight
+		) {
+			return;
+		}
+		this.savedViewportCenter = mapViewportCenter(
+			scroll.scrollLeft,
+			scroll.scrollTop,
+			scroll.clientWidth,
+			scroll.clientHeight,
+			map.offsetLeft,
+			map.offsetTop,
+			this.zoom,
+		);
+	}
+
+	private restoreMapViewport(): void {
+		const scroll = this.scrollEl;
+		const map = this.mapEl;
+		if (!scroll || !map || !this.stageEl || scroll.clientWidth <= 0 || scroll.clientHeight <= 0) {
+			return;
+		}
+		if (this.savedViewportCenter) {
+			const offset = mapScrollForCenter(
+				this.savedViewportCenter,
+				scroll.clientWidth,
+				scroll.clientHeight,
+				map.offsetLeft,
+				map.offsetTop,
+				this.zoom,
+			);
+			scroll.scrollLeft = offset.left;
+			scroll.scrollTop = offset.top;
+		} else {
+			this.centerMap();
+		}
+		this.captureMapViewport();
 	}
 
 	private overviewExpansionTargets(tree: readonly ThreadOverviewNode[]): {
@@ -397,6 +461,11 @@ class OverviewContent extends MarkdownRenderChild {
 		this.scrollEl = scroll;
 		this.stageEl = stage;
 		this.mapEl = map;
+		if (stage) {
+			this.viewportWidth = scroll.clientWidth;
+			this.viewportHeight = scroll.clientHeight;
+			scroll.addEventListener('scroll', this.onMapScroll);
+		}
 		if (standalone) map.style.transform = `scale(${this.zoom})`;
 		const svg = createSvg('svg');
 		svg.classList.add('thread-journal-overview-connectors');
@@ -414,14 +483,21 @@ class OverviewContent extends MarkdownRenderChild {
 			if (child) this.edges.push({ from: root, to: child, status: node.item.status });
 		}
 
-		this.resizeObserver = new ResizeObserver(() => {
+		this.resizeObserver = new ResizeObserver((entries) => {
+			const viewportChanged = entries.some((entry) => entry.target === scroll);
+			if (viewportChanged) {
+				this.viewportWidth = scroll.clientWidth;
+				this.viewportHeight = scroll.clientHeight;
+			}
 			this.updateMapStage();
+			if (viewportChanged) this.restoreMapViewport();
 			this.scheduleConnectorDraw();
 		});
 		this.resizeObserver.observe(layout);
 		if (stage) this.resizeObserver.observe(scroll);
 		this.updateMapStage();
-		this.centerMap();
+		if (stage) this.restoreMapViewport();
+		else this.centerMap();
 		this.scheduleConnectorDraw();
 		this.scheduleBranchReveal();
 	}
@@ -679,6 +755,8 @@ class OverviewContent extends MarkdownRenderChild {
 	}
 
 	private teardownMap(): void {
+		this.captureMapViewport();
+		this.scrollEl?.removeEventListener('scroll', this.onMapScroll);
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = undefined;
 		if (this.connectorFrame !== undefined) window.cancelAnimationFrame(this.connectorFrame);
@@ -686,6 +764,8 @@ class OverviewContent extends MarkdownRenderChild {
 		if (this.revealFrame !== undefined) window.cancelAnimationFrame(this.revealFrame);
 		this.revealFrame = undefined;
 		this.scrollEl = undefined;
+		this.viewportWidth = 0;
+		this.viewportHeight = 0;
 		this.stageEl = undefined;
 		this.mapEl = undefined;
 		this.connectorSvg = undefined;
