@@ -77,9 +77,12 @@ import {
 import {
 	clampMapZoom,
 	fitMapZoom,
+	mapPointAtViewportPosition,
 	mapScrollForCenter,
+	mapScrollForViewportPoint,
 	mapStageGeometry,
 	mapViewportCenter,
+	wheelMapZoomFactor,
 } from '../src/thread-overview-layout';
 import {
 	describeOpenThreadRoles,
@@ -123,6 +126,30 @@ void test('overview restores the same map viewpoint after a tab resize or redraw
 		mapViewportCenter(restored.left, restored.top, 800, 500, after.left, after.top, 1.5),
 		center,
 	);
+});
+
+void test('overview pinch zoom keeps the point under the gesture stationary', () => {
+	const anchor = { x: 100, y: 80 };
+	const before = mapStageGeometry(1200, 800, 600, 400, 1);
+	const point = mapPointAtViewportPosition(
+		250, 150, anchor.x, anchor.y, before.left, before.top, 1,
+	);
+	assert.deepEqual(point, { x: 50, y: 30 });
+	const after = mapStageGeometry(1200, 800, 600, 400, 2);
+	const offset = mapScrollForViewportPoint(
+		point, anchor.x, anchor.y, after.left, after.top, 2,
+	);
+	assert.deepEqual(offset, { left: 300, top: 180 });
+	assert.deepEqual(
+		mapPointAtViewportPosition(
+			offset.left, offset.top, anchor.x, anchor.y, after.left, after.top, 2,
+		),
+		point,
+	);
+	assert.equal(wheelMapZoomFactor(-20, 0, 400) > 1, true);
+	assert.equal(wheelMapZoomFactor(20, 0, 400) < 1, true);
+	assert.equal(wheelMapZoomFactor(-1000, 0, 400), 1.25);
+	assert.equal(wheelMapZoomFactor(1000, 0, 400), 0.75);
 });
 
 void test('builds safe thread member file names', () => {

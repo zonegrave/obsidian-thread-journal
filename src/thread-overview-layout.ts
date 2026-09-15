@@ -7,6 +7,35 @@ export interface MapViewportCenter {
 	y: number;
 }
 
+export function mapPointAtViewportPosition(
+	scrollLeft: number,
+	scrollTop: number,
+	viewportX: number,
+	viewportY: number,
+	mapLeft: number,
+	mapTop: number,
+	zoom: number,
+): MapViewportCenter {
+	return {
+		x: (scrollLeft + viewportX - mapLeft) / zoom,
+		y: (scrollTop + viewportY - mapTop) / zoom,
+	};
+}
+
+export function mapScrollForViewportPoint(
+	point: MapViewportCenter,
+	viewportX: number,
+	viewportY: number,
+	mapLeft: number,
+	mapTop: number,
+	zoom: number,
+): { left: number; top: number } {
+	return {
+		left: mapLeft + point.x * zoom - viewportX,
+		top: mapTop + point.y * zoom - viewportY,
+	};
+}
+
 export function mapViewportCenter(
 	scrollLeft: number,
 	scrollTop: number,
@@ -16,10 +45,9 @@ export function mapViewportCenter(
 	mapTop: number,
 	zoom: number,
 ): MapViewportCenter {
-	return {
-		x: (scrollLeft + viewportWidth / 2 - mapLeft) / zoom,
-		y: (scrollTop + viewportHeight / 2 - mapTop) / zoom,
-	};
+	return mapPointAtViewportPosition(
+		scrollLeft, scrollTop, viewportWidth / 2, viewportHeight / 2, mapLeft, mapTop, zoom,
+	);
 }
 
 export function mapScrollForCenter(
@@ -30,10 +58,18 @@ export function mapScrollForCenter(
 	mapTop: number,
 	zoom: number,
 ): { left: number; top: number } {
-	return {
-		left: mapLeft + center.x * zoom - viewportWidth / 2,
-		top: mapTop + center.y * zoom - viewportHeight / 2,
-	};
+	return mapScrollForViewportPoint(
+		center, viewportWidth / 2, viewportHeight / 2, mapLeft, mapTop, zoom,
+	);
+}
+
+export function wheelMapZoomFactor(deltaY: number, deltaMode: number, viewportHeight: number): number {
+	const normalizedDelta = deltaMode === 1
+		? deltaY * 16
+		: deltaMode === 2
+			? deltaY * Math.max(1, viewportHeight)
+			: deltaY;
+	return Math.max(0.75, Math.min(1.25, Math.exp(-normalizedDelta / 100)));
 }
 
 export function clampMapZoom(value: number): number {
