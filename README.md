@@ -250,6 +250,7 @@ order: asc
 | **Create thread** | 任意位置 | 创建 meta；非 idea/committed 状态同时选择模板并创建入口 |
 | **Create thread file** | meta 或成员 | 从角色模板向当前 pack 添加成员 |
 | **Manage thread** | meta 或成员 | 查看 Thread ID 与 meta 路径；修改显示名称、状态、父节点和入口；进入 checkpoint 模板与成员管理 |
+| **Edit checkpoint template** | meta 或成员 | 直接编辑当前 thread 的 checkpoint 字段模板 |
 | **Manage thread files** | meta 或成员 | 打开成员、设置入口、终止或重新激活成员 |
 | **Switch active thread role** | meta 或成员 | 在当前 pack 的 active 成员间循环切换；从 meta 或 terminated 成员进入入口 |
 | **Manage open threads** | 任意位置 | 按 thread 管理当前窗口里的标签 |

@@ -151,6 +151,16 @@ export default class ThreadJournalPlugin extends Plugin {
 	private registerCommands(): void {
 		this.addCommand({ id: 'thread-overview', name: t('Open thread overview'), callback: () => void openThreadOverview(this.app) });
 		this.addCommand({
+			id: 'edit-current-thread-checkpoint-template',
+			name: t('Edit checkpoint template'),
+			checkCallback: (checking) => {
+				const threadFile = this.meta.getCurrentThreadFile();
+				if (!threadFile) return false;
+				if (!checking) this.checkpoints.openCheckpointTemplateModal(threadFile);
+				return true;
+			},
+		});
+		this.addCommand({
 			id: 'manage-thread',
 			name: t('Manage thread'),
 			checkCallback: (checking) => {
