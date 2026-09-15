@@ -173,16 +173,12 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 		{
 			replacement: [
 				'  > [!thread-log]',
-				'  > (thread_log:: 2026-09-04T14:35:27)',
-				'  >',
-				'  > ',
-				'',
-				'  ^log-20260904-143527-a1b2c',
-			].join('\n') + '\n\n',
+				'  > - (thread_log:: 2026-09-04T14:35:27)  ^log-20260904-143527-a1b2c',
+			].join('\n') + '\n',
 			fromCh: 0,
 			toCh: 2,
-			cursorLineOffset: 3,
-			cursorCh: 4,
+			cursorLineOffset: 1,
+			cursorCh: '  > - (thread_log:: 2026-09-04T14:35:27) '.length,
 		},
 	);
 	assert.deepEqual(
@@ -197,16 +193,12 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 				'',
 				'',
 				'> [!thread-log]',
-				'> (thread_log:: 2026-09-04T14:35:27)',
-				'>',
-				'> ',
-				'',
-				'^log-20260904-143527-a1b2c',
-			].join('\n') + '\n\n',
+				'> - (thread_log:: 2026-09-04T14:35:27)  ^log-20260904-143527-a1b2c',
+			].join('\n') + '\n',
 			fromCh: 4,
 			toCh: 4,
-			cursorLineOffset: 5,
-			cursorCh: 2,
+			cursorLineOffset: 3,
+			cursorCh: '> - (thread_log:: 2026-09-04T14:35:27) '.length,
 		},
 	);
 	const middle = buildInlineLogEdit(
@@ -217,11 +209,20 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 	);
 	assert.equal(middle.fromCh, 2);
 	assert.equal(middle.toCh, 2);
-	assert.equal(middle.cursorLineOffset, 5);
+	assert.equal(middle.cursorLineOffset, 3);
 	assert.match(middle.replacement, /\n\n> \[!thread-log\]/u);
-	assert.match(middle.replacement, /\^log-middle\n\n$/u);
+	assert.match(middle.replacement, /\(thread_log:: 2026-09-04T14:35:27\) {2}\^log-middle\n\n$/u);
 	const splitLine = '已有内容'.slice(0, 2) + middle.replacement + '已有内容'.slice(2);
 	assert.match(splitLine, /^已有\n\n> \[!thread-log\][\s\S]*\^log-middle\n\n内容$/u);
+	const compactLines = middle.replacement.trim().split('\n');
+	const logLine = compactLines[1] ?? '';
+	const typed = logLine.slice(0, middle.cursorCh)
+		+ '完成接口验证'
+		+ logLine.slice(middle.cursorCh);
+	assert.equal(
+		parseInlineLogEntries([compactLines[0], typed].join('\n'))[0]?.text,
+		'完成接口验证',
+	);
 });
 
 void test('parses multiline inline logs for a daily summary', () => {

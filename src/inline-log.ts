@@ -68,8 +68,8 @@ export function parseInlineLogEntrySlots(content: string): Array<ParsedInlineLog
 			&& /^\s*>/u.test(lines[end] ?? '')
 			&& !/^\s*>\s*\[!/u.test(lines[end] ?? '')
 		) end += 1;
-		// Obsidian block IDs for structured blocks sit outside the quote,
-		// separated by blank lines. The ID also marks this log's end.
+		// Some existing logs use a block ID after the callout. Read it without
+		// requiring the title, timestamp, and ID to occupy particular lines.
 		const footerLine = !lines[end]?.trim() && BLOCK_ID_LINE.test(lines[end + 1] ?? '')
 			? end + 1
 			: end;
@@ -110,25 +110,25 @@ export function buildInlineLogEdit(
 	const indentation = /^\s*/u.exec(line)?.[0] ?? '';
 	const title = `${indentation}> [!thread-log]`;
 	const safeBlockId = blockId.replace(/[^A-Za-z0-9-]+/gu, '-');
-	const metadata = `${indentation}> (thread_log:: ${storedTimestamp})`;
-	const bodyPrefix = `${indentation}> `;
-	const callout = `${title}\n${metadata}\n${indentation}>\n${bodyPrefix}\n\n${indentation}^${safeBlockId}`;
+	const metadataPrefix = `${indentation}> - (thread_log:: ${storedTimestamp}) `;
+	const callout = `${title}\n${metadataPrefix} ^${safeBlockId}`;
 	if (!line.trim()) {
 		return {
-			replacement: `${callout}\n\n`,
+			replacement: `${callout}\n`,
 			fromCh: 0,
 			toCh: line.length,
-			cursorLineOffset: 3,
-			cursorCh: bodyPrefix.length,
+			cursorLineOffset: 1,
+			cursorCh: metadataPrefix.length,
 		};
 	}
 	const position = Math.max(0, Math.min(Math.trunc(cursorCh), line.length));
 	const before = position > 0 ? '\n\n' : '';
+	const after = position < line.length ? '\n\n' : '\n';
 	return {
-		replacement: `${before}${callout}\n\n`,
+		replacement: `${before}${callout}${after}`,
 		fromCh: position,
 		toCh: position,
-		cursorLineOffset: position > 0 ? 5 : 3,
-		cursorCh: bodyPrefix.length,
+		cursorLineOffset: position > 0 ? 3 : 1,
+		cursorCh: metadataPrefix.length,
 	};
 }
