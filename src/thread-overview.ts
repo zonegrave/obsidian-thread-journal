@@ -22,6 +22,12 @@ import {
 	type ThreadOverviewNode,
 } from './thread-overview-model';
 import {
+	clampMapZoom,
+	fitMapZoom,
+	MAP_ZOOM_STEP,
+	mapStageGeometry,
+} from './thread-overview-layout';
+import {
 	THREAD_STATUS_CHOICES,
 	threadStatusDescription,
 	threadStatusLabel,
@@ -53,6 +59,10 @@ class OverviewContent extends MarkdownRenderChild {
 	private rows: AttentionRow[] = [];
 	private request = 0;
 	private timer: number | undefined;
+	private zoom = 1;
+	private zoomValueEl?: HTMLElement;
+	private scrollEl?: HTMLElement;
+	private stageEl?: HTMLElement;
 	private mapEl?: HTMLElement;
 	private connectorSvg?: SVGSVGElement;
 	private resizeObserver?: ResizeObserver;
@@ -198,6 +208,9 @@ class OverviewContent extends MarkdownRenderChild {
 			this.taskScope = taskScopeSelect.value === 'all' ? 'all' : 'today';
 			this.render();
 		});
+		if (parent.hasClass('thread-journal-overview-view')) {
+			this.renderZoomControls(toolbar);
+		}
 
 		const { taskIds, branchIds } = this.overviewExpansionTargets(tree);
 		const allTasksExpanded = taskIds.length > 0
@@ -229,6 +242,101 @@ class OverviewContent extends MarkdownRenderChild {
 		});
 		setIcon(refreshButton, 'refresh-cw');
 		refreshButton.addEventListener('click', () => void this.refresh());
+	}
+
+	private renderZoomControls(toolbar: HTMLElement): void {
+		const controls = toolbar.createDiv({ cls: 'thread-journal-overview-zoom-controls' });
+		const zoomOut = controls.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { type: 'button', 'aria-label': t('Zoom out') },
+		});
+		setIcon(zoomOut, 'minus');
+		zoomOut.addEventListener('click', () => this.changeZoom(this.zoom - MAP_ZOOM_STEP));
+
+		this.zoomValueEl = controls.createSpan({
+			cls: 'thread-journal-overview-zoom-value',
+			text: `${Math.round(this.zoom * 100)}%`,
+		});
+
+		const zoomIn = controls.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { type: 'button', 'aria-label': t('Zoom in') },
+		});
+		setIcon(zoomIn, 'plus');
+		zoomIn.addEventListener('click', () => this.changeZoom(this.zoom + MAP_ZOOM_STEP));
+
+		const fit = controls.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { type: 'button', 'aria-label': t('Fit map to view') },
+		});
+		setIcon(fit, 'maximize');
+		fit.addEventListener('click', () => this.fitMapToView());
+	}
+
+	private changeZoom(value: number, centerMap = false): void {
+		const map = this.mapEl;
+		const scroll = this.scrollEl;
+		if (!map || !scroll || !this.stageEl) return;
+		const nextZoom = clampMapZoom(value);
+		const logicalCenterX = (scroll.scrollLeft + scroll.clientWidth / 2 - map.offsetLeft)
+			/ this.zoom;
+		const logicalCenterY = (scroll.scrollTop + scroll.clientHeight / 2 - map.offsetTop)
+			/ this.zoom;
+		this.zoom = nextZoom;
+		map.style.transform = `scale(${this.zoom})`;
+		this.updateMapStage();
+		this.zoomValueEl?.setText(`${Math.round(this.zoom * 100)}%`);
+		if (centerMap) {
+			this.centerMap();
+		} else {
+			scroll.scrollLeft = map.offsetLeft + logicalCenterX * this.zoom
+				- scroll.clientWidth / 2;
+			scroll.scrollTop = map.offsetTop + logicalCenterY * this.zoom
+				- scroll.clientHeight / 2;
+		}
+		this.scheduleConnectorDraw();
+	}
+
+	private fitMapToView(): void {
+		const map = this.mapEl;
+		const scroll = this.scrollEl;
+		if (!map || !scroll) return;
+		this.changeZoom(fitMapZoom(
+			map.offsetWidth,
+			map.offsetHeight,
+			scroll.clientWidth,
+			scroll.clientHeight,
+		), true);
+	}
+
+	private updateMapStage(): void {
+		const map = this.mapEl;
+		const scroll = this.scrollEl;
+		const stage = this.stageEl;
+		if (!map || !scroll || !stage) return;
+		const viewportWidth = scroll.clientWidth;
+		const viewportHeight = scroll.clientHeight;
+		const geometry = mapStageGeometry(
+			map.offsetWidth,
+			map.offsetHeight,
+			viewportWidth,
+			viewportHeight,
+			this.zoom,
+		);
+		map.style.left = `${geometry.left}px`;
+		map.style.top = `${geometry.top}px`;
+		stage.style.width = `${geometry.width}px`;
+		stage.style.height = `${geometry.height}px`;
+	}
+
+	private centerMap(): void {
+		const map = this.mapEl;
+		const scroll = this.scrollEl;
+		if (!map || !scroll || !this.stageEl) return;
+		scroll.scrollLeft = map.offsetLeft + map.offsetWidth * this.zoom / 2
+			- scroll.clientWidth / 2;
+		scroll.scrollTop = map.offsetTop + map.offsetHeight * this.zoom / 2
+			- scroll.clientHeight / 2;
 	}
 
 	private overviewExpansionTargets(tree: readonly ThreadOverviewNode[]): {
@@ -281,8 +389,15 @@ class OverviewContent extends MarkdownRenderChild {
 	private renderMindMap(parent: HTMLElement, tree: ThreadOverviewNode[]): void {
 		const rowById = new Map(this.rows.map((row) => [row.thread.id, row]));
 		const scroll = parent.createDiv({ cls: 'thread-journal-overview-map-scroll' });
-		const map = scroll.createDiv({ cls: 'thread-journal-overview-map' });
+		const standalone = parent.hasClass('thread-journal-overview-view');
+		const stage = standalone
+			? scroll.createDiv({ cls: 'thread-journal-overview-map-stage' })
+			: undefined;
+		const map = (stage ?? scroll).createDiv({ cls: 'thread-journal-overview-map' });
+		this.scrollEl = scroll;
+		this.stageEl = stage;
 		this.mapEl = map;
+		if (standalone) map.style.transform = `scale(${this.zoom})`;
 		const svg = createSvg('svg');
 		svg.classList.add('thread-journal-overview-connectors');
 		svg.setAttribute('aria-hidden', 'true');
@@ -299,8 +414,14 @@ class OverviewContent extends MarkdownRenderChild {
 			if (child) this.edges.push({ from: root, to: child, status: node.item.status });
 		}
 
-		this.resizeObserver = new ResizeObserver(() => this.scheduleConnectorDraw());
+		this.resizeObserver = new ResizeObserver(() => {
+			this.updateMapStage();
+			this.scheduleConnectorDraw();
+		});
 		this.resizeObserver.observe(layout);
+		if (stage) this.resizeObserver.observe(scroll);
+		this.updateMapStage();
+		this.centerMap();
 		this.scheduleConnectorDraw();
 		this.scheduleBranchReveal();
 	}
@@ -513,8 +634,9 @@ class OverviewContent extends MarkdownRenderChild {
 		const svg = this.connectorSvg;
 		if (!map || !svg || !map.isConnected) return;
 		const mapRect = map.getBoundingClientRect();
-		const width = Math.max(map.scrollWidth, Math.ceil(mapRect.width));
-		const height = Math.max(map.scrollHeight, Math.ceil(mapRect.height));
+		const scale = this.stageEl ? this.zoom : 1;
+		const width = Math.max(map.scrollWidth, Math.ceil(mapRect.width / scale));
+		const height = Math.max(map.scrollHeight, Math.ceil(mapRect.height / scale));
 		svg.setAttribute('width', String(width));
 		svg.setAttribute('height', String(height));
 		svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
@@ -523,10 +645,10 @@ class OverviewContent extends MarkdownRenderChild {
 			if (!edge.from.isConnected || !edge.to.isConnected) continue;
 			const from = edge.from.getBoundingClientRect();
 			const to = edge.to.getBoundingClientRect();
-			const startX = from.right - mapRect.left;
-			const startY = from.top + from.height / 2 - mapRect.top;
-			const endX = to.left - mapRect.left;
-			const endY = to.top + to.height / 2 - mapRect.top;
+			const startX = (from.right - mapRect.left) / scale;
+			const startY = (from.top + from.height / 2 - mapRect.top) / scale;
+			const endX = (to.left - mapRect.left) / scale;
+			const endY = (to.top + to.height / 2 - mapRect.top) / scale;
 			const controlX = startX + Math.max(24, (endX - startX) / 2);
 			const path = createSvg('path');
 			path.classList.add('thread-journal-overview-connector');
@@ -581,6 +703,8 @@ class OverviewContent extends MarkdownRenderChild {
 		this.connectorFrame = undefined;
 		if (this.revealFrame !== undefined) window.cancelAnimationFrame(this.revealFrame);
 		this.revealFrame = undefined;
+		this.scrollEl = undefined;
+		this.stageEl = undefined;
 		this.mapEl = undefined;
 		this.connectorSvg = undefined;
 		this.edges = [];

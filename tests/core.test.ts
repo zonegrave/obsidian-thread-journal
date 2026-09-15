@@ -74,6 +74,11 @@ import {
 	DEFAULT_THREAD_OVERVIEW_STATUSES,
 } from '../src/thread-overview-model';
 import {
+	clampMapZoom,
+	fitMapZoom,
+	mapStageGeometry,
+} from '../src/thread-overview-layout';
+import {
 	describeOpenThreadRoles,
 	groupOpenThreadViews,
 	nextActiveThreadRolePath,
@@ -87,6 +92,21 @@ void test('resolves automatic language and translates interpolated UI text', () 
 	assert.equal(resolveLocale('zh', 'en-US'), 'zh');
 	assert.equal(translate('en', 'Created {title}', { title: 'Project' }), 'Created Project');
 	assert.equal(translate('zh', 'Created {title}', { title: '项目' }), '已创建 项目');
+});
+
+void test('overview canvas can center content edges at every zoom level', () => {
+	for (const zoom of [0.2, 1, 2]) {
+		const stage = mapStageGeometry(1200, 800, 600, 400, zoom);
+		const maxScrollLeft = stage.width - 600;
+		const maxScrollTop = stage.height - 400;
+		assert.equal(stage.left, 300);
+		assert.equal(stage.top, 200);
+		assert.equal(stage.left + 1200 * zoom - maxScrollLeft, 300);
+		assert.equal(stage.top + 800 * zoom - maxScrollTop, 200);
+	}
+	assert.equal(clampMapZoom(0), 0.05);
+	assert.equal(clampMapZoom(10), 2.5);
+	assert.equal(fitMapZoom(1200, 800, 600, 400), 0.44);
 });
 
 void test('builds safe thread member file names', () => {
