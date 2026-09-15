@@ -402,6 +402,7 @@ export class ThreadFileManager {
 			.slice(2, 7)}`;
 		const edit = buildInlineLogEdit(
 			line,
+			cursor.ch,
 			timestamp.format('YYYY-MM-DDTHH:mm:ss'),
 			blockId,
 		);

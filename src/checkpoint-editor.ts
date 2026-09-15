@@ -29,7 +29,8 @@ export function checkpointEditorExtension(
 		callout: HTMLElement,
 		file: TFile,
 		entry: ParsedInlineLogEntry,
-	) => void,
+		registerChild: (child: MarkdownRenderChild) => void,
+	) => Promise<void>,
 ) {
 	return ViewPlugin.fromClass(class CheckpointEditorCallouts {
 		private frame?: number;
@@ -112,7 +113,12 @@ export function checkpointEditorExtension(
 				const line = this.view.state.doc.lineAt(position).number - 1;
 				const entry = inlineLogEntryAroundLine(source, line);
 				if (!entry) return;
-				onRenderLog(callout, file, entry);
+				void onRenderLog(callout, file, entry, (child) => {
+					child.load();
+					this.renderChildren.add(child);
+				}).catch((error: unknown) => {
+					console.error('Thread Journal failed to render log Markdown', error);
+				});
 			});
 		}
 	});

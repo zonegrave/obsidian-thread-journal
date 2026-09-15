@@ -166,16 +166,19 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 	assert.deepEqual(
 		buildInlineLogEdit(
 			'  ',
+			2,
 			'2026-09-04T14:35:27',
 			'log-20260904-143527-a1b2c',
 		),
 		{
 			replacement: [
 				'  > [!thread-log]',
-				'  > (thread_log:: 2026-09-04T14:35:27) ^log-20260904-143527-a1b2c',
+				'  > (thread_log:: 2026-09-04T14:35:27)',
+				'  >',
 				'  > ',
-				'  > ',
-			].join('\n'),
+				'',
+				'  ^log-20260904-143527-a1b2c',
+			].join('\n') + '\n\n',
 			fromCh: 0,
 			toCh: 2,
 			cursorLineOffset: 3,
@@ -185,6 +188,7 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 	assert.deepEqual(
 		buildInlineLogEdit(
 			'已有内容',
+			4,
 			'2026-09-04T14:35:27',
 			'log-20260904-143527-a1b2c',
 		),
@@ -193,33 +197,54 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 				'',
 				'',
 				'> [!thread-log]',
-				'> (thread_log:: 2026-09-04T14:35:27) ^log-20260904-143527-a1b2c',
+				'> (thread_log:: 2026-09-04T14:35:27)',
+				'>',
 				'> ',
-				'> ',
-			].join('\n'),
+				'',
+				'^log-20260904-143527-a1b2c',
+			].join('\n') + '\n\n',
 			fromCh: 4,
 			toCh: 4,
 			cursorLineOffset: 5,
 			cursorCh: 2,
 		},
 	);
+	const middle = buildInlineLogEdit(
+		'已有内容',
+		2,
+		'2026-09-04T14:35:27',
+		'log-middle',
+	);
+	assert.equal(middle.fromCh, 2);
+	assert.equal(middle.toCh, 2);
+	assert.equal(middle.cursorLineOffset, 5);
+	assert.match(middle.replacement, /\n\n> \[!thread-log\]/u);
+	assert.match(middle.replacement, /\^log-middle\n\n$/u);
+	const splitLine = '已有内容'.slice(0, 2) + middle.replacement + '已有内容'.slice(2);
+	assert.match(splitLine, /^已有\n\n> \[!thread-log\][\s\S]*\^log-middle\n\n内容$/u);
 });
 
 void test('parses multiline inline logs for a daily summary', () => {
 	const content = [
-		'> [!thread-log]',
-		'> (thread_log:: 2026-09-04T14:35:27) ^log-20260904-143527-a1b2c',
+		'> [!thread-log] 任意标题内容',
+		'> (thread_log:: 2026-09-04T14:35:27)',
 		'> ',
 		'> 完成了 [[接口验证]]',
 		'> 第二行也应显示',
 		'> ',
 		'> - 继续调研',
+		'',
+		'^log-20260904-143527-a1b2c',
+		'',
 		'> [!thread-log]',
-		'> (thread_log:: 2026-09-03T23:10:00) ^log-20260903-231000-d4e5f',
+		'> (thread_log:: 2026-09-03T23:10:00)',
 		'> ',
 		'> 昨天的记录',
+		'',
+		'^log-20260903-231000-d4e5f',
+		'',
 		'> [!thread-log]',
-		'> (thread_log:: 2026-09-04T07:41:06)',
+		'> (thread_log:: not-a-time)',
 		'> 不应进入结果',
 		'普通文本 (thread_log:: 2026-09-04T12:00:00)',
 	].join('\n');
@@ -242,31 +267,64 @@ void test('parses multiline inline logs for a daily summary', () => {
 	]);
 });
 
-void test('keeps callout positions aligned when a log is not in the new format', () => {
+void test('reads existing thread-log callouts and keeps malformed slots aligned', () => {
 	const content = [
 		'> [!thread-log] 09-03 23:10',
 		'> - (thread_log:: 2026-09-03T23:10:00) 旧记录 ^log-old',
+		'> 旧记录续行',
 		'> [!thread-log]',
-		'> (thread_log:: 2026-09-04T14:35:27) ^log-new',
+		'> (thread_log:: 2026-09-04T14:35:27)',
 		'> ',
 		'> 新记录',
+		'',
+		'^log-new',
+		'',
+		'> [!thread-log] 缺少时间数据',
+		'> 只有正文',
+		'> 不应进入结果',
+		'> [!thread-log]+ 可折叠标题',
+		'> (thread_log:: 2026-09-04T16:00:00)',
+		'> 没有 ID 仍可查询',
 	].join('\n');
 	const slots = parseInlineLogEntrySlots(content);
-	assert.equal(slots.length, 2);
-	assert.equal(slots[0], undefined);
+	assert.equal(slots.length, 4);
+	assert.equal(slots[0]?.text, '旧记录\n旧记录续行');
+	assert.equal(slots[0]?.blockId, 'log-old');
 	assert.equal(slots[1]?.text, '新记录');
-	assert.deepEqual(parseInlineLogEntries(content), [slots[1]]);
+	assert.equal(slots[2], undefined);
+	assert.equal(slots[3]?.text, '没有 ID 仍可查询');
+	assert.equal(slots[3]?.blockId, '');
+	assert.deepEqual(parseInlineLogEntries(content), [slots[0], slots[1], slots[3]]);
+});
+
+void test('preserves internal Markdown block IDs inside a log body', () => {
+	const content = [
+		'> [!thread-log]',
+		'> (thread_log:: 2026-09-04T16:00:00)',
+		'> ',
+		'> 这一段有自己的定位 ^sub-block',
+		'> - Markdown 列表 ^list-item',
+		'',
+		'^log-parent',
+		'',
+	].join('\n');
+	assert.equal(
+		parseInlineLogEntries(content)[0]?.text,
+		'这一段有自己的定位 ^sub-block\n- Markdown 列表 ^list-item',
+	);
 });
 
 void test('finds the inline log around a Live Preview source line', () => {
 	const content = [
 		'# 工作区',
 		'',
-		'> [!thread-log]',
-		'> (thread_log:: 2026-09-04T14:35:27) ^log-20260904-143527-a1b2c',
+		'> [!thread-log] 09-04 14:35',
+		'> (thread_log:: 2026-09-04T14:35:27)',
 		'> ',
 		'> 完成了 [[接口验证]]',
 		'> 第二行',
+		'',
+		'^log-20260904-143527-a1b2c',
 		'',
 		'后续内容',
 	].join('\n');
@@ -279,7 +337,7 @@ void test('finds the inline log around a Live Preview source line', () => {
 		blockId: 'log-20260904-143527-a1b2c',
 	});
 	assert.equal(inlineLogEntryAroundLine(content, 6)?.text, '完成了 [[接口验证]]\n第二行');
-	assert.equal(inlineLogEntryAroundLine(content, 8), undefined);
+	assert.equal(inlineLogEntryAroundLine(content, 10), undefined);
 });
 
 void test('parses the unified thread entries query', () => {

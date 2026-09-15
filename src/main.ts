@@ -102,9 +102,8 @@ export default class ThreadJournalPlugin extends Plugin {
 					entry,
 					registerChild,
 				),
-			(callout, file, entry) => {
-				this.renderers.renderSourceLogCallout(callout, file, entry);
-			},
+			(callout, file, entry, registerChild) =>
+				this.renderers.renderSourceLogCallout(callout, file, entry, registerChild),
 		));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
 			this.switcher.rememberActiveLeaf(leaf);
@@ -261,7 +260,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, el, ctx));
 		this.registerMarkdownPostProcessor(async (el, ctx) => {
 			await this.renderers.enhanceCheckpointCallouts(el, ctx);
-			this.renderers.enhanceLogCallouts(el, ctx);
+			await this.renderers.enhanceLogCallouts(el, ctx);
 		});
 		this.registerMarkdownCodeBlockProcessor('thread-entries', async (source, el, ctx) => {
 			await this.renderers.renderEntries(source, el, ctx);

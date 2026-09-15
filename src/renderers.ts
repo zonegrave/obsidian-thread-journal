@@ -154,10 +154,10 @@ export class ThreadRenderers {
 		}));
 	}
 
-	enhanceLogCallouts(
+	async enhanceLogCallouts(
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext,
-	): void {
+	): Promise<void> {
 		const current = sourceFile(this.app, ctx);
 		if (!current || !this.index.getThreadForMember(current)) return;
 		const selector = '.callout[data-callout="thread-log"]';
@@ -168,12 +168,18 @@ export class ThreadRenderers {
 		if (callouts.length === 0) return;
 		const section = ctx.getSectionInfo(el);
 		if (!section) return;
-		const entries = parseInlineLogEntrySlots(section.text);
-		callouts.forEach((callout, index) => {
+		const sourceLines = (await this.app.vault.cachedRead(current)).split(/\r?\n/u);
+		// A structured block's ID is outside the rendered callout section.
+		// Include the lines just after the section when matching source entries.
+		const sectionSource = sourceLines
+			.slice(section.lineStart, section.lineEnd + 4)
+			.join('\n');
+		const entries = parseInlineLogEntrySlots(sectionSource);
+		await Promise.all(callouts.map(async (callout, index) => {
 			const entry = entries[index];
 			if (!entry) return;
-			this.renderSourceLogCallout(callout, current, entry);
-		});
+			await this.renderSourceLogCallout(callout, current, entry, (child) => ctx.addChild(child));
+		}));
 	}
 
 	async renderSourceCheckpointCallout(
@@ -233,11 +239,12 @@ export class ThreadRenderers {
 		);
 	}
 
-	renderSourceLogCallout(
+	async renderSourceLogCallout(
 		callout: HTMLElement,
-		_memberFile: TFile,
+		memberFile: TFile,
 		entry: ParsedInlineLogEntry,
-	): void {
+		registerChild: MarkdownChildRegistrar,
+	): Promise<void> {
 		const signature = JSON.stringify(entry);
 		if (this.sourceLogSignatures.get(callout) === signature) return;
 		const title = callout.querySelector<HTMLElement>('.callout-title');
@@ -256,6 +263,8 @@ export class ThreadRenderers {
 			],
 		});
 		controls.createSpan({ cls: 'thread-journal-log-card-kind', text: 'log' });
+		content.empty();
+		await this.renderLogContent(content, entry, memberFile.path, registerChild);
 	}
 
 	async renderEntries(
@@ -554,30 +563,46 @@ export class ThreadRenderers {
 		const controls = header.createDiv({ cls: 'thread-journal-log-card-controls' });
 		controls.createSpan({ cls: 'thread-journal-log-card-kind', text: 'log' });
 		const blockId = record.entry.blockId;
-		const locate = controls.createEl('a', {
-			cls: 'thread-journal-log-locate',
-			text: t('Locate'),
-			attr: {
-				href: `${record.memberFile.path}#^${blockId}`,
-				'aria-label': t('Locate log in thread file'),
-			},
-		});
-		locate.addEventListener('click', (event) => {
-			event.preventDefault();
-			void this.app.workspace.openLinkText(
-				`${record.memberFile.path}#^${blockId}`,
-				ctx.sourcePath,
-				event.metaKey || event.ctrlKey,
-			);
-		});
+		if (blockId) {
+			const locate = controls.createEl('a', {
+				cls: 'thread-journal-log-locate',
+				text: t('Locate'),
+				attr: {
+					href: `${record.memberFile.path}#^${blockId}`,
+					'aria-label': t('Locate log in thread file'),
+				},
+			});
+			locate.addEventListener('click', (event) => {
+				event.preventDefault();
+				void this.app.workspace.openLinkText(
+					`${record.memberFile.path}#^${blockId}`,
+					ctx.sourcePath,
+					event.metaKey || event.ctrlKey,
+				);
+			});
+		}
 		const content = card.createDiv({ cls: 'thread-journal-log-content' });
+		await this.renderLogContent(
+			content,
+			record.entry,
+			record.memberFile.path,
+			(child) => ctx.addChild(child),
+		);
+	}
+
+	private async renderLogContent(
+		content: HTMLElement,
+		entry: ParsedInlineLogEntry,
+		sourcePath: string,
+		registerChild: MarkdownChildRegistrar,
+	): Promise<void> {
 		const child = new MarkdownRenderChild(content);
-		ctx.addChild(child);
+		registerChild(child);
 		await MarkdownRenderer.render(
 			this.app,
-			record.entry.text || t('(empty log)'),
+			entry.text || t('(empty log)'),
 			content,
-			record.memberFile.path,
+			sourcePath,
 			child,
 		);
 	}

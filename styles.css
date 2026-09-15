@@ -380,25 +380,8 @@
 	padding: 0;
 }
 
-.callout[data-callout="thread-log"].thread-journal-source-log-card
-	.callout-content > p:first-child {
-	display: none;
-}
-
 .callout[data-callout="thread-log"] .callout-content > p {
 	white-space: pre-line;
-}
-
-.callout[data-callout="thread-log"].thread-journal-source-log-card
-	.callout-content > ul {
-	margin-block: 0.55rem 0;
-	padding-inline-start: 0;
-	list-style: none;
-}
-
-.callout[data-callout="thread-log"].thread-journal-source-log-card
-	.callout-content > ul > li {
-	list-style: none;
 }
 
 .callout[data-callout="thread-log"] .callout-content > ul {
