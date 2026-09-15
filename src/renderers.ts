@@ -21,7 +21,11 @@ import {
 	type ThreadEntryDetail,
 	type ThreadEntryGroupBy,
 } from './entry-query';
-import { parseInlineLogEntries, type ParsedInlineLogEntry } from './inline-log';
+import {
+	parseInlineLogEntries,
+	parseInlineLogEntrySlots,
+	type ParsedInlineLogEntry,
+} from './inline-log';
 import type { ThreadIndex } from './thread-index';
 import { threadStatusLabel } from './thread-status-model';
 import { t } from './i18n';
@@ -164,7 +168,7 @@ export class ThreadRenderers {
 		if (callouts.length === 0) return;
 		const section = ctx.getSectionInfo(el);
 		if (!section) return;
-		const entries = parseInlineLogEntries(section.text);
+		const entries = parseInlineLogEntrySlots(section.text);
 		callouts.forEach((callout, index) => {
 			const entry = entries[index];
 			if (!entry) return;

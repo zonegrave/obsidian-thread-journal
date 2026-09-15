@@ -43,6 +43,7 @@ import { ThreadIndex } from '../src/thread-index';
 import {
 	buildInlineLogEdit,
 	inlineLogEntryAroundLine,
+	parseInlineLogEntrySlots,
 	parseInlineLogEntries,
 } from '../src/inline-log';
 import {
@@ -122,25 +123,25 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 	assert.deepEqual(
 		buildInlineLogEdit(
 			'  ',
-			'09-04 14:35',
 			'2026-09-04T14:35:27',
 			'log-20260904-143527-a1b2c',
 		),
 		{
 			replacement: [
-				'  > [!thread-log] 09-04 14:35',
-				'  > - (thread_log:: 2026-09-04T14:35:27)  ^log-20260904-143527-a1b2c',
+				'  > [!thread-log]',
+				'  > (thread_log:: 2026-09-04T14:35:27) ^log-20260904-143527-a1b2c',
+				'  > ',
+				'  > ',
 			].join('\n'),
 			fromCh: 0,
 			toCh: 2,
-			cursorLineOffset: 1,
-			cursorCh: 41,
+			cursorLineOffset: 3,
+			cursorCh: 4,
 		},
 	);
 	assert.deepEqual(
 		buildInlineLogEdit(
 			'已有内容',
-			'09-04 14:35',
 			'2026-09-04T14:35:27',
 			'log-20260904-143527-a1b2c',
 		),
@@ -148,25 +149,35 @@ void test('builds a queryable inline log callout at the cursor line', () => {
 			replacement: [
 				'',
 				'',
-				'> [!thread-log] 09-04 14:35',
-				'> - (thread_log:: 2026-09-04T14:35:27)  ^log-20260904-143527-a1b2c',
+				'> [!thread-log]',
+				'> (thread_log:: 2026-09-04T14:35:27) ^log-20260904-143527-a1b2c',
+				'> ',
+				'> ',
 			].join('\n'),
 			fromCh: 4,
 			toCh: 4,
-			cursorLineOffset: 3,
-			cursorCh: 39,
+			cursorLineOffset: 5,
+			cursorCh: 2,
 		},
 	);
 });
 
-void test('parses current inline logs for a daily summary', () => {
+void test('parses multiline inline logs for a daily summary', () => {
 	const content = [
-		'> [!thread-log] 09-04 14:35',
-		'> - (thread_log:: 2026-09-04T14:35:27) 完成了 [[接口验证]] ^log-20260904-143527-a1b2c',
-		'> [!thread-log] 09-03 23:10',
-		'> - (thread_log:: 2026-09-03T23:10:00) 昨天的记录 ^log-20260903-231000-d4e5f',
-		'> [!thread-log] 没有块 ID 的非当前格式',
-		'> - (thread_log:: 2026-09-04T07:41:06) 不应进入结果',
+		'> [!thread-log]',
+		'> (thread_log:: 2026-09-04T14:35:27) ^log-20260904-143527-a1b2c',
+		'> ',
+		'> 完成了 [[接口验证]]',
+		'> 第二行也应显示',
+		'> ',
+		'> - 继续调研',
+		'> [!thread-log]',
+		'> (thread_log:: 2026-09-03T23:10:00) ^log-20260903-231000-d4e5f',
+		'> ',
+		'> 昨天的记录',
+		'> [!thread-log]',
+		'> (thread_log:: 2026-09-04T07:41:06)',
+		'> 不应进入结果',
 		'普通文本 (thread_log:: 2026-09-04T12:00:00)',
 	].join('\n');
 
@@ -175,7 +186,7 @@ void test('parses current inline logs for a daily summary', () => {
 			timestamp: '2026-09-04T14:35:27',
 			date: '2026-09-04',
 			time: '14:35',
-			text: '完成了 [[接口验证]]',
+			text: '完成了 [[接口验证]]\n第二行也应显示\n\n- 继续调研',
 			blockId: 'log-20260904-143527-a1b2c',
 		},
 		{
@@ -188,12 +199,31 @@ void test('parses current inline logs for a daily summary', () => {
 	]);
 });
 
+void test('keeps callout positions aligned when a log is not in the new format', () => {
+	const content = [
+		'> [!thread-log] 09-03 23:10',
+		'> - (thread_log:: 2026-09-03T23:10:00) 旧记录 ^log-old',
+		'> [!thread-log]',
+		'> (thread_log:: 2026-09-04T14:35:27) ^log-new',
+		'> ',
+		'> 新记录',
+	].join('\n');
+	const slots = parseInlineLogEntrySlots(content);
+	assert.equal(slots.length, 2);
+	assert.equal(slots[0], undefined);
+	assert.equal(slots[1]?.text, '新记录');
+	assert.deepEqual(parseInlineLogEntries(content), [slots[1]]);
+});
+
 void test('finds the inline log around a Live Preview source line', () => {
 	const content = [
 		'# 工作区',
 		'',
-		'> [!thread-log] 09-04 14:35',
-		'> - (thread_log:: 2026-09-04T14:35:27) 完成了 [[接口验证]] ^log-20260904-143527-a1b2c',
+		'> [!thread-log]',
+		'> (thread_log:: 2026-09-04T14:35:27) ^log-20260904-143527-a1b2c',
+		'> ',
+		'> 完成了 [[接口验证]]',
+		'> 第二行',
 		'',
 		'后续内容',
 	].join('\n');
@@ -202,10 +232,11 @@ void test('finds the inline log around a Live Preview source line', () => {
 		timestamp: '2026-09-04T14:35:27',
 		date: '2026-09-04',
 		time: '14:35',
-		text: '完成了 [[接口验证]]',
+		text: '完成了 [[接口验证]]\n第二行',
 		blockId: 'log-20260904-143527-a1b2c',
 	});
-	assert.equal(inlineLogEntryAroundLine(content, 5), undefined);
+	assert.equal(inlineLogEntryAroundLine(content, 6)?.text, '完成了 [[接口验证]]\n第二行');
+	assert.equal(inlineLogEntryAroundLine(content, 8), undefined);
 });
 
 void test('parses the unified thread entries query', () => {
@@ -557,7 +588,7 @@ void test('builds a Dataview-queryable checkpoint with a free-form body', () => 
 			checkpoint_result: '可以自由配置字段。\n长文字保留在正文。',
 		},
 	}), [
-		'> [!thread-checkpoint] milestone · 08-31 14:35',
+		'> [!thread-checkpoint]',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成表单设计] ^cp-20260831-01',
 		'>   - **阶段成果：**',
 		'>     可以自由配置字段。',
@@ -567,7 +598,7 @@ void test('builds a Dataview-queryable checkpoint with a free-form body', () => 
 
 void test('parses checkpoint data from a thread member callout', () => {
 	const parsed = parseCheckpointEntries([
-		'> [!thread-checkpoint] milestone · 08-31 14:35',
+		'> [!thread-checkpoint]',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成表单设计] ^cp-01',
 		'>   - **阶段成果：**',
 		'>     可以自由配置字段。',
@@ -593,7 +624,7 @@ void test('finds the checkpoint around a Live Preview source line', () => {
 	const content = [
 		'# Thread 工作区',
 		'',
-		'> [!thread-checkpoint] milestone · 08-31 14:35',
+		'> [!thread-checkpoint]',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_summary:: 完成] ^cp-live',
 		'>   - **阶段成果：** 可见',
 		'',
@@ -606,7 +637,7 @@ void test('finds the checkpoint around a Live Preview source line', () => {
 
 void test('appends checkpoint callouts to a thread member', () => {
 	const entry = [
-		'> [!thread-checkpoint] milestone · 08-31 14:35',
+		'> [!thread-checkpoint]',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] ^cp-new',
 	].join('\n');
 	const original = [
@@ -631,7 +662,7 @@ void test('inserts checkpoint callouts at a thread member cursor line', () => {
 	const result = insertCheckpointEntryAtLine(
 		original,
 		[
-			'> [!thread-checkpoint] review · 09-01 10:30',
+			'> [!thread-checkpoint]',
 			'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] ^cp-custom',
 		].join('\n'),
 		2,
@@ -643,20 +674,20 @@ void test('replaces one checkpoint in place by block id', () => {
 	const original = [
 		'# Thread 工作区',
 		'',
-		'> [!thread-checkpoint] milestone · 09-01 09:00',
+		'> [!thread-checkpoint]',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] [checkpoint_summary:: 旧摘要] ^cp-edit',
 		'>   - **详情：** 旧内容',
 		'',
-		'> [!thread-checkpoint] milestone · 08-31 09:00',
+		'> [!thread-checkpoint]',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_summary:: 保留] ^cp-keep',
 	].join('\n');
 	const replacement = [
-		'> [!thread-checkpoint] review · 09-02 10:30',
+		'> [!thread-checkpoint]',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-02] [checkpoint_time:: 10:30] [checkpoint_summary:: 新摘要] ^cp-edit',
 		'>   - **详情：** 新内容',
 	].join('\n');
 	const result = replaceCheckpointEntry(original, 'cp-edit', replacement);
-	assert.match(result, /> \[!thread-checkpoint\] review · 09-02 10:30/);
+	assert.match(result, /> \[!thread-checkpoint\]\n> - \[checkpoint:: true\].*\[checkpoint_date:: 2026-09-02\].*\[checkpoint_time:: 10:30\]/);
 	assert.match(result, /> - \[checkpoint:: true\].*新摘要.*\^cp-edit/);
 	assert.match(result, /> {3}- \*\*详情：\*\* 新内容/);
 	assert.doesNotMatch(result, /旧摘要|旧内容/);
@@ -712,11 +743,11 @@ void test('deletes one checkpoint in place by block id', () => {
 	const original = [
 		'# Thread 工作区',
 		'',
-		'> [!thread-checkpoint] review · 09-02 10:30',
+		'> [!thread-checkpoint]',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-02] [checkpoint_summary:: 删除] ^cp-delete',
 		'>   - **详情：** 一并删除',
 		'',
-		'> [!thread-checkpoint] milestone · 09-01 09:00',
+		'> [!thread-checkpoint]',
 		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] [checkpoint_summary:: 保留] ^cp-keep',
 	].join('\n');
 	const result = deleteCheckpointEntry(original, 'cp-delete');

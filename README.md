@@ -148,12 +148,15 @@ thread_role_status: active
 **Insert inline log** 可在任意 active thread 成员的编辑视图中使用。它在光标处插入一个可查询 callout：
 
 ```markdown
-> [!thread-log] 09-13 14:35
-> - (thread_log:: 2026-09-13T14:35:27) 完成了第一轮接口验证 ^log-20260913-143527-a1b2c
+> [!thread-log]
+> (thread_log:: 2026-09-13T14:35:27) ^log-20260913-143527-a1b2c
+>
+> 完成了第一轮接口验证
+> 还有一项需要继续调研。
 ```
 
-- 正文可以使用 Markdown 和双链。
-- 完整时间戳用于识别、筛选和排序；渲染时显示紧凑时间。
+- 正文是自由的多行 Markdown，可以使用双链、列表等；查询会保留整个正文。
+- 完整时间戳只存于 `thread_log` 字段，用于筛选和排序；渲染时生成紧凑时间，隐藏原始字段。
 - 块 ID 用于从查询卡片精确定位原始记录。
 - Log 直接在原文件中编辑，不提供单独表单。
 
@@ -167,11 +170,11 @@ thread_role_status: active
 - 默认字段只有“类型”和“摘要”。
 
 ```markdown
-> [!thread-checkpoint] milestone · 09-13 15:20
+> [!thread-checkpoint]
 > - [checkpoint:: true] [checkpoint_date:: 2026-09-13] [checkpoint_time:: 15:20] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成 pack 模型] ^cp-20260913-152000-a1b2c
 ```
 
-创建和编辑默认使用右侧非模态表单，可以继续对照主笔记；`Cmd/Ctrl + Enter` 保存。原地卡片提供编辑，查询卡片提供定位、编辑和删除。摘要和文本字段支持 Markdown 与双链。
+日期、时间和类型只保存在结构化字段中，卡片标题由字段生成。创建和编辑默认使用右侧非模态表单，可以继续对照主笔记；`Cmd/Ctrl + Enter` 保存。原地卡片提供编辑，查询卡片提供定位、编辑和删除。摘要和文本字段支持 Markdown 与双链。
 
 每个 thread 可以把独立字段模板保存在 meta 的 `checkpoint_fields`；没有时继承全局默认。字段支持单行、多行、数字、开关、日期、选择项、必填、正文/inline 保存和废弃。废弃字段不再出现在新表单中，但仍用于解释历史记录。
 

@@ -138,12 +138,8 @@ export function buildCheckpointEntry(input: CheckpointEntryInput): string {
 		else fields.push(`[${field.key}:: ${inlineValue(value)}]`);
 	}
 	const blockId = input.blockId.replace(/[^\p{Letter}\p{Number}_-]+/gu, '-');
-	const kind = valueIsPresent(input.values.checkpoint_kind)
-		? inlineValue(input.values.checkpoint_kind)
-		: 'checkpoint';
-	const title = `${kind} · ${input.date.slice(5)} ${input.time}`;
 	return [
-		`> [!thread-checkpoint] ${title}`,
+		'> [!thread-checkpoint]',
 		...[
 			`- ${fields.join(' ')} ^${blockId}`,
 			...body,
