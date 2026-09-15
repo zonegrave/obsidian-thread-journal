@@ -231,24 +231,47 @@ export function appendCheckpointEntry(content: string, entry: string): string {
 	return withTrailingNewline(lines);
 }
 
-export function insertCheckpointEntryAtLine(
-	content: string,
+export interface CheckpointInsertionEdit {
+	from: { line: number; ch: number };
+	to: { line: number; ch: number };
+	replacement: string;
+}
+
+export function checkpointInsertionEdit(
+	lines: readonly string[],
 	entry: string,
 	line: number,
-): string {
-	const lines = content.split(/\r?\n/);
+): CheckpointInsertionEdit {
 	const index = Math.max(0, Math.min(Math.trunc(line), Math.max(0, lines.length - 1)));
-	const entryLines = entry.split('\n');
-	if (!(lines[index] ?? '').trim()) {
-		lines.splice(index, 1, ...entryLines, '');
-	} else {
-		let nextContent = index + 1;
-		while (nextContent < lines.length && !(lines[nextContent] ?? '').trim()) {
-			nextContent += 1;
-		}
-		lines.splice(index + 1, nextContent - index - 1, '', ...entryLines, '');
+	const current = lines[index] ?? '';
+	if (!current.trim()) {
+		return {
+			from: { line: index, ch: 0 },
+			to: { line: index, ch: current.length },
+			replacement: `${entry}\n`,
+		};
 	}
-	return withTrailingNewline(lines);
+	let nextContent = index + 1;
+	while (nextContent < lines.length && !(lines[nextContent] ?? '').trim()) {
+		nextContent += 1;
+	}
+	return {
+		from: { line: index, ch: current.length },
+		to: nextContent < lines.length
+			? { line: nextContent, ch: 0 }
+			: { line: lines.length - 1, ch: (lines[lines.length - 1] ?? '').length },
+		replacement: nextContent < lines.length
+			? `\n\n${entry}\n\n`
+			: `\n\n${entry}\n`,
+	};
+}
+
+export function cursorLineIsFrontmatter(lines: readonly string[], line: number): boolean {
+	if ((lines[0] ?? '').trim() !== '---') return false;
+	for (let index = 1; index < lines.length; index += 1) {
+		if (/^(?:---|\.\.\.)\s*$/u.test(lines[index] ?? '')) return line <= index;
+	}
+	return true;
 }
 
 function escapedPattern(value: string): string {

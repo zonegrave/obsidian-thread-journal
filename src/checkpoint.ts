@@ -11,8 +11,9 @@ import {
 	appendCheckpointEntry,
 	buildCheckpointEntry,
 	checkpointEditState,
+	checkpointInsertionEdit,
+	cursorLineIsFrontmatter,
 	deleteCheckpointEntry,
-	insertCheckpointEntryAtLine,
 	replaceCheckpointEntry,
 	type CheckpointValue,
 	type ParsedCheckpointEntry,
@@ -484,20 +485,16 @@ export class CheckpointManager {
 			&& this.index.getThreadForMember(activeFile)
 			? activeFile
 			: undefined;
-		const frontmatter = originMember
-			? this.app.metadataCache.getFileCache(originMember)?.frontmatterPosition
+		const originView = originMember && activeView?.getMode() === 'source'
+			? activeView
 			: undefined;
-		const cursorLine = originMember && activeView
-			&& (!frontmatter || activeView.editor.getCursor().line > frontmatter.end.line)
-			? activeView.editor.getCursor().line
-			: undefined;
-		void this.openNewCheckpointForm(threadFile, originMember, cursorLine);
+		void this.openNewCheckpointForm(threadFile, originMember, originView);
 	}
 
 	private async openNewCheckpointForm(
 		threadFile: TFile,
 		originMember?: TFile,
-		cursorLine?: number,
+		originView?: MarkdownView,
 	): Promise<void> {
 		const targetFile = originMember ?? this.index.getEntry(threadFile);
 		if (!targetFile) {
@@ -517,10 +514,30 @@ export class CheckpointManager {
 				fields,
 				values,
 			});
-			await this.app.vault.process(targetFile, (content) =>
-				originMember?.path === targetFile.path && cursorLine !== undefined
-					? insertCheckpointEntryAtLine(content, entry, cursorLine)
-					: appendCheckpointEntry(content, entry));
+			if (originView) {
+				if (
+					!originView.containerEl.isConnected
+					|| originView.file?.path !== targetFile.path
+					|| originView.getMode() !== 'source'
+				) {
+					throw new Error(t('Keep the target thread file open in editing view until saving.'));
+				}
+				if (this.index.getMember(targetFile)?.roleStatus !== 'active') {
+					throw new Error(t('The current thread role is terminated and cannot create checkpoints.'));
+				}
+				const editor = originView.editor;
+				const lines = Array.from({ length: editor.lineCount() }, (_, line) => editor.getLine(line));
+				const cursorLine = editor.getCursor().line;
+				if (cursorLineIsFrontmatter(lines, cursorLine)) {
+					throw new Error(t('Move the cursor into the document body first.'));
+				}
+				const edit = checkpointInsertionEdit(lines, entry, cursorLine);
+				editor.replaceRange(edit.replacement, edit.from, edit.to);
+				await originView.save();
+			} else {
+				await this.app.vault.process(targetFile, (content) =>
+					appendCheckpointEntry(content, entry));
+			}
 			const nextStatus = checkpointStatus(values.status_after);
 			if (nextStatus) {
 				try {

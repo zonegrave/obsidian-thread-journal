@@ -254,6 +254,7 @@ const ZH_TRANSLATIONS = {
 	'The current thread has no valid entry file.': '当前 thread 没有有效入口文件。',
 	'Logs can only be inserted into an active thread role.': '只能在 active thread role 中插入 log。',
 	'Move the cursor into the document body first.': '请先把光标移到正文。',
+	'Keep the target thread file open in editing view until saving.': '保存前请保持目标 thread 文件在编辑视图中打开。',
 	'Idea or committed threads keep only their meta. Change to an execution status first.': '构想或已承诺的 thread 只保留 meta；请先切换到执行状态。',
 	'Created {role} file: {file}': '已创建 {role} 文件：{file}',
 	'Failed to read thread file templates: {error}': '无法读取 thread 文件模板：{error}',

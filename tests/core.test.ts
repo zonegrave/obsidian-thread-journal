@@ -18,8 +18,9 @@ import {
 	buildCheckpointEntry,
 	checkpointEditState,
 	checkpointEntryAroundLine,
+	checkpointInsertionEdit,
+	cursorLineIsFrontmatter,
 	deleteCheckpointEntry,
-	insertCheckpointEntryAtLine,
 	parseCheckpointEntries,
 	replaceCheckpointEntry,
 } from '../src/checkpoint-core';
@@ -701,15 +702,34 @@ void test('inserts checkpoint callouts at a thread member cursor line', () => {
 		'',
 		'第二段',
 	].join('\n');
-	const result = insertCheckpointEntryAtLine(
-		original,
-		[
-			'> [!thread-checkpoint]',
-			'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] ^cp-custom',
-		].join('\n'),
-		2,
-	);
+	const lines = original.split('\n');
+	const entry = [
+		'> [!thread-checkpoint]',
+		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] ^cp-custom',
+	].join('\n');
+	const edit = checkpointInsertionEdit(lines, entry, 2);
+	assert.deepEqual(edit.from, { line: 2, ch: 3 });
+	assert.deepEqual(edit.to, { line: 4, ch: 0 });
+	const offset = (position: { line: number; ch: number }): number =>
+		lines.slice(0, position.line).reduce((sum, line) => sum + line.length + 1, 0)
+		+ position.ch;
+	const result = original.slice(0, offset(edit.from))
+		+ edit.replacement
+		+ original.slice(offset(edit.to));
 	assert.match(result, /第一段\n\n> \[!thread-checkpoint\][\s\S]*\^cp-custom\n\n第二段/);
+	assert.deepEqual(checkpointInsertionEdit(lines, entry, 3), {
+		from: { line: 3, ch: 0 },
+		to: { line: 3, ch: 0 },
+		replacement: `${entry}\n`,
+	});
+});
+
+void test('rejects checkpoint cursor positions inside live frontmatter', () => {
+	const lines = ['---', 'type: thread', 'parent: none', '---', '# Body'];
+	assert.equal(cursorLineIsFrontmatter(lines, 2), true);
+	assert.equal(cursorLineIsFrontmatter(lines, 4), false);
+	assert.equal(cursorLineIsFrontmatter(['---', 'type: thread'], 1), true);
+	assert.equal(cursorLineIsFrontmatter(['# Body'], 0), false);
 });
 
 void test('replaces one checkpoint in place by block id', () => {
