@@ -98,7 +98,7 @@ export function attentionHint(status: string, summary: AttentionSummary): string
  if (status === 'active' && summary.open === 0) return t('The subtree has no unfinished todo; add the next action or consider making it dormant');
  if (status === 'dormant') return summary.ready
   ? t('Ready todo needs attention')
-  : t('Record on demand; no continuous attention needed');
+  : '';
  if (status === 'paused') return t('Frozen; retain items without investing attention');
  if (status === 'review') return t('Waiting for review and wrap-up');
  if (status === 'completed' || status === 'closed') return summary.open

@@ -555,32 +555,14 @@ class OverviewContent extends MarkdownRenderChild {
 			});
 			return;
 		}
-		content.createEl('p', {
-			cls: 'thread-journal-overview-hint',
-			text: attentionHint(row.thread.status, row.summary),
-		});
-		if (this.index.getDirectChildren(row.thread.file).length > 0) {
-			this.renderMetrics(content, row);
+		const hint = attentionHint(row.thread.status, row.summary);
+		if (hint) {
+			content.createEl('p', {
+				cls: 'thread-journal-overview-hint',
+				text: hint,
+			});
 		}
 		this.renderTasks(content, row);
-	}
-
-	private renderMetrics(parent: HTMLElement, row: AttentionRow): void {
-		const metrics = parent.createDiv({ cls: 'thread-journal-overview-metrics' });
-		const values: [TranslationKey, number][] = [
-			['open', row.summary.open],
-			['ready', row.summary.ready],
-			['future', row.summary.future],
-			['waiting', row.summary.waiting],
-			['candidate', row.summary.candidate],
-			['suspended', row.summary.suspended],
-		];
-		if (row.summary.unknown > 0) values.push(['other', row.summary.unknown]);
-		for (const [label, value] of values) {
-			const metric = metrics.createSpan({ cls: 'thread-journal-overview-metric' });
-			metric.createSpan({ text: t(label) });
-			metric.createEl('strong', { text: String(value) });
-		}
 	}
 
 	private renderTasks(parent: HTMLElement, row: AttentionRow): void {

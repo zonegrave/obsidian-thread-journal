@@ -886,6 +886,7 @@ void test('subtree attention includes descendants but suspends frozen branches a
  assert.equal(result.open, 2); assert.equal(result.ready, 1); assert.equal(result.suspended, 1);
  assert.equal(summarizeAttention('child', nodes, tasks).ready, 0);
  assert.match(attentionHint('dormant', summarizeAttention('sleep', nodes, tasks)), /需要处理/);
+ assert.equal(attentionHint('dormant', summarizeAttention('sleep', nodes, [])), '');
  assert.match(attentionHint('active', summarizeAttention('root', nodes, [])), /考虑休眠/);
 });
 
