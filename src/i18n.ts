@@ -84,6 +84,11 @@ const ZH_TRANSLATIONS = {
 	'All unfinished': '全部未完成',
 	'No active tasks today in this thread.': '这个 thread 今日没有活跃任务。',
 	'No unfinished tasks in this thread.': '这个 thread 没有未完成任务。',
+	'Pinned tasks': '已固定任务',
+	'No pinned tasks.': '暂无已固定任务。',
+	'Pin task': '固定任务',
+	'Unpin task': '取消固定任务',
+	'Failed to update pinned task: {error}': '无法更新任务固定状态：{error}',
 	'Thread overview': 'Thread 总览',
 	'Failed to open thread overview: {error}': '无法打开 Thread 总览：{error}',
 

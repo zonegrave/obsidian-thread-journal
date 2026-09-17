@@ -1,12 +1,52 @@
 import { App, TFile, moment } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
-import { summarizeAttention, todoDisposition, type AttentionTask, type AttentionNode, type AttentionSummary, type TodoDisposition } from './thread-attention-model';
+import {
+ summarizeAttention,
+ taskIsPinned,
+ taskLineWithPin,
+ taskTextWithoutPin,
+ todoDisposition,
+ type AttentionTask,
+ type AttentionNode,
+ type AttentionSummary,
+ type TodoDisposition,
+} from './thread-attention-model';
 import type { ThreadInfo } from './types';
+
+export interface AttentionRowTask {
+ key: string;
+ file: TFile;
+ line: number;
+ sourceLine: string;
+ text: string;
+ disposition: TodoDisposition;
+ pinned: boolean;
+}
 
 export interface AttentionRow {
  thread: ThreadInfo;
  summary: AttentionSummary;
- tasks: { file: TFile; line: number; text: string; disposition: TodoDisposition }[];
+ tasks: AttentionRowTask[];
+}
+
+export async function setAttentionTaskPinned(
+ app: App,
+ task: AttentionRowTask,
+ pinned: boolean,
+): Promise<void> {
+ await app.vault.process(task.file, (content) => {
+  const lines = content.split('\n');
+  let line = task.line;
+  if (lines[line] !== task.sourceLine) {
+   const matches = lines.flatMap((source, index) => source === task.sourceLine ? [index] : []);
+   if (matches.length !== 1) throw new Error('The task changed; refresh the overview and try again.');
+   line = matches[0] ?? line;
+  }
+  const source = lines[line];
+  if (source === undefined) throw new Error('The task no longer exists.');
+  lines[line] = taskLineWithPin(source, pinned);
+  return lines.join('\n');
+ });
 }
 
 export async function collectAttention(app: App, index: ThreadIndex): Promise<AttentionRow[]> {
@@ -16,7 +56,7 @@ export async function collectAttention(app: App, index: ThreadIndex): Promise<At
   parent: index.getParentFile(thread.file) ? index.getThread(index.getParentFile(thread.file)!)?.id : undefined,
  }));
  const tasks: AttentionTask[] = [];
- const taskSources = new Map<string, { file: TFile; line: number; text: string }>();
+ const taskSources = new Map<string, AttentionRowTask>();
  const today = moment().format('YYYY-MM-DD');
  for (const file of app.vault.getMarkdownFiles()) {
   const cache = app.metadataCache.getFileCache(file);
@@ -31,7 +71,9 @@ export async function collectAttention(app: App, index: ThreadIndex): Promise<At
   const lines = (await app.vault.cachedRead(file)).split('\n');
   for (const item of taskItems) {
    const line = item.position.start.line;
-   const text = (lines[line] ?? '').replace(/^\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[[^\]]\]\s*/, '');
+   const sourceLine = lines[line] ?? '';
+   const taskText = sourceLine.replace(/^\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[[^\]]\]\s*/, '');
+   const text = taskTextWithoutPin(taskText);
    const disposition = todoDisposition(item.task ?? '', text, today);
    if (!disposition) continue;
    const owners = new Set<string>();
@@ -45,7 +87,15 @@ export async function collectAttention(app: App, index: ThreadIndex): Promise<At
    }
    const key = `${file.path}:${line}`;
    for (const owner of owners) tasks.push({ key, owner, disposition });
-   if (owners.size) taskSources.set(key, { file, line, text });
+   if (owners.size) taskSources.set(key, {
+    key,
+    file,
+    line,
+    sourceLine,
+    text,
+    disposition,
+    pinned: taskIsPinned(taskText),
+   });
   }
  }
  return threads.map(thread => ({

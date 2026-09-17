@@ -7,6 +7,26 @@ export interface AttentionTask {
  owner: string;
  disposition: TodoDisposition;
 }
+
+const THREAD_PIN_FIELD = /\s*\[thread_pin::\s*true\]/giu;
+
+export function taskIsPinned(text: string): boolean {
+ return /\[thread_pin::\s*true\]/iu.test(text);
+}
+
+export function taskTextWithoutPin(text: string): string {
+ return text.replace(THREAD_PIN_FIELD, '').trim();
+}
+
+export function taskLineWithPin(line: string, pinned: boolean): string {
+ const withoutPin = line.replace(THREAD_PIN_FIELD, '');
+ if (!pinned) return withoutPin;
+ const trailingWhitespace = /\s*$/u.exec(withoutPin)?.[0] ?? '';
+ const body = withoutPin.slice(0, withoutPin.length - trailingWhitespace.length).trimEnd();
+ const blockId = /\s+(\^[A-Za-z0-9-]+)$/u.exec(body);
+ if (!blockId) return `${body} [thread_pin:: true]${trailingWhitespace}`;
+ return `${body.slice(0, blockId.index).trimEnd()} [thread_pin:: true] ${blockId[1]}${trailingWhitespace}`;
+}
 export interface AttentionNode {
  id: string;
  parent?: string;

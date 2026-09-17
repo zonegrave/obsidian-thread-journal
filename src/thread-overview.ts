@@ -7,7 +7,12 @@ import {
 	type MarkdownPostProcessorContext,
 	type WorkspaceLeaf,
 } from 'obsidian';
-import { collectAttention, type AttentionRow } from './thread-attention';
+import {
+	collectAttention,
+	setAttentionTaskPinned,
+	type AttentionRow,
+	type AttentionRowTask,
+} from './thread-attention';
 import {
 	attentionHint,
 	filterAttentionTasks,
@@ -160,6 +165,7 @@ class OverviewContent extends MarkdownRenderChild {
 		el.empty();
 		const tree = buildThreadOverviewTree(this.overviewItems(), this.selectedStatuses);
 		this.renderToolbar(el, tree);
+		this.renderPinnedTasks(el);
 		if (this.selectedStatuses.size === 0) {
 			el.createEl('p', {
 				cls: 'thread-journal-empty',
@@ -460,6 +466,52 @@ class OverviewContent extends MarkdownRenderChild {
 		return filterAttentionTasks(row.tasks, this.taskScope);
 	}
 
+	private pinnedTasks(): { task: AttentionRowTask; threadTitle: string }[] {
+		const pinned = new Map<string, { task: AttentionRowTask; threadTitle: string }>();
+		for (const row of this.rows) {
+			for (const task of row.tasks) {
+				if (!task.pinned || pinned.has(task.key)) continue;
+				pinned.set(task.key, { task, threadTitle: row.thread.title });
+			}
+		}
+		return [...pinned.values()];
+	}
+
+	private renderPinnedTasks(parent: HTMLElement): void {
+		const pinned = this.pinnedTasks();
+		const panel = parent.createEl('aside', {
+			cls: 'thread-journal-overview-pinned-panel',
+			attr: { 'aria-label': t('Pinned tasks') },
+		});
+		const header = panel.createDiv({ cls: 'thread-journal-overview-pinned-header' });
+		setIcon(header.createSpan(), 'pin');
+		header.createSpan({ text: t('Pinned tasks') });
+		header.createSpan({
+			cls: 'thread-journal-overview-pinned-count',
+			text: String(pinned.length),
+		});
+		const list = panel.createDiv({ cls: 'thread-journal-overview-pinned-list' });
+		if (pinned.length === 0) {
+			list.createDiv({
+				cls: 'thread-journal-empty',
+				text: t('No pinned tasks.'),
+			});
+			return;
+		}
+		for (const { task, threadTitle } of pinned) {
+			const item = list.createDiv({ cls: 'thread-journal-overview-pinned-task' });
+			const meta = item.createDiv({ cls: 'thread-journal-overview-pinned-task-meta' });
+			meta.createSpan({ text: threadTitle });
+			meta.createSpan({ text: '·' });
+			meta.createSpan({
+				text: t(TASK_DISPOSITION_LABELS[task.disposition]),
+				attr: { 'data-disposition': task.disposition },
+			});
+			this.renderTaskLink(item, task);
+			this.renderTaskPinButton(meta, task);
+		}
+	}
+
 	private overviewItems(): {
 		id: string;
 		parent?: string;
@@ -693,17 +745,44 @@ class OverviewContent extends MarkdownRenderChild {
 				text: t(TASK_DISPOSITION_LABELS[task.disposition]),
 				attr: { 'data-disposition': task.disposition },
 			});
-			const taskLink = item.createEl('a', {
-				text: task.text,
-				href: task.file.path,
-			});
-			taskLink.addEventListener('click', (event) => {
-				event.preventDefault();
-				void this.app.workspace.getLeaf(false).openFile(task.file, {
-					eState: { line: task.line },
-				});
-			});
+			this.renderTaskPinButton(meta, task);
+			this.renderTaskLink(item, task);
 		}
+	}
+
+	private renderTaskLink(parent: HTMLElement, task: AttentionRowTask): void {
+		const taskLink = parent.createEl('a', {
+			text: task.text,
+			href: task.file.path,
+		});
+		taskLink.addEventListener('click', (event) => {
+			event.preventDefault();
+			void this.app.workspace.getLeaf(false).openFile(task.file, {
+				eState: { line: task.line },
+			});
+		});
+	}
+
+	private renderTaskPinButton(parent: HTMLElement, task: AttentionRowTask): void {
+		const button = parent.createEl('button', {
+			cls: `clickable-icon thread-journal-overview-task-pin${task.pinned ? ' is-pinned' : ''}`,
+			attr: {
+				type: 'button',
+				'aria-label': task.pinned ? t('Unpin task') : t('Pin task'),
+				'aria-pressed': String(task.pinned),
+			},
+		});
+		setIcon(button, task.pinned ? 'pin-off' : 'pin');
+		button.addEventListener('click', () => {
+			button.disabled = true;
+			void setAttentionTaskPinned(this.app, task, !task.pinned)
+				.then(() => this.refresh())
+				.catch((error: unknown) => {
+					button.disabled = false;
+					console.error('Thread Journal failed to update pinned task', error);
+					new Notice(t('Failed to update pinned task: {error}', { error: String(error) }));
+				});
+		});
 	}
 
 	private scheduleConnectorDraw(): void {

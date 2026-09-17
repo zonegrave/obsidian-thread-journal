@@ -2,6 +2,9 @@ import {
 	attentionHint,
 	filterAttentionTasks,
 	summarizeAttention,
+	taskIsPinned,
+	taskLineWithPin,
+	taskTextWithoutPin,
 	todoDisposition,
 } from '../src/thread-attention-model';
 import {
@@ -1020,6 +1023,26 @@ void test('filters overview tasks to today active or all unfinished tasks', () =
 		'candidate',
 		'unknown',
 	]);
+});
+
+void test('pins tasks in their source line without changing their identity', () => {
+	const source = '- [ ] 分析恢复趋势 ^task-recovery';
+	const pinned = taskLineWithPin(source, true);
+	assert.equal(
+		pinned,
+		'- [ ] 分析恢复趋势 [thread_pin:: true] ^task-recovery',
+	);
+	assert.equal(taskIsPinned(pinned), true);
+	assert.equal(
+		taskTextWithoutPin('分析恢复趋势 [thread_pin:: true] ^task-recovery'),
+		'分析恢复趋势 ^task-recovery',
+	);
+	assert.equal(taskLineWithPin(pinned, true), pinned);
+	assert.equal(taskLineWithPin(pinned, false), source);
+	assert.equal(
+		taskLineWithPin('> - [ ] 记录睡眠', true),
+		'> - [ ] 记录睡眠 [thread_pin:: true]',
+	);
 });
 
 void test('subtree attention includes descendants but suspends frozen branches and deduplicates shared tasks', () => {
