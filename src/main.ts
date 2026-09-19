@@ -30,6 +30,7 @@ import { ThreadIndex } from './thread-index';
 import { ThreadMetaManager } from './thread-meta';
 import { ThreadParentManager } from './thread-parent';
 import { ThreadSwitcherManager } from './thread-switcher';
+import { TaskManager } from './task';
 import {
 	LANGUAGE_CHANGE_EVENT,
 	resolveLocale,
@@ -49,6 +50,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	private checkpoints!: CheckpointManager;
 	private switcher!: ThreadSwitcherManager;
 	private breadcrumbs!: ThreadBreadcrumbManager;
+	private tasks!: TaskManager;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -63,6 +65,7 @@ export default class ThreadJournalPlugin extends Plugin {
 			(leaf) => new ThreadOverviewView(leaf, this.index),
 		);
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
+		this.tasks = new TaskManager(this.app, this.index);
 		this.switcher = new ThreadSwitcherManager(this.app, this.index, this.files);
 		this.parents = new ThreadParentManager(this.index);
 		this.checkpoints = new CheckpointManager(
@@ -221,6 +224,26 @@ export default class ThreadJournalPlugin extends Plugin {
 				const file = this.currentThreadFile();
 				if (!file) return false;
 				if (!checking) this.files.openNewThreadFileModal(file);
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'create-task',
+			name: t('Create task'),
+			editorCheckCallback: (checking, editor, view) => {
+				if (!this.tasks.canCreateTask(editor, view.file)) return false;
+				if (!checking) this.tasks.openCreateTask(editor);
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'edit-task',
+			name: t('Edit task'),
+			editorCheckCallback: (checking, editor, view) => {
+				if (!this.tasks.canEditTask(editor, view.file)) return false;
+				if (!checking) this.tasks.openEditTask(editor);
 				return true;
 			},
 		});

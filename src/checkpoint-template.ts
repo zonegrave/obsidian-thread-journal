@@ -1,42 +1,31 @@
-import { App, Modal, Notice, Setting, TFile } from 'obsidian';
+import { App, Modal, Notice, Setting } from 'obsidian';
 import {
 	cloneCheckpointFields,
 	normalizeCheckpointFields,
 	placeDeprecatedFieldsLast,
 } from './checkpoint-model';
-import {
-	buildCheckpointTemplateFieldModalForm,
-	checkpointFieldFromModalData,
-	checkpointTemplateFieldValues,
-	getModalFormApi,
-	type ModalFormApi,
-} from './modal-form';
-import { t, type TranslationKey } from './i18n';
+import { t } from './i18n';
 import type { CheckpointFieldSpec } from './types';
 
 export class CheckpointTemplateModal extends Modal {
 	private fields: CheckpointFieldSpec[];
-	private saving = false;
 	private inherited: boolean;
 	private saveQueue: Promise<void> = Promise.resolve();
 	private saveRevision = 0;
 	private saveTimer: number | undefined;
 	private saveStatusEl: HTMLElement | undefined;
-	private readonly modalFormApi: ModalFormApi | undefined;
+	private pendingDeleteField: CheckpointFieldSpec | undefined;
 
 	constructor(
 		app: App,
-		private readonly threadFile: TFile,
 		private readonly threadTitle: string,
 		initialFields: CheckpointFieldSpec[],
 		inherited: boolean,
 		private readonly onSave: (fields: CheckpointFieldSpec[]) => Promise<void>,
-		private readonly onUseDefault: () => Promise<void>,
 	) {
 		super(app);
 		this.fields = cloneCheckpointFields(initialFields);
 		this.inherited = inherited;
-		this.modalFormApi = getModalFormApi(app);
 	}
 
 	onOpen(): void {
@@ -62,10 +51,7 @@ export class CheckpointTemplateModal extends Modal {
 			text: t('Changes save automatically'),
 		});
 
-		this.fields.forEach((field, index) => {
-			if (this.modalFormApi) this.renderFieldSummary(field, index);
-			else this.renderField(field, index);
-		});
+		this.fields.forEach((field, index) => this.renderField(field, index));
 
 		new Setting(this.contentEl)
 			.setName(t('Template fields'))
@@ -83,33 +69,9 @@ export class CheckpointTemplateModal extends Modal {
 						deprecated: false,
 						options: [],
 					};
-					if (this.modalFormApi) void this.openFieldForm(field, undefined);
-					else {
-						this.fields.push(field);
-						this.renderAndSave();
-					}
+					this.fields.push(field);
+					this.renderAndSave();
 				}));
-
-		const actions = new Setting(this.contentEl)
-			.setClass('thread-journal-checkpoint-actions');
-		actions.addButton((button) => button
-			.setButtonText(t('Use global default template'))
-			.onClick(async () => {
-				if (this.saving) return;
-				this.saving = true;
-				button.setDisabled(true);
-				try {
-					this.flushScheduledSave();
-					await this.saveQueue;
-					await this.onUseDefault();
-					this.close();
-				} catch (error) {
-					console.error('Thread Journal failed to reset checkpoint template', error);
-					new Notice(t('Failed to restore the default template: {error}', { error: String(error) }));
-					this.saving = false;
-					button.setDisabled(false);
-				}
-			}));
 	}
 
 	private updateSaveStatus(text: string, failed = false): void {
@@ -171,85 +133,6 @@ export class CheckpointTemplateModal extends Modal {
 		this.renderAndSave();
 	}
 
-	private renderFieldSummary(field: CheckpointFieldSpec, index: number): void {
-		const previous = this.fields[index - 1];
-		const next = this.fields[index + 1];
-		const controlNames: Record<CheckpointFieldSpec['control'], TranslationKey> = {
-			text: 'Single-line text',
-			textarea: 'Multiline text',
-			number: 'Number',
-			toggle: 'Toggle',
-			date: 'Date',
-			select: 'Select',
-		};
-		const details = [
-			field.key,
-			t(controlNames[field.control]),
-			field.storage === 'inline' ? t('Queryable field') : t('Checkpoint body'),
-			field.required ? t('Required') : '',
-			field.deprecated ? t('Deprecated') : '',
-		].filter(Boolean).join(' · ');
-		const card = this.contentEl.createDiv({
-			cls: `thread-journal-checkpoint-field-setting is-summary${field.deprecated ? ' is-deprecated' : ''}`,
-		});
-		new Setting(card)
-			.setName(field.label || field.key)
-			.setDesc(details)
-			.addExtraButton((button) => button
-				.setIcon(field.deprecated ? 'eye-off' : 'eye')
-				.setTooltip(field.deprecated
-					? t('Deprecated; select to restore in new checkpoints')
-					: t('Visible in new checkpoints; select to deprecate'))
-				.onClick(() => {
-					field.deprecated = !field.deprecated;
-					if (field.deprecated) field.required = false;
-					this.fields = placeDeprecatedFieldsLast(this.fields);
-					this.renderAndSave();
-				}))
-			.addButton((button) => button
-				.setButtonText(t('Edit'))
-				.onClick(() => void this.openFieldForm(field, index)))
-			.addExtraButton((button) => button
-				.setIcon('arrow-up')
-				.setTooltip(t('Move up'))
-				.setDisabled(!previous || previous.deprecated !== field.deprecated)
-				.onClick(() => this.moveField(field, index, -1)))
-			.addExtraButton((button) => button
-				.setIcon('arrow-down')
-				.setTooltip(t('Move down'))
-				.setDisabled(!next || next.deprecated !== field.deprecated)
-				.onClick(() => this.moveField(field, index, 1)))
-			.addExtraButton((button) => button
-				.setIcon('trash-2')
-				.setTooltip(t('Delete field'))
-				.onClick(() => {
-					this.fields.splice(index, 1);
-					this.renderAndSave();
-				}));
-	}
-
-	private async openFieldForm(field: CheckpointFieldSpec, index: number | undefined): Promise<void> {
-		if (!this.modalFormApi) return;
-		try {
-			const values = checkpointTemplateFieldValues(field);
-			const result = await this.modalFormApi.openForm(
-				buildCheckpointTemplateFieldModalForm(
-					index === undefined ? t('Add checkpoint field') : t('Edit checkpoint field'),
-				),
-				{ values },
-			);
-			if (result.status !== 'ok') return;
-			const nextField = checkpointFieldFromModalData(result.getData(), field);
-			if (index === undefined) this.fields.push(nextField);
-			else this.fields[index] = nextField;
-			this.fields = placeDeprecatedFieldsLast(this.fields);
-			this.renderAndSave();
-		} catch (error) {
-			console.error('Thread Journal failed to open checkpoint field form', error);
-			new Notice(t('Failed to open field form: {error}', { error: String(error) }));
-		}
-	}
-
 	private renderField(field: CheckpointFieldSpec, index: number): void {
 		const previous = this.fields[index - 1];
 		const next = this.fields[index + 1];
@@ -273,8 +156,8 @@ export class CheckpointTemplateModal extends Modal {
 				.setIcon('trash-2')
 				.setTooltip(t('Delete field'))
 				.onClick(() => {
-					this.fields.splice(index, 1);
-					this.renderAndSave();
+					this.pendingDeleteField = field;
+					this.render();
 				}));
 
 		new Setting(card)
@@ -362,6 +245,46 @@ export class CheckpointTemplateModal extends Modal {
 						this.scheduleSave();
 					}));
 		}
+
+		if (this.pendingDeleteField === field) {
+			this.renderFieldDeleteConfirmation(card, field);
+		}
+	}
+
+	private renderFieldDeleteConfirmation(
+		card: HTMLElement,
+		field: CheckpointFieldSpec,
+	): void {
+		const confirmation = card.createDiv({
+			cls: 'thread-journal-checkpoint-field-delete-confirmation',
+		});
+		confirmation.createDiv({
+			cls: 'thread-journal-checkpoint-field-delete-message',
+			text: t('Delete {field}?', { field: field.label || field.key }),
+		});
+		confirmation.createDiv({
+			cls: 'setting-item-description',
+			text: t('This removes the field from the template. Existing checkpoint records are not rewritten.'),
+		});
+		const actions = new Setting(confirmation)
+			.setClass('thread-journal-checkpoint-actions');
+		actions.addButton((button) => button
+			.setButtonText(t('Cancel'))
+			.onClick(() => {
+				this.pendingDeleteField = undefined;
+				this.render();
+			}));
+		actions.addButton((button) => button
+			.setButtonText(t('Delete field'))
+			.setDestructive()
+			.setCta()
+			.onClick(() => {
+				const index = this.fields.indexOf(field);
+				this.pendingDeleteField = undefined;
+				if (index < 0) return;
+				this.fields.splice(index, 1);
+				this.renderAndSave();
+			}));
 	}
 
 	onClose(): void {

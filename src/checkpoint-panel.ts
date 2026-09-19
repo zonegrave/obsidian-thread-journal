@@ -8,6 +8,7 @@ import type {
 } from './checkpoint-core';
 import type { CheckpointFieldSpec } from './types';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
+import { create24HourTimeSelect, is24HourTime } from './time-input';
 
 export const CHECKPOINT_PANEL_VIEW_TYPE = 'thread-journal-checkpoint-panel';
 
@@ -36,6 +37,7 @@ export class CheckpointPanelView extends ItemView {
 	private values: Record<string, CheckpointValue | undefined> = {};
 	private dirty = false;
 	private saving = false;
+	private discardConfirmationOpen = false;
 	private saveButton?: HTMLButtonElement;
 	private sidebarResize?: {
 		element: HTMLElement;
@@ -81,6 +83,7 @@ export class CheckpointPanelView extends ItemView {
 		this.restoreSidebarWidth();
 		this.request = undefined;
 		this.values = {};
+		this.discardConfirmationOpen = false;
 		this.contentEl.empty();
 	}
 
@@ -95,6 +98,7 @@ export class CheckpointPanelView extends ItemView {
 		this.values = { ...request.values };
 		this.dirty = false;
 		this.saving = false;
+		this.discardConfirmationOpen = false;
 		this.renderForm();
 		this.expandSidebar();
 		return true;
@@ -245,11 +249,23 @@ export class CheckpointPanelView extends ItemView {
 			focusTarget ??= field.required ? input : undefined;
 		});
 
+		if (this.discardConfirmationOpen) {
+			this.renderDiscardConfirmation();
+			return;
+		}
+
 		const actions = this.contentEl.createDiv({
 			cls: 'thread-journal-checkpoint-panel-actions',
 		});
 		const close = actions.createEl('button', { text: t('Close') });
-		close.addEventListener('click', () => this.leaf.detach());
+		close.addEventListener('click', () => {
+			if (!this.dirty) {
+				this.leaf.detach();
+				return;
+			}
+			this.discardConfirmationOpen = true;
+			this.renderForm();
+		});
 		this.saveButton = actions.createEl('button', {
 			cls: 'mod-cta',
 			text: request.mode === 'edit' ? t('Save changes') : t('Save checkpoint'),
@@ -257,6 +273,37 @@ export class CheckpointPanelView extends ItemView {
 		this.saveButton.addEventListener('click', () => void this.save());
 
 		window.setTimeout(() => focusTarget?.focus(), 0);
+	}
+
+	private renderDiscardConfirmation(): void {
+		const confirmation = this.contentEl.createDiv({
+			cls: 'thread-journal-checkpoint-panel-discard-confirmation',
+		});
+		confirmation.createDiv({
+			cls: 'thread-journal-checkpoint-field-delete-message',
+			text: t('Discard unsaved checkpoint changes?'),
+		});
+		confirmation.createDiv({
+			cls: 'setting-item-description',
+			text: t('The values currently entered in this form will be lost.'),
+		});
+		const actions = confirmation.createDiv({
+			cls: 'thread-journal-checkpoint-panel-actions is-inline-confirmation',
+		});
+		const keepEditing = actions.createEl('button', { text: t('Keep editing') });
+		keepEditing.addEventListener('click', () => {
+			this.discardConfirmationOpen = false;
+			this.renderForm();
+		});
+		const discard = actions.createEl('button', {
+			cls: 'mod-warning mod-cta',
+			text: t('Discard changes'),
+		});
+		discard.addEventListener('click', () => {
+			this.dirty = false;
+			this.leaf.detach();
+		});
+		window.setTimeout(() => keepEditing.focus(), 0);
 	}
 
 	private addTextField(
@@ -272,15 +319,28 @@ export class CheckpointPanelView extends ItemView {
 		row.createEl('label', {
 			cls: 'thread-journal-checkpoint-panel-label',
 			text: labelText,
-			attr: { for: inputId },
+			attr: type === 'date' ? { for: inputId } : {},
 		});
 		const input = row.createEl('input', { attr: { id: inputId } });
-		input.type = type;
-		input.value = value;
-		input.addEventListener('input', () => {
-			onChange(input.value);
-			this.dirty = true;
-		});
+		if (type === 'time') {
+			input.remove();
+			create24HourTimeSelect(
+				row,
+				value,
+				(nextValue) => {
+					onChange(nextValue);
+					this.dirty = true;
+				},
+				{ hour: t('Hour'), minute: t('Minute') },
+			);
+		} else {
+			input.type = type;
+			input.value = value;
+			input.addEventListener('input', () => {
+				onChange(input.value);
+				this.dirty = true;
+			});
+		}
 	}
 
 	private async save(): Promise<void> {
@@ -290,7 +350,7 @@ export class CheckpointPanelView extends ItemView {
 			new Notice(t('Enter a valid checkpoint date.'));
 			return;
 		}
-		if (!/^\d{2}:\d{2}$/u.test(this.time)) {
+		if (!is24HourTime(this.time)) {
 			new Notice(t('Enter a valid checkpoint time.'));
 			return;
 		}

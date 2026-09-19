@@ -108,7 +108,7 @@
 .thread-journal-breadcrumb-child-menu-name {
 	min-width: 0;
 	flex: 1 1 auto;
-	overflow: hidden;
+	overflow: auto;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
@@ -728,10 +728,21 @@
 
 .thread-journal-checkpoint-modal {
 	width: min(54rem, calc(100vw - 2rem));
+	max-width: calc(100vw - 1rem);
+}
+
+.thread-journal-checkpoint-modal .modal-content,
+.thread-journal-checkpoint-template-modal .modal-content,
+.thread-journal-task-modal .modal-content {
+	min-width: 0;
+	overflow-x: clip;
 }
 
 .thread-journal-checkpoint-panel-view {
+	box-sizing: border-box;
+	min-width: 0;
 	padding: 0.75rem 0.75rem 1rem;
+	overflow-x: hidden;
 	overflow-y: auto;
 }
 
@@ -754,7 +765,7 @@
 
 .thread-journal-checkpoint-panel-system-fields {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(10rem, 100%), 1fr));
 	gap: 0.55rem;
 	margin-bottom: 0.7rem;
 }
@@ -778,9 +789,13 @@
 }
 
 .thread-journal-checkpoint-panel-label {
+	min-width: 0;
 	color: var(--text-normal);
 	font-size: var(--font-ui-small);
 	font-weight: var(--font-medium);
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+	white-space: normal;
 }
 
 .thread-journal-checkpoint-panel-required {
@@ -800,6 +815,13 @@
 	resize: vertical;
 }
 
+.thread-journal-checkpoint-panel-field input,
+.thread-journal-checkpoint-panel-field select,
+.thread-journal-checkpoint-panel-field textarea,
+.thread-journal-checkpoint-panel-field .thread-journal-time-select {
+	min-width: 0;
+}
+
 .thread-journal-checkpoint-panel-actions {
 	position: sticky;
 	bottom: -1rem;
@@ -810,16 +832,25 @@
 	padding: 0.7rem 0.75rem 0.85rem;
 	border-top: 1px solid var(--background-modifier-border);
 	background: var(--background-primary);
+	flex-wrap: wrap;
+}
+
+.thread-journal-checkpoint-panel-actions button {
+	max-width: 100%;
+	white-space: normal;
 }
 
 .thread-journal-checkpoint-template-modal {
 	width: min(58rem, calc(100vw - 2rem));
+	max-width: calc(100vw - 1rem);
 }
 
 .thread-journal-checkpoint-target {
+	min-width: 0;
 	margin: -0.25rem 0 0.8rem;
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
+	overflow-wrap: anywhere;
 }
 
 .thread-journal-checkpoint-save-status {
@@ -836,7 +867,7 @@
 .thread-journal-checkpoint-system-fields,
 .thread-journal-checkpoint-custom-fields {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
 	gap: 0.6rem 0.8rem;
 }
 
@@ -861,12 +892,23 @@
 
 .thread-journal-checkpoint-form-field .setting-item-info {
 	flex: 0 0 auto;
+	min-width: 0;
 	margin-right: 0;
 }
 
 .thread-journal-checkpoint-form-field .setting-item-control {
 	justify-content: flex-start;
+	min-width: 0;
 	width: 100%;
+	max-width: 100%;
+	flex-wrap: wrap;
+}
+
+.thread-journal-checkpoint-form-field .setting-item-name,
+.thread-journal-checkpoint-form-field .setting-item-description {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	white-space: normal;
 }
 
 .thread-journal-checkpoint-form-field input[type="text"],
@@ -883,6 +925,13 @@
 .thread-journal-checkpoint-form-field textarea {
 	min-height: 8.5rem;
 	resize: vertical;
+}
+
+.thread-journal-checkpoint-form-field input,
+.thread-journal-checkpoint-form-field select,
+.thread-journal-checkpoint-form-field textarea,
+.thread-journal-checkpoint-form-field .thread-journal-time-select {
+	min-width: 0;
 }
 
 .thread-journal-checkpoint-form-field.is-toggle .setting-item-control {
@@ -904,6 +953,19 @@
 	display: none;
 }
 
+.thread-journal-checkpoint-actions .setting-item-control {
+	min-width: 0;
+	width: 100%;
+	max-width: 100%;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+}
+
+.thread-journal-checkpoint-actions button {
+	max-width: 100%;
+	white-space: normal;
+}
+
 .thread-journal-checkpoint-field-setting {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -920,6 +982,55 @@
 	border-style: dashed;
 }
 
+.thread-journal-checkpoint-field-delete-confirmation {
+	grid-column: 1 / -1;
+	min-width: 0;
+	margin-top: 0.35rem;
+	padding: 0.7rem;
+	border: 1px solid var(--text-error);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+}
+
+.thread-journal-checkpoint-template-reset-confirmation {
+	min-width: 0;
+	margin-top: 0.75rem;
+	padding: 0.7rem;
+	border: 1px solid var(--text-error);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.thread-journal-checkpoint-field-delete-message {
+	font-weight: var(--font-semibold);
+	overflow-wrap: anywhere;
+}
+
+.thread-journal-checkpoint-field-delete-confirmation > .setting-item-description {
+	margin-top: 0.2rem;
+	overflow-wrap: anywhere;
+}
+
+.thread-journal-checkpoint-field-delete-confirmation .thread-journal-checkpoint-actions {
+	padding-bottom: 0;
+}
+
+.thread-journal-checkpoint-panel-discard-confirmation {
+	min-width: 0;
+	margin-top: 0.8rem;
+	padding: 0.7rem;
+	border: 1px solid var(--text-error);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.thread-journal-checkpoint-panel-actions.is-inline-confirmation {
+	position: static;
+	margin: 0.65rem 0 0;
+	padding: 0.65rem 0 0;
+	background: transparent;
+}
+
 .thread-journal-checkpoint-field-setting > .setting-item {
 	min-width: 0;
 	padding: 0.25rem 0;
@@ -930,6 +1041,26 @@
 	grid-column: 1 / -1;
 	padding-bottom: 0.35rem;
 	border-bottom: 1px solid var(--background-modifier-border);
+	flex-wrap: wrap;
+}
+
+.thread-journal-checkpoint-field-setting > .setting-item:first-child .setting-item-info {
+	min-width: 0;
+	flex: 1 1 14rem;
+}
+
+.thread-journal-checkpoint-field-setting > .setting-item:first-child .setting-item-control {
+	min-width: 0;
+	max-width: 100%;
+	flex: 0 1 auto;
+	flex-wrap: wrap;
+}
+
+.thread-journal-checkpoint-field-setting .setting-item-name,
+.thread-journal-checkpoint-field-setting .setting-item-description {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	white-space: normal;
 }
 
 .thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) {
@@ -955,7 +1086,10 @@
 
 .thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) .setting-item-control {
 	justify-content: flex-start;
+	min-width: 0;
+	max-width: 100%;
 	width: 100%;
+	flex-wrap: wrap;
 }
 
 .thread-journal-checkpoint-field-setting > .setting-item:not(:first-child) input[type="text"],
@@ -1036,7 +1170,7 @@
 }
 
 .thread-journal-overview-pinned-list {
-	max-height: calc(100% - 2.3rem);
+	max-height: 12rem;
 	overflow: auto;
 	padding: 0.35rem 0.6rem;
 }
@@ -1454,6 +1588,162 @@
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	font-weight: var(--font-semibold);
+}
+
+.thread-journal-task-modal {
+	width: min(46rem, calc(100vw - 2rem));
+	max-width: calc(100vw - 1rem);
+}
+
+.thread-journal-task-form-field {
+	align-items: flex-start;
+	gap: 0.75rem;
+	min-width: 0;
+}
+
+.thread-journal-task-form-field .setting-item-info {
+	min-width: 0;
+	margin-right: 0;
+	flex: 1 1 15rem;
+}
+
+.thread-journal-task-form-field .setting-item-control {
+	min-width: 0;
+	width: min(22rem, 100%);
+	max-width: 100%;
+	justify-content: flex-end;
+	flex: 0 1 22rem;
+	flex-wrap: wrap;
+}
+
+.thread-journal-task-form-field .setting-item-name,
+.thread-journal-task-form-field .setting-item-description {
+	min-width: 0;
+	overflow-wrap: anywhere;
+	white-space: normal;
+}
+
+.thread-journal-task-form-field input,
+.thread-journal-task-form-field select,
+.thread-journal-task-form-field textarea {
+	box-sizing: border-box;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.thread-journal-task-form-field.is-wide {
+	align-items: flex-start;
+	flex-direction: column;
+}
+
+.thread-journal-task-form-field.is-wide .setting-item-info,
+.thread-journal-task-form-field.is-wide .setting-item-control,
+.thread-journal-task-form-field.is-wide input[type="text"] {
+	width: 100%;
+	max-width: 100%;
+}
+
+.thread-journal-task-time-fields {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr));
+	gap: 0 1rem;
+}
+
+.thread-journal-task-time-fields .setting-item {
+	align-items: flex-start;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.thread-journal-task-time-fields .setting-item-info,
+.thread-journal-task-time-fields .setting-item-control {
+	width: 100%;
+	max-width: 100%;
+}
+
+.thread-journal-task-form-field.is-datetime .setting-item-control {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
+	gap: 0.4rem;
+	align-items: center;
+	justify-content: stretch;
+}
+
+.thread-journal-task-form-field.is-datetime input[type="date"] {
+	min-width: 0;
+	width: 100%;
+}
+
+.thread-journal-time-select {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 0.2rem;
+	min-width: 0;
+	max-width: 100%;
+	font-variant-numeric: tabular-nums;
+}
+
+.thread-journal-time-select select {
+	width: auto;
+	min-width: 3.25rem;
+	max-width: 4.25rem;
+	padding-inline: 0.4rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.thread-journal-task-fixed-note {
+	margin: 0.65rem 0;
+	padding: 0.65rem 0.8rem;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.thread-journal-task-actions .setting-item-control {
+	min-width: 0;
+	width: 100%;
+	max-width: 100%;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.thread-journal-task-actions .setting-item-info {
+	display: none;
+}
+
+.thread-journal-task-actions button,
+.thread-journal-task-form-field.is-datetime button {
+	max-width: 100%;
+	white-space: normal;
+}
+
+@media (max-width: 650px) {
+	.thread-journal-task-form-field {
+		flex-direction: column;
+	}
+
+	.thread-journal-task-form-field .setting-item-info,
+	.thread-journal-task-form-field .setting-item-control {
+		width: 100%;
+		max-width: 100%;
+		flex-basis: auto;
+	}
+
+	.thread-journal-task-time-fields {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.thread-journal-task-form-field.is-datetime .setting-item-control {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.thread-journal-task-form-field.is-datetime .thread-journal-time-select,
+	.thread-journal-task-form-field.is-datetime button {
+		justify-self: start;
+	}
 }
 
 .thread-journal-overview-task {

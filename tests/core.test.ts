@@ -56,12 +56,6 @@ import {
 	parseThreadEntriesQuery,
 } from '../src/entry-query';
 import {
-	buildCheckpointModalForm,
-	buildCheckpointTemplateFieldModalForm,
-	checkpointFieldFromModalData,
-	checkpointTemplateFieldValues,
-} from '../src/modal-form';
-import {
 	THREAD_STATUS_CHOICES,
 	isOperationalThreadStatus,
 	threadStatusUsesMembers,
@@ -95,6 +89,14 @@ import {
 	openThreadViewsForFile,
 	orderOpenThreadGroups,
 } from '../src/thread-switcher-model';
+import {
+	buildTaskLine,
+	parseTaskLine,
+	taskInsertionEdit,
+	taskValidationError,
+	type TaskData,
+} from '../src/task-model';
+import { is24HourTime } from '../src/time-input';
 
 void test('resolves automatic language and translates interpolated UI text', () => {
 	assert.equal(resolveLocale('auto', 'zh-CN'), 'zh');
@@ -583,90 +585,6 @@ void test('moves deprecated fields last and excludes them from new checkpoint in
 	);
 });
 
-void test('maps checkpoint fields to a Modal Form inline definition', () => {
-	const definition = buildCheckpointModalForm('创建 checkpoint', normalizeCheckpointFields([
-		{
-			key: 'checkpoint_kind', label: '类型', control: 'select', storage: 'inline',
-			required: true, options: ['milestone', 'review'],
-		},
-		{
-			key: 'notes', label: '说明', control: 'textarea', storage: 'body', required: false,
-		},
-	]), { checkpoint_kind: 'custom-review' });
-	assert.equal(definition.customClassname, 'thread-journal-modal-form');
-	assert.deepEqual(definition.fields.map((field) => field.input.type), [
-		'date', 'time', 'select', 'textarea',
-	]);
-	assert.deepEqual(definition.fields[2]?.input, {
-		type: 'select',
-		source: 'fixed',
-		options: [
-			{ value: 'milestone', label: 'milestone' },
-			{ value: 'review', label: 'review' },
-			{ value: 'custom-review', label: 'custom-review' },
-		],
-	});
-});
-
-void test('builds a Modal Form checkpoint template field editor', () => {
-	const definition = buildCheckpointTemplateFieldModalForm('编辑 checkpoint 字段');
-	assert.equal(definition.title, '编辑 checkpoint 字段');
-	assert.deepEqual(
-		definition.fields.map((field) => [field.name, field.input.type]),
-		[
-			['label', 'text'],
-			['key', 'text'],
-			['control', 'select'],
-			['storage', 'select'],
-			['required', 'toggle'],
-			['options', 'textarea'],
-		],
-	);
-	assert.deepEqual(checkpointTemplateFieldValues({
-		key: 'checkpoint_kind',
-		label: '类型',
-		control: 'select',
-		storage: 'inline',
-		required: true,
-		deprecated: false,
-		options: ['milestone', 'review'],
-	}), {
-		key: 'checkpoint_kind',
-		label: '类型',
-		control: 'select',
-		storage: 'inline',
-		required: true,
-		options: 'milestone\nreview',
-	});
-	assert.deepEqual(checkpointFieldFromModalData({
-		label: '新的类型',
-		key: 'new kind',
-		control: 'select',
-		storage: 'inline',
-		required: true,
-		deprecated: true,
-		options: 'milestone\nreview, archived',
-	}, DEFAULT_CHECKPOINT_FIELDS[0]!), {
-		key: 'new_kind',
-		label: '新的类型',
-		control: 'select',
-		storage: 'inline',
-		required: false,
-		deprecated: true,
-		options: ['milestone', 'review', 'archived'],
-	});
-	assert.equal(checkpointFieldFromModalData({
-		label: '旧字段',
-		key: 'old_field',
-		control: 'text',
-		storage: 'inline',
-		required: true,
-	}, {
-		...DEFAULT_CHECKPOINT_FIELDS[0]!,
-		deprecated: true,
-	}).deprecated, true);
-});
-
 void test('builds a Dataview-queryable checkpoint with a free-form body', () => {
 	const fields = normalizeCheckpointFields([
 		{
@@ -1005,6 +923,79 @@ void test('task readiness separates future, waiting, candidates, completion and 
  assert.equal(todoDisposition('-', '取消', '2026-09-09'), undefined);
  assert.equal(todoDisposition(' ', '', '2026-09-09'), undefined);
  assert.equal(todoDisposition('!', '自定义', '2026-09-09'), 'unknown');
+});
+
+void test('task readiness respects a precise window start', () => {
+	assert.equal(
+		todoDisposition(' ', '记录恢复 [window_start:: 2026-09-18 20:00]', '2026-09-18 19:59'),
+		'future',
+	);
+	assert.equal(
+		todoDisposition(' ', '记录恢复 [window_start:: 2026-09-18 20:00]', '2026-09-18 20:00'),
+		'ready',
+	);
+});
+
+void test('accepts only explicit 24-hour HH:mm values', () => {
+	assert.equal(is24HourTime('00:00'), true);
+	assert.equal(is24HourTime('23:59'), true);
+	assert.equal(is24HourTime('24:00'), false);
+	assert.equal(is24HourTime('12:60'), false);
+	assert.equal(is24HourTime('9:30'), false);
+	assert.equal(is24HourTime('09:30 PM'), false);
+});
+
+void test('task form fields round-trip without losing markdown task state or other metadata', () => {
+	const source = '  > - [/] 记录恢复 [schedule_mode:: flexible] [window_start:: 2026-09-18 20:00] '
+		+ '[window_end:: 2026-09-18 23:00] [effort:: quick] [thread_pin:: true] ^task-recovery';
+	const parsed = parseTaskLine(source);
+	assert.ok(parsed);
+	assert.deepEqual(parsed.data, {
+		content: '记录恢复',
+		scheduleMode: 'flexible',
+		windowStart: '2026-09-18T20:00',
+		windowEnd: '2026-09-18T23:00',
+		effort: 'quick',
+	});
+	const rebuilt = buildTaskLine(parsed.data, parsed);
+	assert.match(rebuilt, /^ {2}> - \[\/\] 记录恢复/u);
+	assert.match(rebuilt, /\[thread_pin:: true\] \^task-recovery$/u);
+	assert.deepEqual(parseTaskLine(rebuilt)?.data, parsed.data);
+});
+
+void test('task schedule validation keeps flexible bounds optional and requires a fixed interval', () => {
+	const base: TaskData = {
+		content: '项目讨论会',
+		scheduleMode: 'flexible',
+		windowStart: '',
+		windowEnd: '',
+		effort: 'normal',
+	};
+	assert.equal(taskValidationError(base), undefined);
+	assert.equal(taskValidationError({ ...base, scheduleMode: 'fixed', effort: '' }), 'fixed-window');
+	assert.equal(taskValidationError({
+		...base,
+		scheduleMode: 'fixed',
+		effort: '',
+		windowStart: '2026-09-18T11:00',
+		windowEnd: '2026-09-18T10:00',
+	}), 'window-order');
+});
+
+void test('task creation replaces an empty line or inserts below the current line', () => {
+	const task = '- [ ] 新任务';
+	assert.deepEqual(taskInsertionEdit(['', 'next'], 0, task), {
+		from: { line: 0, ch: 0 },
+		to: { line: 0, ch: 0 },
+		replacement: task,
+		cursor: { line: 0, ch: task.length },
+	});
+	assert.deepEqual(taskInsertionEdit(['  正文'], 0, task), {
+		from: { line: 0, ch: 4 },
+		to: { line: 0, ch: 4 },
+		replacement: `\n  ${task}`,
+		cursor: { line: 1, ch: 2 + task.length },
+	});
 });
 
 void test('filters overview tasks to today active or all unfinished tasks', () => {

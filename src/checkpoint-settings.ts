@@ -29,6 +29,7 @@ export function renderCheckpointFieldSettings(
 	plugin.settings.checkpointFields.forEach((field, index) => {
 		const previous = plugin.settings.checkpointFields[index - 1];
 		const next = plugin.settings.checkpointFields[index + 1];
+		let deleteConfirmation: HTMLElement | undefined;
 		const card = containerEl.createDiv({
 			cls: `thread-journal-checkpoint-field-setting${field.deprecated ? ' is-deprecated' : ''}`,
 		});
@@ -68,10 +69,37 @@ export function renderCheckpointFieldSettings(
 			.addExtraButton((button) => button
 				.setIcon('trash-2')
 				.setTooltip(t('Delete field'))
-				.onClick(async () => {
-					plugin.settings.checkpointFields.splice(index, 1);
-					await plugin.saveSettings();
-					refresh();
+				.onClick(() => {
+					if (deleteConfirmation?.isConnected) return;
+					deleteConfirmation = card.createDiv({
+						cls: 'thread-journal-checkpoint-field-delete-confirmation',
+					});
+					deleteConfirmation.createDiv({
+						cls: 'thread-journal-checkpoint-field-delete-message',
+						text: t('Delete {field}?', { field: field.label || field.key }),
+					});
+					deleteConfirmation.createDiv({
+						cls: 'setting-item-description',
+						text: t('This removes the field from the template. Existing checkpoint records are not rewritten.'),
+					});
+					const actions = new Setting(deleteConfirmation)
+						.setClass('thread-journal-checkpoint-actions');
+					actions.addButton((cancel) => cancel
+						.setButtonText(t('Cancel'))
+						.onClick(() => {
+							deleteConfirmation?.remove();
+							deleteConfirmation = undefined;
+						}));
+					actions.addButton((confirm) => confirm
+						.setButtonText(t('Delete field'))
+						.setDestructive()
+						.setCta()
+						.onClick(async () => {
+							confirm.setDisabled(true);
+							plugin.settings.checkpointFields.splice(index, 1);
+							await plugin.saveSettings();
+							refresh();
+						}));
 				}));
 
 		new Setting(card)
@@ -160,6 +188,7 @@ export function renderCheckpointFieldSettings(
 		}
 	});
 
+	let restoreConfirmation: HTMLElement | undefined;
 	new Setting(containerEl)
 		.setName(t('Custom template fields'))
 		.setDesc(t('Historical cards show only the fields saved at the time. The template does not add empty values or rewrite history.'))
@@ -181,9 +210,37 @@ export function renderCheckpointFieldSettings(
 			}))
 		.addButton((button) => button
 			.setButtonText(t('Restore minimal defaults'))
-			.onClick(async () => {
-				plugin.settings.checkpointFields = cloneDefaultCheckpointFields();
-				await plugin.saveSettings();
-				refresh();
+			.setDestructive()
+			.onClick(() => {
+				if (restoreConfirmation?.isConnected) return;
+				restoreConfirmation = containerEl.createDiv({
+					cls: 'thread-journal-checkpoint-template-reset-confirmation',
+				});
+				restoreConfirmation.createDiv({
+					cls: 'thread-journal-checkpoint-field-delete-message',
+					text: t('Restore the minimal default template?'),
+				});
+				restoreConfirmation.createDiv({
+					cls: 'setting-item-description',
+					text: t('This replaces all global checkpoint fields. Independent thread templates and existing checkpoint records are not changed.'),
+				});
+				const actions = new Setting(restoreConfirmation)
+					.setClass('thread-journal-checkpoint-actions');
+				actions.addButton((cancel) => cancel
+					.setButtonText(t('Cancel'))
+					.onClick(() => {
+						restoreConfirmation?.remove();
+						restoreConfirmation = undefined;
+					}));
+				actions.addButton((confirm) => confirm
+					.setButtonText(t('Restore minimal defaults'))
+					.setDestructive()
+					.setCta()
+					.onClick(async () => {
+						confirm.setDisabled(true);
+						plugin.settings.checkpointFields = cloneDefaultCheckpointFields();
+						await plugin.saveSettings();
+						refresh();
+					}));
 			}));
 }

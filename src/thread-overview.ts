@@ -496,19 +496,19 @@ class OverviewContent extends MarkdownRenderChild {
 				cls: 'thread-journal-empty',
 				text: t('No pinned tasks.'),
 			});
-			return;
-		}
-		for (const { task, threadTitle } of pinned) {
-			const item = list.createDiv({ cls: 'thread-journal-overview-pinned-task' });
-			const meta = item.createDiv({ cls: 'thread-journal-overview-pinned-task-meta' });
-			meta.createSpan({ text: threadTitle });
-			meta.createSpan({ text: '·' });
-			meta.createSpan({
-				text: t(TASK_DISPOSITION_LABELS[task.disposition]),
-				attr: { 'data-disposition': task.disposition },
-			});
-			this.renderTaskLink(item, task);
-			this.renderTaskPinButton(meta, task);
+		} else {
+			for (const { task, threadTitle } of pinned) {
+				const item = list.createDiv({ cls: 'thread-journal-overview-pinned-task' });
+				const meta = item.createDiv({ cls: 'thread-journal-overview-pinned-task-meta' });
+				meta.createSpan({ text: threadTitle });
+				meta.createSpan({ text: '·' });
+				meta.createSpan({
+					text: t(TASK_DISPOSITION_LABELS[task.disposition]),
+					attr: { 'data-disposition': task.disposition },
+				});
+				this.renderTaskLink(item, task);
+				this.renderTaskPinButton(meta, task);
+			}
 		}
 	}
 

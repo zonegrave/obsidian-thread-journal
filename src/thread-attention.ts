@@ -12,6 +12,7 @@ import {
  type TodoDisposition,
 } from './thread-attention-model';
 import type { ThreadInfo } from './types';
+import { parseTaskLine } from './task-model';
 
 export interface AttentionRowTask {
  key: string;
@@ -19,8 +20,8 @@ export interface AttentionRowTask {
  line: number;
  sourceLine: string;
  text: string;
- disposition: TodoDisposition;
- pinned: boolean;
+	disposition: TodoDisposition;
+	pinned: boolean;
 }
 
 export interface AttentionRow {
@@ -57,7 +58,7 @@ export async function collectAttention(app: App, index: ThreadIndex): Promise<At
  }));
  const tasks: AttentionTask[] = [];
  const taskSources = new Map<string, AttentionRowTask>();
- const today = moment().format('YYYY-MM-DD');
+	const now = moment().format('YYYY-MM-DD HH:mm');
  for (const file of app.vault.getMarkdownFiles()) {
   const cache = app.metadataCache.getFileCache(file);
   const taskItems = cache?.listItems?.filter(item => item.task !== undefined) ?? [];
@@ -71,10 +72,11 @@ export async function collectAttention(app: App, index: ThreadIndex): Promise<At
   const lines = (await app.vault.cachedRead(file)).split('\n');
   for (const item of taskItems) {
    const line = item.position.start.line;
-   const sourceLine = lines[line] ?? '';
-   const taskText = sourceLine.replace(/^\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[[^\]]\]\s*/, '');
-   const text = taskTextWithoutPin(taskText);
-   const disposition = todoDisposition(item.task ?? '', text, today);
+			const sourceLine = lines[line] ?? '';
+			const taskText = sourceLine.replace(/^\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[[^\]]\]\s*/, '');
+			const parsed = parseTaskLine(sourceLine);
+			const text = parsed?.data.content ?? taskTextWithoutPin(taskText);
+			const disposition = todoDisposition(item.task ?? '', taskText, now);
    if (!disposition) continue;
    const owners = new Set<string>();
    if (defaultOwner) owners.add(defaultOwner);
@@ -92,10 +94,10 @@ export async function collectAttention(app: App, index: ThreadIndex): Promise<At
     file,
     line,
     sourceLine,
-    text,
-    disposition,
-    pinned: taskIsPinned(taskText),
-   });
+				text,
+				disposition,
+				pinned: taskIsPinned(taskText),
+			});
   }
  }
  return threads.map(thread => ({

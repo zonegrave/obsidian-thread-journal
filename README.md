@@ -232,6 +232,13 @@ order: asc
 
 **Open thread overview** 会打开或聚焦一个可常驻的 Overview tab；`thread-overview` 代码块仍可在笔记中嵌入同一视图。独立 Tab 的思维导图画布铺满整个视图，筛选与操作控件悬浮在右上角；画布四周保留足够空白，让边缘内容也能滚动到视图中央，并提供放大、缩小和适应视图控件。Mac 触控板可在画布上双指捏合缩放，缩放中心保持在手势位置；普通双指滚动仍用于平移，切换标签回来会保留地图视角。嵌入笔记时仍按文档宽度展示。视图把 thread 层级渲染成横向思维导图：从虚拟 Threads 根节点向右分叉，以曲线连接父子节点，画布可横纵滚动。紧凑的 Status 菜单默认选择 `active` 与 `dormant`，展开后可任意勾选八种状态；筛选结果所依赖的未选中祖先会作为淡色结构节点保留，避免层级断裂。Tasks 可在“今日活跃”和“全部未完成”之间切换；“今日活跃”只保留尚未完成、未等待、未列为候选且没有被未来开始或计划日期推迟的任务。任务右上角的 pin 按钮会在原任务写入 `[thread_pin:: true]`，并把它汇总到 Overview 左侧的固定任务区；再次点击即可取消，任务链接仍定位原文。固定区不受状态与 Tasks 筛选影响。**Expand all tasks** 会展开当前筛选结果中所有包含任务的节点及其分支，也可一键收起。点击单个节点会展开状态提示和该节点自己的 tasks，不再显示一排子树任务统计；节点右侧的 `+/−` 单独折叠下级分支，任务链接可定位到原文。它只提示，不自动改变状态。外部笔记中的任务只有在同一行明确链接某个 meta 或成员时才归属该 thread。
 
+Active 成员的编辑视图提供 **Create task** 与 **Edit task**。任务仍是普通 Markdown checkbox，任务内容本身表达要达成的结果；表单只负责读写安排方式、时间窗口和预计消耗。Flexible task 可在窗口内另行安排，并可选择 `quick`/`light`/`normal`/`deep` 的模糊消耗；fixed task 必须同时设置起止时间并占满整个区间。没有起止时间的 flexible task 完全自由。Task 与 checkpoint 的时间输入统一使用插件控制的 24 小时选择器（小时 `00–23`、分钟 `00–59`），不受系统时间显示偏好影响。
+
+```markdown
+- [ ] 填写今天的训练恢复 checkpoint [schedule_mode:: flexible] [window_start:: 2026-09-18 20:00] [window_end:: 2026-09-18 23:00] [effort:: quick]
+- [ ] 参加项目讨论会并确认版本范围 [schedule_mode:: fixed] [window_start:: 2026-09-19 10:00] [window_end:: 2026-09-19 11:00]
+```
+
 `thread-children` 代码块动态显示直接子 thread，并链接到各自入口：
 
 ````markdown
@@ -253,6 +260,8 @@ order: asc
 | **Switch active thread role** | meta 或成员 | 在当前 pack 的 active 成员间循环切换；从 meta 或 terminated 成员进入入口 |
 | **Manage open threads** | 任意位置 | 按 thread 管理当前窗口里的标签 |
 | **Open thread overview** | 任意位置 | 打开可筛选、可展开的 thread 思维导图，查看直属 tasks，并定位原任务 |
+| **Create task** | active 成员编辑视图 | 在光标位置通过统一表单创建 Markdown task |
+| **Edit task** | active 成员的 task 行 | 编辑原任务的内容、安排方式、时间窗口和消耗 |
 | **Insert inline log** | active 成员编辑视图 | 在光标处插入 log |
 | **Create checkpoint** | meta 或成员 | 打开 checkpoint 侧栏表单 |
 

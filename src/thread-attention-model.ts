@@ -53,16 +53,21 @@ export function filterAttentionTasks<T extends { disposition: TodoDisposition }>
 }
 
 // Uses Obsidian's parsed task marker; code fences and ordinary lists are excluded by the caller.
-export function todoDisposition(marker: string, text: string, today: string): TodoDisposition | undefined {
+export function todoDisposition(marker: string, text: string, now: string): TodoDisposition | undefined {
  if (marker.toLowerCase() === 'x' || marker === '-') return undefined;
  if (!text.trim()) return undefined;
  if (marker === '?' || /\[candidate::\s*true\]/i.test(text)) return 'candidate';
  if (marker === '>' || /\[waiting::\s*true\]/i.test(text)) return 'waiting';
  if (marker !== ' ' && marker !== '/') return 'unknown';
- const leadingDate = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s|$)/)?.[1];
- if (leadingDate && leadingDate > today) return 'future';
- const dates = [...text.matchAll(/(?:⏳|🛫|\[(?:scheduled|start)::)\s*(\d{4}-\d{2}-\d{2})/g)];
- if (dates.some(match => (match[1] ?? '') > today)) return 'future';
+	const today = now.slice(0, 10);
+	const comparisonNow = /^\d{4}-\d{2}-\d{2}$/u.test(now) ? `${now} 23:59` : now.replace('T', ' ');
+	const leadingDate = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s|$)/)?.[1];
+	if (leadingDate && leadingDate > today) return 'future';
+	const dates = [...text.matchAll(/(?:⏳|🛫|\[(?:scheduled|start)::)\s*(\d{4}-\d{2}-\d{2})/g)];
+	if (dates.some(match => (match[1] ?? '') > today)) return 'future';
+	const windowStart = /\[window_start::\s*(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2})?)\s*\]/u
+		.exec(text)?.[1]?.replace('T', ' ');
+	if (windowStart && windowStart > comparisonNow) return 'future';
  // A due date is a deadline, not a reason to postpone starting.
  return 'ready';
 }

@@ -28,11 +28,11 @@ import {
 	type CheckpointPanelRequest,
 } from './checkpoint-panel';
 import { CheckpointTemplateModal } from './checkpoint-template';
-import { buildCheckpointModalForm, getModalFormApi } from './modal-form';
 import type { ThreadIndex } from './thread-index';
 import { THREAD_STATUS_CHOICES, type ThreadStatus } from './thread-status-model';
 import { t } from './i18n';
 import type { CheckpointFieldSpec, ThreadJournalSettings } from './types';
+import { create24HourTimeSelect, is24HourTime } from './time-input';
 
 function checkpointBlockId(): string {
 	const suffix = Math.random().toString(36).slice(2, 7);
@@ -90,12 +90,6 @@ function checkpointFormValues(
 	return values;
 }
 
-function checkpointValue(value: unknown): CheckpointValue | undefined {
-	if (typeof value === 'string' || typeof value === 'boolean') return value;
-	if (typeof value === 'number' && Number.isFinite(value)) return value;
-	return undefined;
-}
-
 class CheckpointModal extends Modal {
 	private date: string;
 	private time: string;
@@ -138,17 +132,17 @@ class CheckpointModal extends Modal {
 				});
 			});
 
-		new Setting(systemFields)
+		const timeSetting = new Setting(systemFields)
 			.setClass('thread-journal-checkpoint-form-field')
 			.setClass('is-compact')
 			.setName(t('Time'))
-			.setDesc(t('The time when the checkpoint occurred.'))
-			.addText((text) => {
-				text.inputEl.type = 'time';
-				text.setValue(this.time).onChange((value) => {
-					this.time = value;
-				});
-			});
+			.setDesc(t('The time when the checkpoint occurred, in 24-hour HH:mm format.'));
+		create24HourTimeSelect(
+			timeSetting.controlEl,
+			this.time,
+			(value) => { this.time = value; },
+			{ hour: t('Hour'), minute: t('Minute') },
+		);
 
 		let focusTarget: HTMLInputElement | HTMLTextAreaElement | undefined;
 		const customFields = this.contentEl.createDiv({
@@ -227,7 +221,7 @@ class CheckpointModal extends Modal {
 					new Notice(t('Enter a valid checkpoint date.'));
 					return;
 				}
-				if (!/^\d{2}:\d{2}$/.test(this.time)) {
+				if (!is24HourTime(this.time)) {
 					new Notice(t('Enter a valid checkpoint time.'));
 					return;
 				}
@@ -292,7 +286,8 @@ class CheckpointDeleteModal extends Modal {
 			.onClick(() => this.close()));
 		actions.addButton((button) => button
 			.setButtonText(t('Delete checkpoint'))
-			.setWarning()
+			.setDestructive()
+			.setCta()
 			.onClick(async () => {
 				if (this.deleting) return;
 				this.deleting = true;
@@ -381,60 +376,13 @@ export class CheckpointManager {
 		onSubmit: CheckpointSubmit,
 		initial?: CheckpointModalInitialState,
 	): void {
-		const api = getModalFormApi(this.app);
-		if (!api) {
-			new CheckpointModal(
-				this.app,
-				threadTitle,
-				fields,
-				onSubmit,
-				initial,
-			).open();
-			return;
-		}
-		const date = initial?.date || moment().format('YYYY-MM-DD');
-		const time = initial?.time || moment().format('HH:mm');
-		const values = checkpointFormValues(fields, date, time, initial?.values);
-		const definition = buildCheckpointModalForm(
-			t('{action} checkpoint · {title}', {
-				action: initial ? t('Edit') : t('Create'),
-				title: threadTitle,
-			}),
+		new CheckpointModal(
+			this.app,
+			threadTitle,
 			fields,
-			values,
-		);
-		void api.openForm(definition, { values }).then(async (result) => {
-			if (result.status !== 'ok') return;
-			const data = result.getData();
-			const nextDate = checkpointValue(data.checkpoint_date);
-			const nextTime = checkpointValue(data.checkpoint_time);
-			if (typeof nextDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
-				new Notice(t('Modal Form did not return a valid checkpoint date.'));
-				return;
-			}
-			if (typeof nextTime !== 'string' || !/^\d{2}:\d{2}$/.test(nextTime)) {
-				new Notice(t('Modal Form did not return a valid checkpoint time.'));
-				return;
-			}
-			const nextValues: Record<string, CheckpointValue | undefined> = {};
-			for (const field of fields) nextValues[field.key] = checkpointValue(data[field.key]);
-			try {
-				await onSubmit(nextDate, nextTime, nextValues);
-			} catch (error) {
-				console.error('Thread Journal failed to save Modal Form checkpoint', error);
-				new Notice(t('Failed to save checkpoint: {error}', { error: String(error) }));
-			}
-		}).catch((error: unknown) => {
-			console.error('Thread Journal failed to open Modal Form', error);
-			new Notice(t('Failed to open Modal Form; using the built-in form.'));
-			new CheckpointModal(
-				this.app,
-				threadTitle,
-				fields,
-				onSubmit,
-				initial,
-			).open();
-		});
+			onSubmit,
+			initial,
+		).open();
 	}
 
 	openCheckpointTemplateModal(threadFile: TFile): void {
@@ -449,7 +397,6 @@ export class CheckpointManager {
 		);
 		new CheckpointTemplateModal(
 			this.app,
-			threadFile,
 			this.index.getThread(threadFile)?.title ?? threadFile.basename,
 			fields,
 			!Array.isArray(ownTemplate),
@@ -457,13 +404,6 @@ export class CheckpointManager {
 				await this.app.fileManager.processFrontMatter(threadFile, (metadata) => {
 					(metadata as Record<string, unknown>).checkpoint_fields = nextFields;
 				});
-			},
-			async () => {
-				await this.app.fileManager.processFrontMatter(threadFile, (metadata) => {
-					delete (metadata as Record<string, unknown>).checkpoint_fields;
-				});
-				const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
-				new Notice(t('{title} now uses the global default template.', { title }));
 			},
 		).open();
 	}
