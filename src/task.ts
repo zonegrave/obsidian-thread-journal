@@ -54,7 +54,6 @@ class TaskModal extends Modal {
 			.setClass('thread-journal-task-form-field')
 			.setClass('is-wide')
 			.setName(t('Task content'))
-			.setDesc(t('Describe the concrete action.'))
 			.addText((text) => {
 				text.setValue(this.data.content).onChange((value) => {
 					this.data.content = value;
@@ -62,13 +61,15 @@ class TaskModal extends Modal {
 				focusTarget = text.inputEl;
 			});
 
-		new Setting(this.contentEl)
+		const choiceFields = this.contentEl.createDiv({
+			cls: 'thread-journal-task-choice-fields',
+		});
+		new Setting(choiceFields)
 			.setClass('thread-journal-task-form-field')
 			.setName(t('Schedule mode'))
-			.setDesc(t('Choose whether the task can move inside its window or occupies the whole window.'))
 			.addDropdown((dropdown) => dropdown
-				.addOption('flexible', t('Flexible inside the window'))
-				.addOption('fixed', t('Occupies the whole window'))
+				.addOption('flexible', t('Flexible'))
+				.addOption('fixed', t('Fixed'))
 				.setValue(this.data.scheduleMode)
 				.onChange((value) => {
 					this.data.scheduleMode = value as TaskScheduleMode;
@@ -76,33 +77,10 @@ class TaskModal extends Modal {
 					this.render();
 				}));
 
-		const timeFields = this.contentEl.createDiv({ cls: 'thread-journal-task-time-fields' });
-		this.addDateTimeField(
-			timeFields,
-			t('Window start'),
-			t('Leave empty when there is no earliest start.'),
-			this.data.windowStart,
-			(value, incomplete) => {
-				this.data.windowStart = value;
-				this.windowStartIncomplete = incomplete;
-			},
-		);
-		this.addDateTimeField(
-			timeFields,
-			t('Window end'),
-			t('For flexible tasks, this is the latest completion time.'),
-			this.data.windowEnd,
-			(value, incomplete) => {
-				this.data.windowEnd = value;
-				this.windowEndIncomplete = incomplete;
-			},
-		);
-
 		if (this.data.scheduleMode === 'flexible') {
-			new Setting(this.contentEl)
+			new Setting(choiceFields)
 				.setClass('thread-journal-task-form-field')
 				.setName(t('Estimated effort'))
-				.setDesc(t('A rough estimate used only for flexible tasks.'))
 				.addDropdown((dropdown) => dropdown
 					.addOption('', t('Not selected'))
 					.addOption('quick', t('Quick'))
@@ -113,12 +91,27 @@ class TaskModal extends Modal {
 					.onChange((value) => {
 						this.data.effort = value as TaskEffort;
 					}));
-		} else {
-			this.contentEl.createDiv({
-				cls: 'thread-journal-task-fixed-note',
-				text: t('A fixed task uses the full interval; its cost is determined by the start and end.'),
-			});
 		}
+
+		const timeFields = this.contentEl.createDiv({ cls: 'thread-journal-task-time-fields' });
+		this.addDateTimeField(
+			timeFields,
+			t('Window start'),
+			this.data.windowStart,
+			(value, incomplete) => {
+				this.data.windowStart = value;
+				this.windowStartIncomplete = incomplete;
+			},
+		);
+		this.addDateTimeField(
+			timeFields,
+			t('Window end'),
+			this.data.windowEnd,
+			(value, incomplete) => {
+				this.data.windowEnd = value;
+				this.windowEndIncomplete = incomplete;
+			},
+		);
 
 		const actions = new Setting(this.contentEl).setClass('thread-journal-task-actions');
 		actions.addButton((button) => button
@@ -149,7 +142,6 @@ class TaskModal extends Modal {
 	private addDateTimeField(
 		parent: HTMLElement,
 		name: string,
-		description: string,
 		value: string,
 		onChange: (value: string, incomplete: boolean) => void,
 	): void {
@@ -161,8 +153,7 @@ class TaskModal extends Modal {
 		const setting = new Setting(parent)
 			.setClass('thread-journal-task-form-field')
 			.setClass('is-datetime')
-			.setName(name)
-			.setDesc(description);
+			.setName(name);
 		const emit = (): void => {
 			const incomplete = timeIncomplete || Boolean(date) !== Boolean(time);
 			onChange(date && time ? `${date}T${time}` : '', incomplete);

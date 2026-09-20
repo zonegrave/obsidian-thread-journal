@@ -21,8 +21,17 @@ function inlineValue(value: CheckpointValue): string {
 	if (typeof value !== 'string') return String(value);
 	return value
 		.trim()
-		.replace(/\r?\n+/g, ' / ')
+		.replace(/\r\n?/g, '\n')
+		.replace(/&/g, '&#38;')
+		.replace(/\n/g, '&#10;')
 		.replace(/\]/g, '&#93;');
+}
+
+function parsedInlineValue(value: string): string {
+	return value
+		.replace(/&#10;/g, '\n')
+		.replace(/&#93;/g, ']')
+		.replace(/&#38;/g, '&');
 }
 
 function bodyField(field: CheckpointFieldSpec, value: CheckpointValue): string[] {
@@ -157,7 +166,7 @@ function parseInlineFields(line: string): Record<string, string> {
 	for (const match of line.matchAll(pattern)) {
 		const key = match[1]?.trim();
 		if (!key) continue;
-		result[key] = (match[2] ?? '').trim().replace(/&#93;/g, ']');
+		result[key] = parsedInlineValue((match[2] ?? '').trim());
 	}
 	return result;
 }

@@ -176,6 +176,8 @@ thread_role_status: active
 
 每个 thread 可以把独立字段模板保存在 meta 的 `checkpoint_fields`；没有时继承全局默认。字段支持单行、多行、数字、开关、日期、选择项、必填、正文/inline 保存和废弃。废弃字段不再出现在新表单中，但仍用于解释历史记录。
 
+多行字段使用 `inline` storage 时，换行会在原始 inline property 中无损编码为 `&#10;`，插件在编辑和渲染时恢复为真实换行；使用 `body` storage 时则直接保存为 checkpoint callout 中的多行 Markdown。
+
 ## `thread-entries` 查询
 
 查询会扫描匹配 thread 的全部成员文件：

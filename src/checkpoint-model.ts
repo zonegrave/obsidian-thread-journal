@@ -32,8 +32,8 @@ export const DEFAULT_CHECKPOINT_FIELDS: CheckpointFieldSpec[] = [
 	{
 		key: 'checkpoint_summary',
 		label: 'Summary',
-		control: 'text',
-		storage: 'inline',
+		control: 'textarea',
+		storage: 'body',
 		required: true,
 		deprecated: false,
 		options: [],

@@ -524,10 +524,14 @@ void test('renders thread member template placeholders', () => {
 });
 
 void test('normalizes configurable checkpoint fields and protects system keys', () => {
-	assert.deepEqual(
-		DEFAULT_CHECKPOINT_FIELDS.map((field) => field.key),
-		['checkpoint_kind', 'checkpoint_summary'],
-	);
+	assert.deepEqual(DEFAULT_CHECKPOINT_FIELDS.map((field) => ({
+		key: field.key,
+		control: field.control,
+		storage: field.storage,
+	})), [
+		{ key: 'checkpoint_kind', control: 'select', storage: 'inline' },
+		{ key: 'checkpoint_summary', control: 'textarea', storage: 'body' },
+	]);
 	assert.deepEqual(normalizeCheckpointFields([
 		{
 			key: 'custom_score', label: '评分', control: 'number', storage: 'inline', required: true,
@@ -617,6 +621,25 @@ void test('builds a Dataview-queryable checkpoint with a free-form body', () => 
 		'>     可以自由配置字段。',
 		'>     长文字保留在正文。',
 	].join('\n'));
+});
+
+void test('round-trips multiline inline checkpoint values without delimiter collisions', () => {
+	const fields = normalizeCheckpointFields([
+		{
+			key: 'checkpoint_summary', label: '摘要', control: 'textarea', storage: 'inline',
+			required: true,
+		},
+	]);
+	const value = '第一行\n\n第二行 & 原样保留 &#10; 和 ]';
+	const entry = buildCheckpointEntry({
+		date: '2026-09-20',
+		time: '12:30',
+		blockId: 'cp-multiline-inline',
+		fields,
+		values: { checkpoint_summary: value },
+	});
+	assert.match(entry, /\[checkpoint_summary:: 第一行&#10;&#10;第二行 &#38; 原样保留 &#38;#10; 和 &#93;\]/u);
+	assert.equal(parseCheckpointEntries(entry)[0]?.values.checkpoint_summary, value);
 });
 
 void test('parses checkpoint data from a thread member callout', () => {

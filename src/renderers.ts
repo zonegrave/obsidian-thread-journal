@@ -697,8 +697,16 @@ export class ThreadRenderers {
 	): Promise<void> {
 		const knownKeys = new Set(fields.map((field) => field.key));
 		const systemKeys = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
-		const summary = entry.values.checkpoint_summary;
+		const summaryField = fields.find((field) => field.key === 'checkpoint_summary');
+		const summary = entry.values.checkpoint_summary
+			?? (summaryField
+				? entry.body.find((item) => item.label === summaryField.label)?.value
+				: undefined);
 		if (summary) {
+			const summaryRenderMode = summaryField
+				&& checkpointFieldRenderMode(summaryField) === 'block-markdown'
+				? 'block-markdown'
+				: 'inline-markdown';
 			const summaryEl = container.createDiv({
 				cls: 'thread-journal-checkpoint-card-summary',
 			});
@@ -707,7 +715,7 @@ export class ThreadRenderers {
 				summary,
 				sourcePath,
 				registerChild,
-				'inline-markdown',
+				summaryRenderMode,
 			);
 		}
 

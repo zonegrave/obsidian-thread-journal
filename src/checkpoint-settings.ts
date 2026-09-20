@@ -20,8 +20,11 @@ export function renderCheckpointFieldSettings(
 	plugin: ThreadJournalPlugin,
 	refresh: () => void,
 ): void {
-	containerEl.createEl('h3', { text: t('Default checkpoint template') });
-	containerEl.createEl('p', {
+	const sectionEl = containerEl.createDiv({
+		cls: 'thread-journal-checkpoint-settings',
+	});
+	sectionEl.createEl('h3', { text: t('Default checkpoint template') });
+	sectionEl.createEl('p', {
 		cls: 'setting-item-description',
 		text: t('Threads without an independent template use these fields. Deprecated fields are hidden from new forms, retained for historical checkpoints, and placed last.'),
 	});
@@ -30,7 +33,7 @@ export function renderCheckpointFieldSettings(
 		const previous = plugin.settings.checkpointFields[index - 1];
 		const next = plugin.settings.checkpointFields[index + 1];
 		let deleteConfirmation: HTMLElement | undefined;
-		const card = containerEl.createDiv({
+		const card = sectionEl.createDiv({
 			cls: `thread-journal-checkpoint-field-setting${field.deprecated ? ' is-deprecated' : ''}`,
 		});
 		new Setting(card)
@@ -189,7 +192,7 @@ export function renderCheckpointFieldSettings(
 	});
 
 	let restoreConfirmation: HTMLElement | undefined;
-	new Setting(containerEl)
+	new Setting(sectionEl)
 		.setName(t('Custom template fields'))
 		.setDesc(t('Historical cards show only the fields saved at the time. The template does not add empty values or rewrite history.'))
 		.addButton((button) => button
@@ -213,7 +216,7 @@ export function renderCheckpointFieldSettings(
 			.setDestructive()
 			.onClick(() => {
 				if (restoreConfirmation?.isConnected) return;
-				restoreConfirmation = containerEl.createDiv({
+				restoreConfirmation = sectionEl.createDiv({
 					cls: 'thread-journal-checkpoint-template-reset-confirmation',
 				});
 				restoreConfirmation.createDiv({
