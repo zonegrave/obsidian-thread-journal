@@ -4,6 +4,7 @@ import {
 	normalizeCheckpointFields,
 	placeDeprecatedFieldsLast,
 } from './checkpoint-model';
+import { createCheckpointOptionEditor } from './checkpoint-option-editor';
 import { t } from './i18n';
 import type { CheckpointFieldSpec } from './types';
 
@@ -232,18 +233,17 @@ export class CheckpointTemplateModal extends Modal {
 				}));
 
 		if (field.control === 'select') {
-			new Setting(card)
+			const optionsSetting = new Setting(card)
 				.setName(t('Options'))
-				.setDesc(t('Separate options with commas.'))
-				.addText((text) => text
-					.setValue(field.options.join(', '))
-					.setPlaceholder('Milestone, review')
-					.onChange((value) => {
-						field.options = value.split(',')
-							.map((item) => item.trim())
-							.filter(Boolean);
-						this.scheduleSave();
-					}));
+				.setDesc(t('Drag to reorder options.'));
+			createCheckpointOptionEditor(
+				optionsSetting.controlEl,
+				field.options,
+				(options) => {
+					field.options = options;
+					this.scheduleSave();
+				},
+			);
 		}
 
 		if (this.pendingDeleteField === field) {

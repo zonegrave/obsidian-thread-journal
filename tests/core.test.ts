@@ -1,11 +1,13 @@
 import {
 	attentionHint,
 	filterAttentionTasks,
+	selectAttentionFallbackPaths,
 	summarizeAttention,
 	taskIsPinned,
 	taskLineWithPin,
 	taskTextWithoutPin,
 	todoDisposition,
+	threadUsesAttentionFallback,
 } from '../src/thread-attention-model';
 import {
 	breadcrumbMenuSide,
@@ -34,6 +36,7 @@ import {
 	DEFAULT_CHECKPOINT_FIELDS,
 	normalizeCheckpointFields,
 } from '../src/checkpoint-model';
+import { moveCheckpointOption } from '../src/checkpoint-option-model';
 import {
 	buildThreadFileName,
 	stripWikiLink,
@@ -71,6 +74,7 @@ import {
 	buildThreadOverviewTree,
 	countThreadOverviewDescendants,
 	DEFAULT_THREAD_OVERVIEW_STATUSES,
+	filterThreadOverviewTree,
 } from '../src/thread-overview-model';
 import {
 	clampMapZoom,
@@ -90,10 +94,16 @@ import {
 	orderOpenThreadGroups,
 } from '../src/thread-switcher-model';
 import {
+	advanceTaskData,
+	advanceTaskLine,
 	buildTaskLine,
+	createTaskId,
 	parseTaskLine,
+	taskCurrentLabel,
 	taskInsertionEdit,
 	taskValidationError,
+	taskWindowLabel,
+	taskWindowState,
 	type TaskData,
 } from '../src/task-model';
 import { is24HourTime } from '../src/time-input';
@@ -425,7 +435,7 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 			type: 'thread', thread_id: 'thread-1', aliases: ['已改名 thread'],
 			entry: '[[睡眠管理|入口]]',
 		}],
-		[entry, { thread_id: 'thread-1' }],
+		[entry, { thread_id: 'thread-1', attention_fallback: true }],
 		[research, {
 			type: 'source',
 			thread_id: 'thread-1',
@@ -452,8 +462,10 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 	assert.equal(index.getThreadForMember(research as never), threadFile);
 	assert.equal(index.getMember(entry as never)?.role, 'workspace');
 	assert.equal(index.getMember(entry as never)?.roleStatus, 'active');
+	assert.equal(index.getMember(entry as never)?.attentionFallback, true);
 	assert.equal(index.getMember(research as never)?.role, 'research');
 	assert.equal(index.getMember(research as never)?.roleStatus, 'terminated');
+	assert.equal(index.getMember(research as never)?.attentionFallback, false);
 	assert.deepEqual(index.getMembersByThreadId('thread-1').map((item) => item.file), [research, entry]);
 	assert.equal(index.isEntry(entry as never), true);
 	assert.equal(index.isEntry(research as never), false);
@@ -497,8 +509,24 @@ void test('updates only the primary thread display alias', () => {
 void test('uses a minimal default role template', () => {
 	assert.equal(
 		DEFAULT_THREAD_ROLE_TEMPLATE,
-		'---\nthread_role: workspace\nthread_role_status: active\n---\n',
+		'---\nthread_role: workspace\nthread_role_status: active\nattention_fallback: true\n---\n',
 	);
+});
+
+void test('selects active attention fallbacks only when their file has no unfinished task', () => {
+	const members = [
+		{ path: 'workspace.md', roleStatus: 'active', attentionFallback: true },
+		{ path: 'future-task.md', roleStatus: 'active', attentionFallback: true },
+		{ path: 'context.md', roleStatus: 'active', attentionFallback: false },
+		{ path: 'history.md', roleStatus: 'terminated', attentionFallback: true },
+	];
+	assert.deepEqual(
+		selectAttentionFallbackPaths(members, new Set(['future-task.md'])),
+		['workspace.md'],
+	);
+	assert.equal(threadUsesAttentionFallback('active'), true);
+	assert.equal(threadUsesAttentionFallback('dormant'), false);
+	assert.equal(threadUsesAttentionFallback('review'), false);
 });
 
 void test('renders thread member template placeholders', () => {
@@ -549,6 +577,17 @@ void test('normalizes configurable checkpoint fields and protects system keys', 
 			required: false, deprecated: false, options: [],
 		},
 	]);
+});
+
+void test('moves checkpoint select options without changing their values', () => {
+	assert.deepEqual(
+		moveCheckpointOption(['milestone', 'review', 'blocked'], 0, 2),
+		['review', 'blocked', 'milestone'],
+	);
+	assert.deepEqual(
+		moveCheckpointOption(['milestone', 'review'], 3, 0),
+		['milestone', 'review'],
+	);
 });
 
 void test('uses a per-thread checkpoint template before the global default', () => {
@@ -881,6 +920,27 @@ void test('returns no overview nodes when no status is selected', () => {
 	], new Set()), []);
 });
 
+void test('filters the overview to matching attention nodes while retaining ancestors', () => {
+	const tree = buildThreadOverviewTree([
+		{ id: 'root', title: 'Root', status: 'active' },
+		{ id: 'ready-child', title: 'Ready', status: 'active', parent: 'root' },
+		{ id: 'quiet-child', title: 'Quiet', status: 'dormant', parent: 'root' },
+	], new Set(DEFAULT_THREAD_OVERVIEW_STATUSES));
+	const filtered = filterThreadOverviewTree(tree, (item) => item.id === 'ready-child');
+	assert.deepEqual(filtered.map((node) => ({
+		id: node.item.id,
+		contextOnly: node.contextOnly,
+		children: node.children.map((child) => ({
+			id: child.item.id,
+			contextOnly: child.contextOnly,
+		})),
+	})), [{
+		id: 'root',
+		contextOnly: true,
+		children: [{ id: 'ready-child', contextOnly: false }],
+	}]);
+});
+
 void test('groups and orders open thread views without duplicating logical threads', () => {
 	const views = [
 		{ threadId: 'thread-a', role: 'workspace', roleStatus: 'active' as const, filePath: 'a.md', target: 'a-entry', order: 0 },
@@ -948,15 +1008,16 @@ void test('task readiness separates future, waiting, candidates, completion and 
  assert.equal(todoDisposition('!', '自定义', '2026-09-09'), 'unknown');
 });
 
-void test('task readiness respects a precise window start', () => {
+void test('task readiness respects date windows and the current repeat occurrence', () => {
 	assert.equal(
-		todoDisposition(' ', '记录恢复 [window_start:: 2026-09-18 20:00]', '2026-09-18 19:59'),
+		todoDisposition(' ', '记录恢复 [window_start:: 2026-09-19]', '2026-09-18'),
 		'future',
 	);
 	assert.equal(
-		todoDisposition(' ', '记录恢复 [window_start:: 2026-09-18 20:00]', '2026-09-18 20:00'),
+		todoDisposition(' ', '记录恢复 [window_start:: 2026-09-18]', '2026-09-18'),
 		'ready',
 	);
+	assert.equal(todoDisposition(' ', '记录恢复 [current:: 2026-09-19]', '2026-09-18'), 'future');
 });
 
 void test('accepts only explicit 24-hour HH:mm values', () => {
@@ -969,40 +1030,153 @@ void test('accepts only explicit 24-hour HH:mm values', () => {
 });
 
 void test('task form fields round-trip without losing markdown task state or other metadata', () => {
-	const source = '  > - [/] 记录恢复 [schedule_mode:: flexible] [window_start:: 2026-09-18 20:00] '
-		+ '[window_end:: 2026-09-18 23:00] [effort:: quick] [thread_pin:: true] ^task-recovery';
+	const source = '  > - [/] 记录恢复 [task_id:: task-123456789abc] '
+		+ '[window_start:: 2026-09-18] [window_end:: 2026-09-20] '
+		+ '[effort:: quick] [current:: 2026-09-18] [repeat:: FREQ=WEEKLY] '
+		+ '[thread_pin:: true] ^task-recovery';
 	const parsed = parseTaskLine(source);
 	assert.ok(parsed);
 	assert.deepEqual(parsed.data, {
+		taskId: 'task-123456789abc',
 		content: '记录恢复',
-		scheduleMode: 'flexible',
-		windowStart: '2026-09-18T20:00',
-		windowEnd: '2026-09-18T23:00',
+		pinned: true,
+		windowStart: '2026-09-18',
+		windowEnd: '2026-09-20',
 		effort: 'quick',
+		repeat: true,
+		current: '2026-09-18',
+		repeatFrequency: 'weekly',
+		repeatInterval: 1,
+		repeatMonthDay: 1,
 	});
 	const rebuilt = buildTaskLine(parsed.data, parsed);
 	assert.match(rebuilt, /^ {2}> - \[\/\] 记录恢复/u);
-	assert.match(rebuilt, /\[thread_pin:: true\] \^task-recovery$/u);
+	assert.match(rebuilt, /\[thread_pin:: true\]/u);
+	assert.match(rebuilt, /\^task-recovery$/u);
 	assert.deepEqual(parseTaskLine(rebuilt)?.data, parsed.data);
 });
 
-void test('task schedule validation keeps flexible bounds optional and requires a fixed interval', () => {
+void test('task validation keeps date bounds optional and validates repeat state', () => {
 	const base: TaskData = {
-		content: '项目讨论会',
-		scheduleMode: 'flexible',
+		taskId: 'task-123456789abc',
+		content: '整理会议结论',
+		pinned: false,
 		windowStart: '',
 		windowEnd: '',
 		effort: 'normal',
+		repeat: false,
+		current: '',
+		repeatFrequency: 'daily',
+		repeatInterval: 2,
+		repeatMonthDay: 1,
 	};
 	assert.equal(taskValidationError(base), undefined);
-	assert.equal(taskValidationError({ ...base, scheduleMode: 'fixed', effort: '' }), 'fixed-window');
+	assert.equal(taskValidationError({ ...base, taskId: '' }), 'task-id');
+	assert.match(createTaskId(), /^task-[a-z0-9]{12}$/u);
 	assert.equal(taskValidationError({
 		...base,
-		scheduleMode: 'fixed',
-		effort: '',
-		windowStart: '2026-09-18T11:00',
-		windowEnd: '2026-09-18T10:00',
+		windowStart: '2026-09-19',
+		windowEnd: '2026-09-18',
 	}), 'window-order');
+	assert.equal(taskValidationError({ ...base, repeat: true }), 'repeat-current');
+	assert.equal(taskValidationError({
+		...base,
+		repeat: true,
+		current: '2026-09-18',
+		repeatFrequency: 'custom',
+		repeatInterval: 1,
+	}), 'repeat-interval');
+});
+
+void test('formats task windows as one compact boundary range', () => {
+	assert.equal(taskWindowLabel({
+		windowStart: '2026-09-10',
+		windowEnd: '2026-09-15',
+	}), '2026-09-10 ～ 2026-09-15');
+	assert.equal(taskWindowLabel({ windowStart: '2026-09-10', windowEnd: '' }), '2026-09-10 ～');
+	assert.equal(taskWindowLabel({ windowStart: '', windowEnd: '2026-09-15' }), '～ 2026-09-15');
+});
+
+void test('formats recurring task current dates for compact rendering', () => {
+	assert.equal(taskCurrentLabel('2026-09-21', '2026-09-21', 'Today'), 'Today');
+	assert.equal(taskCurrentLabel('2026-10-02', '2026-09-21', 'Today'), '10/2');
+	assert.equal(taskCurrentLabel('2027-01-03', '2026-09-21', 'Today'), '2027/1/3');
+});
+
+void test('classifies task windows before, during and after their date range', () => {
+	const range = { windowStart: '2026-09-10', windowEnd: '2026-09-15' };
+	assert.equal(taskWindowState(range, '2026-09-09'), 'upcoming');
+	assert.equal(taskWindowState(range, '2026-09-10'), 'current');
+	assert.equal(taskWindowState(range, '2026-09-15'), 'current');
+	assert.equal(taskWindowState(range, '2026-09-16'), 'overdue');
+	assert.equal(taskWindowState({ windowStart: '', windowEnd: '2026-09-15' }, '2026-09-10'), 'current');
+	assert.equal(taskWindowState({ windowStart: '2026-09-10', windowEnd: '' }, '2026-09-09'), 'upcoming');
+	assert.equal(taskWindowState({ windowStart: '', windowEnd: '' }, '2026-09-10'), undefined);
+});
+
+void test('advances one repeating task in place and preserves its relative date window', () => {
+	const monthly: TaskData = {
+		taskId: 'task-123456789abc',
+		content: '月末复盘',
+		pinned: false,
+		windowStart: '2026-01-30',
+		windowEnd: '2026-02-01',
+		effort: 'light',
+		repeat: true,
+		current: '2026-01-31',
+		repeatFrequency: 'monthly',
+		repeatInterval: 1,
+		repeatMonthDay: 31,
+	};
+	const february = advanceTaskData(monthly);
+	assert.ok(february);
+	assert.deepEqual(february, {
+		...monthly,
+		current: '2026-02-28',
+		windowStart: '2026-02-27',
+		windowEnd: '2026-03-01',
+	});
+	assert.equal(advanceTaskData(february)?.current, '2026-03-31');
+	assert.equal(
+		advanceTaskLine('- [x] 每日记录 [task_id:: task-123456789abc] '
+			+ '[current:: 2026-09-18] [repeat:: FREQ=DAILY]'),
+		'- [ ] 每日记录 [task_id:: task-123456789abc] '
+			+ '[current:: 2026-09-19] [repeat:: FREQ=DAILY]',
+	);
+});
+
+void test('skips past repeat occurrences when advancing while preserving the window offset', () => {
+	const daily: TaskData = {
+		taskId: 'task-123456789abc',
+		content: '每日记录',
+		pinned: false,
+		windowStart: '2026-09-17',
+		windowEnd: '2026-09-18',
+		effort: 'quick',
+		repeat: true,
+		current: '2026-09-18',
+		repeatFrequency: 'daily',
+		repeatInterval: 1,
+		repeatMonthDay: 1,
+	};
+	assert.deepEqual(advanceTaskData(daily, '2026-09-21'), {
+		...daily,
+		current: '2026-09-21',
+		windowStart: '2026-09-20',
+		windowEnd: '2026-09-21',
+	});
+	assert.equal(advanceTaskData({ ...daily, current: '2026-09-21' }, '2026-09-21')?.current, '2026-09-22');
+	assert.equal(advanceTaskData({
+		...daily,
+		current: '2026-09-01',
+		repeatFrequency: 'weekly',
+	}, '2026-09-21')?.current, '2026-09-22');
+	assert.equal(advanceTaskData({
+		...daily,
+		current: '2026-01-31',
+		repeatFrequency: 'monthly',
+		repeatMonthDay: 31,
+	}, '2026-03-01')?.current, '2026-03-31');
 });
 
 void test('task creation replaces an empty line or inserts below the current line', () => {

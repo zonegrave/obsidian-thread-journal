@@ -1,5 +1,6 @@
 import { Setting } from 'obsidian';
 import { cloneDefaultCheckpointFields } from './checkpoint-model';
+import { createCheckpointOptionEditor } from './checkpoint-option-editor';
 import { t } from './i18n';
 import type ThreadJournalPlugin from './main';
 import type { CheckpointFieldSpec } from './types';
@@ -177,17 +178,16 @@ export function renderCheckpointFieldSettings(
 				}));
 
 		if (field.control === 'select') {
-			new Setting(card)
+			const optionsSetting = new Setting(card)
 				.setName(t('Options'))
-				.setDesc(t('Separate options with commas. Saved values and displayed labels are identical.'))
-				.addText((text) => text
-					.setValue(field.options.join(', '))
-					.setPlaceholder(t('Separate with commas'))
-					.onChange(async (value) => {
-						await updateField(plugin, index, {
-							options: value.split(',').map((item) => item.trim()).filter(Boolean),
-						});
-					}));
+				.setDesc(t('Drag to reorder options.'));
+			createCheckpointOptionEditor(
+				optionsSetting.controlEl,
+				field.options,
+				(options) => {
+					void updateField(plugin, index, { options });
+				},
+			);
 		}
 	});
 

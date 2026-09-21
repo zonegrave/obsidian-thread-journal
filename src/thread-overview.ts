@@ -3,14 +3,17 @@ import {
 	ItemView,
 	MarkdownRenderChild,
 	Notice,
+	moment,
 	setIcon,
 	type MarkdownPostProcessorContext,
 	type WorkspaceLeaf,
 } from 'obsidian';
 import {
 	collectAttention,
+	moveAttentionTaskToNext,
 	setAttentionTaskPinned,
 	type AttentionRow,
+	type AttentionRowFallback,
 	type AttentionRowTask,
 } from './thread-attention';
 import {
@@ -24,8 +27,16 @@ import {
 	buildThreadOverviewTree,
 	countThreadOverviewDescendants,
 	DEFAULT_THREAD_OVERVIEW_STATUSES,
+	filterThreadOverviewTree,
 	type ThreadOverviewNode,
 } from './thread-overview-model';
+import type { TaskManager } from './task';
+import {
+	taskCurrentLabel,
+	taskWindowState,
+	type TaskData,
+	type TaskEffort,
+} from './task-model';
 import {
 	clampMapZoom,
 	fitMapZoom,
@@ -53,6 +64,42 @@ const TASK_DISPOSITION_LABELS: Record<TodoDisposition, TranslationKey> = {
 	unknown: 'other',
 };
 
+const TASK_EFFORT_LABELS: Record<Exclude<TaskEffort, ''>, TranslationKey> = {
+	quick: 'Quick',
+	light: 'Light',
+	normal: 'Normal effort',
+	deep: 'Deep',
+};
+
+function repeatLabel(data: TaskData): string {
+	if (data.repeatFrequency === 'weekly') return t('Weekly');
+	if (data.repeatFrequency === 'monthly') return t('Monthly');
+	if (data.repeatFrequency === 'custom') {
+		return t('Every {count} days', { count: data.repeatInterval });
+	}
+	return t('Daily');
+}
+
+function taskDeadline(
+	data: TaskData,
+	today: string,
+): { label: string; modifier: string } | undefined {
+	if (!data.windowEnd) return undefined;
+	const end = moment(data.windowEnd, 'YYYY-MM-DD', true).startOf('day');
+	const current = moment(today, 'YYYY-MM-DD', true).startOf('day');
+	if (!end.isValid() || !current.isValid()) return undefined;
+	const days = end.diff(current, 'days');
+	if (days < 0) {
+		return { label: t('{count}d overdue', { count: Math.abs(days) }), modifier: 'overdue' };
+	}
+	if (days === 0) return { label: t('Due today'), modifier: 'current' };
+	if (days > 30) return { label: '30d+', modifier: 'distant' };
+	return {
+		label: t('{count}d left', { count: days }),
+		modifier: taskWindowState(data, today) ?? 'current',
+	};
+}
+
 export const THREAD_OVERVIEW_VIEW_TYPE = 'thread-journal-overview';
 
 interface MindMapEdge {
@@ -61,12 +108,16 @@ interface MindMapEdge {
 	status: string;
 }
 
+type OverviewViewScope = 'all' | 'today';
+
 class OverviewContent extends MarkdownRenderChild {
 	private readonly selectedStatuses = new Set<string>(DEFAULT_THREAD_OVERVIEW_STATUSES);
 	private readonly expandedNodes = new Set<string>();
 	private readonly collapsedBranches = new Set<string>();
+	private viewScope: OverviewViewScope = 'all';
 	private taskScope: TaskScope = 'today';
 	private filterOpen = false;
+	private pinnedCollapsed = false;
 	private rows: AttentionRow[] = [];
 	private request = 0;
 	private timer: number | undefined;
@@ -107,6 +158,7 @@ class OverviewContent extends MarkdownRenderChild {
 		el: HTMLElement,
 		private readonly app: App,
 		private readonly index: ThreadIndex,
+		private readonly taskManager: TaskManager,
 	) {
 		super(el);
 	}
@@ -163,7 +215,14 @@ class OverviewContent extends MarkdownRenderChild {
 		this.teardownMap();
 		const el = this.containerEl;
 		el.empty();
-		const tree = buildThreadOverviewTree(this.overviewItems(), this.selectedStatuses);
+		const statusTree = buildThreadOverviewTree(this.overviewItems(), this.selectedStatuses);
+		const attentionToday = new Set(this.rows
+			.filter((row) => filterAttentionTasks(row.tasks, 'today').length > 0
+				|| row.fallbacks.length > 0)
+			.map((row) => row.thread.id));
+		const tree = this.viewScope === 'today'
+			? filterThreadOverviewTree(statusTree, (item) => attentionToday.has(item.id))
+			: statusTree;
 		this.renderToolbar(el, tree);
 		this.renderPinnedTasks(el);
 		if (this.selectedStatuses.size === 0) {
@@ -176,7 +235,9 @@ class OverviewContent extends MarkdownRenderChild {
 		if (tree.length === 0) {
 			el.createEl('p', {
 				cls: 'thread-journal-empty',
-				text: t('No threads match the selected statuses.'),
+				text: this.viewScope === 'today'
+					? t('No threads need attention today.')
+					: t('No threads match the selected statuses.'),
 			});
 			return;
 		}
@@ -226,6 +287,20 @@ class OverviewContent extends MarkdownRenderChild {
 				this.render();
 			});
 		}
+		const viewScope = toolbar.createEl('label', {
+			cls: 'thread-journal-overview-view-scope',
+		});
+		viewScope.createSpan({ text: t('View') });
+		const viewScopeSelect = viewScope.createEl('select', {
+			attr: { 'aria-label': t('Filter thread overview') },
+		});
+		viewScopeSelect.createEl('option', { text: t('All threads'), value: 'all' });
+		viewScopeSelect.createEl('option', { text: t('Attention today'), value: 'today' });
+		viewScopeSelect.value = this.viewScope;
+		viewScopeSelect.addEventListener('change', () => {
+			this.viewScope = viewScopeSelect.value === 'today' ? 'today' : 'all';
+			this.render();
+		});
 		const taskScope = toolbar.createEl('label', {
 			cls: 'thread-journal-overview-task-scope',
 		});
@@ -250,12 +325,12 @@ class OverviewContent extends MarkdownRenderChild {
 			&& branchIds.every((id) => !this.collapsedBranches.has(id));
 		const expandButton = toolbar.createEl('button', {
 			cls: 'thread-journal-overview-expand-tasks',
-			text: allTasksExpanded ? t('Collapse tasks') : t('Expand all tasks'),
+			text: allTasksExpanded ? t('Collapse items') : t('Expand all items'),
 			attr: {
 				type: 'button',
 				'aria-label': allTasksExpanded
-					? t('Collapse all task lists')
-					: t('Expand all task lists'),
+					? t('Collapse all attention lists')
+					: t('Expand all attention lists'),
 			},
 		});
 		expandButton.disabled = taskIds.length === 0;
@@ -446,7 +521,8 @@ class OverviewContent extends MarkdownRenderChild {
 		const visit = (node: ThreadOverviewNode): boolean => {
 			const row = rowById.get(node.item.id);
 			const hasOwnTasks = Boolean(
-				!node.contextOnly && row && this.tasksForRow(row).length > 0,
+				!node.contextOnly && row
+					&& (this.tasksForRow(row).length > 0 || row.fallbacks.length > 0),
 			);
 			if (hasOwnTasks) {
 				taskIds.push(node.item.id);
@@ -480,7 +556,7 @@ class OverviewContent extends MarkdownRenderChild {
 	private renderPinnedTasks(parent: HTMLElement): void {
 		const pinned = this.pinnedTasks();
 		const panel = parent.createEl('aside', {
-			cls: 'thread-journal-overview-pinned-panel',
+			cls: `thread-journal-overview-pinned-panel${this.pinnedCollapsed ? ' is-collapsed' : ''}`,
 			attr: { 'aria-label': t('Pinned tasks') },
 		});
 		const header = panel.createDiv({ cls: 'thread-journal-overview-pinned-header' });
@@ -490,7 +566,26 @@ class OverviewContent extends MarkdownRenderChild {
 			cls: 'thread-journal-overview-pinned-count',
 			text: String(pinned.length),
 		});
+		const collapse = header.createEl('button', {
+			cls: 'clickable-icon thread-journal-overview-pinned-collapse',
+			attr: { type: 'button' },
+		});
 		const list = panel.createDiv({ cls: 'thread-journal-overview-pinned-list' });
+		const updateCollapsedState = (): void => {
+			panel.toggleClass('is-collapsed', this.pinnedCollapsed);
+			list.hidden = this.pinnedCollapsed;
+			const label = this.pinnedCollapsed ? t('Expand pinned tasks') : t('Collapse pinned tasks');
+			collapse.setAttribute('aria-label', label);
+			collapse.setAttribute('title', label);
+			collapse.setAttribute('aria-expanded', String(!this.pinnedCollapsed));
+			collapse.empty();
+			setIcon(collapse, this.pinnedCollapsed ? 'chevron-down' : 'chevron-up');
+		};
+		collapse.addEventListener('click', () => {
+			this.pinnedCollapsed = !this.pinnedCollapsed;
+			updateCollapsedState();
+		});
+		updateCollapsedState();
 		if (pinned.length === 0) {
 			list.createDiv({
 				cls: 'thread-journal-empty',
@@ -501,13 +596,10 @@ class OverviewContent extends MarkdownRenderChild {
 				const item = list.createDiv({ cls: 'thread-journal-overview-pinned-task' });
 				const meta = item.createDiv({ cls: 'thread-journal-overview-pinned-task-meta' });
 				meta.createSpan({ text: threadTitle });
-				meta.createSpan({ text: '·' });
-				meta.createSpan({
-					text: t(TASK_DISPOSITION_LABELS[task.disposition]),
-					attr: { 'data-disposition': task.disposition },
-				});
+				this.renderTaskPinButton(item, task);
 				this.renderTaskLink(item, task);
-				this.renderTaskPinButton(meta, task);
+				this.renderTaskDetails(item, task);
+				this.renderTaskActions(item, task);
 			}
 		}
 	}
@@ -685,14 +777,13 @@ class OverviewContent extends MarkdownRenderChild {
 			attr: { title: threadStatusLabel(node.item.status) },
 		});
 		const visibleTasks = this.tasksForRow(row);
-		if (visibleTasks.length > 0) {
+		const attentionCount = visibleTasks.length + row.fallbacks.length;
+		if (attentionCount > 0) {
 			summary.createSpan({
 				cls: 'thread-journal-overview-node-count',
-				text: String(visibleTasks.length),
+				text: String(attentionCount),
 				attr: {
-					title: this.taskScope === 'today'
-						? t('{count} active tasks today', { count: visibleTasks.length })
-						: t('{count} unfinished tasks', { count: visibleTasks.length }),
+					title: t('{count} attention items', { count: attentionCount }),
 				},
 			});
 		}
@@ -711,7 +802,11 @@ class OverviewContent extends MarkdownRenderChild {
 			});
 			return;
 		}
-		const hint = attentionHint(row.thread.status, row.summary);
+		const hint = row.fallbacks.length > 0
+			&& row.thread.status === 'active'
+			&& row.summary.open === 0
+			? ''
+			: attentionHint(row.thread.status, row.summary);
 		if (hint) {
 			content.createEl('p', {
 				cls: 'thread-journal-overview-hint',
@@ -723,31 +818,61 @@ class OverviewContent extends MarkdownRenderChild {
 
 	private renderTasks(parent: HTMLElement, row: AttentionRow): void {
 		const visibleTasks = this.tasksForRow(row);
+		const attentionCount = visibleTasks.length + row.fallbacks.length;
 		const tasks = parent.createDiv({ cls: 'thread-journal-overview-tasks' });
 		tasks.createDiv({
 			cls: 'thread-journal-overview-tasks-title',
-			text: `${this.taskScope === 'today' ? t('Active today') : t('All unfinished')} · ${visibleTasks.length}`,
+			text: `${t('Attention')} · ${attentionCount}`,
 		});
-		if (visibleTasks.length === 0) {
+		if (attentionCount === 0) {
 			tasks.createDiv({
 				cls: 'thread-journal-empty',
 				text: this.taskScope === 'today'
-					? t('No active tasks today in this thread.')
-					: t('No unfinished tasks in this thread.'),
+					? t('No attention items today in this thread.')
+					: t('No attention items in this thread.'),
 			});
 			return;
 		}
 		for (const task of visibleTasks) {
 			const item = tasks.createDiv({ cls: 'thread-journal-overview-task' });
-			const meta = item.createDiv({ cls: 'thread-journal-overview-task-meta' });
-			meta.createSpan({
-				cls: 'thread-journal-overview-task-kind',
-				text: t(TASK_DISPOSITION_LABELS[task.disposition]),
-				attr: { 'data-disposition': task.disposition },
-			});
-			this.renderTaskPinButton(meta, task);
+			this.renderTaskPinButton(item, task);
 			this.renderTaskLink(item, task);
+			this.renderTaskDetails(item, task);
+			this.renderTaskActions(item, task);
 		}
+		for (const fallback of row.fallbacks) {
+			this.renderFallbackLink(tasks, fallback);
+		}
+	}
+
+	private renderFallbackLink(parent: HTMLElement, fallback: AttentionRowFallback): void {
+		const item = parent.createDiv({
+			cls: 'thread-journal-overview-task thread-journal-overview-fallback',
+		});
+		const meta = item.createDiv({ cls: 'thread-journal-overview-task-meta' });
+		setIcon(meta.createSpan({ cls: 'thread-journal-overview-fallback-icon' }), 'file-text');
+		meta.createSpan({
+			cls: 'thread-journal-overview-task-kind',
+			text: fallback.role,
+		});
+		if (this.index.isEntry(fallback.file)) {
+			meta.createSpan({
+				cls: 'thread-journal-overview-fallback-entry',
+				text: t('Entry'),
+			});
+		}
+		const link = item.createEl('a', {
+			text: fallback.file.basename,
+			href: fallback.file.path,
+		});
+		link.addEventListener('click', (event) => {
+			event.preventDefault();
+			void this.app.workspace.openLinkText(
+				fallback.file.path,
+				'',
+				event.metaKey || event.ctrlKey,
+			);
+		});
 	}
 
 	private renderTaskLink(parent: HTMLElement, task: AttentionRowTask): void {
@@ -760,6 +885,83 @@ class OverviewContent extends MarkdownRenderChild {
 			void this.app.workspace.getLeaf(false).openFile(task.file, {
 				eState: { line: task.line },
 			});
+		});
+	}
+
+	private renderTaskDetails(parent: HTMLElement, task: AttentionRowTask): void {
+		const { data } = task;
+		const details = parent.createDiv({ cls: 'thread-journal-overview-task-details' });
+		const addDetail = (text: string, icon: string, modifier = ''): void => {
+			const detail = details.createSpan({
+				cls: `thread-journal-overview-task-detail${modifier ? ` is-${modifier}` : ''}`,
+			});
+			setIcon(detail.createSpan({ cls: 'thread-journal-task-chip-icon' }), icon);
+			detail.createSpan({ text });
+		};
+		if (task.disposition !== 'ready') {
+			addDetail(
+				t(TASK_DISPOSITION_LABELS[task.disposition]),
+				'circle-alert',
+				`disposition-${task.disposition}`,
+			);
+		}
+		const today = moment().format('YYYY-MM-DD');
+		const deadline = taskDeadline(data, today);
+		if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
+		if (data.effort) {
+			const label = t(TASK_EFFORT_LABELS[data.effort]);
+			const effort = details.createSpan({
+				cls: `thread-journal-overview-task-effort is-${data.effort}`,
+				attr: { title: label, 'aria-label': label },
+			});
+			setIcon(effort, 'gauge');
+		}
+		if (data.repeat) {
+			const current = taskCurrentLabel(data.current, today, t('Today'));
+			const rule = repeatLabel(data);
+			const repeat = details.createSpan({
+				cls: 'thread-journal-overview-task-repeat',
+				attr: { title: rule },
+			});
+			const next = repeat.createEl('button', {
+				cls: 'clickable-icon thread-journal-task-repeat-next',
+				attr: {
+					type: 'button',
+					'aria-label': `${rule} · ${t('To next')}`,
+					title: `${rule} · ${t('To next')}`,
+				},
+			});
+			setIcon(next, 'repeat-2');
+			if (current) repeat.createSpan({ text: current });
+			next.addEventListener('click', () => {
+				next.disabled = true;
+				void moveAttentionTaskToNext(this.app, task)
+					.then(() => this.refresh())
+					.catch((error: unknown) => {
+						next.disabled = false;
+						console.error('Thread Journal failed to move task to next occurrence', error);
+						new Notice(t('Failed to move task to next: {error}', { error: String(error) }));
+					});
+			});
+		}
+		if (!details.hasChildNodes()) details.remove();
+	}
+
+	private renderTaskActions(parent: HTMLElement, task: AttentionRowTask): void {
+		const actions = parent.createDiv({ cls: 'thread-journal-overview-task-actions' });
+		const edit = actions.createEl('button', {
+			cls: 'clickable-icon thread-journal-overview-task-edit',
+			attr: { type: 'button', 'aria-label': t('Edit task'), title: t('Edit task') },
+		});
+		setIcon(edit, 'pencil');
+		edit.addEventListener('click', () => {
+			this.taskManager.openFileTaskEdit(
+				task.file,
+				task.line,
+				task.sourceLine,
+				task.data,
+				() => void this.refresh(),
+			);
 		});
 	}
 
@@ -888,6 +1090,7 @@ export class ThreadOverviewView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
 		private readonly index: ThreadIndex,
+		private readonly taskManager: TaskManager,
 	) {
 		super(leaf);
 	}
@@ -906,7 +1109,7 @@ export class ThreadOverviewView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.contentEl.addClass('thread-journal-overview-view');
-		this.content = new OverviewContent(this.contentEl, this.app, this.index);
+		this.content = new OverviewContent(this.contentEl, this.app, this.index, this.taskManager);
 		this.content.load();
 	}
 
@@ -939,8 +1142,9 @@ export async function openThreadOverview(app: App): Promise<void> {
 export function renderThreadOverview(
 	app: App,
 	index: ThreadIndex,
+	taskManager: TaskManager,
 	el: HTMLElement,
 	ctx: MarkdownPostProcessorContext,
 ): void {
-	ctx.addChild(new OverviewContent(el, app, index));
+	ctx.addChild(new OverviewContent(el, app, index, taskManager));
 }

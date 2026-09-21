@@ -82,12 +82,14 @@ created: 2026-09-13
 thread_id: 3e9b3f36-7f7d-4205-97b0-82c533155eb0
 thread_role: research
 thread_role_status: active
+attention_fallback: false
 created: 2026-09-13
 ---
 ```
 
 - `thread_role` 是任意字符串；省略时按 `workspace` 显示。
 - `thread_role_status` 只有 `active` 和 `terminated`；省略时视为 `active`。终止只结束这个工作切片，不删除文件或整个 thread。
+- `attention_fallback: true` 表示 active thread 中的 active 成员在自身没有未完成任务时，仍作为可继续工作的文件入口出现在 Thread Overview。省略、设为 `false`，或 thread 处于 dormant 等其他状态时不产生兜底项。
 - 成员可以保留模板自己的普通 `type`，但不能使用 `type: thread`，因为只有 meta 是 thread 身份来源。
 - 文件名、路径和正文结构不参与身份判断，改名或移动后仍由 `thread_id` 归属。
 - Log 和 checkpoint 可以分布在任意成员中；terminated 成员的历史记录仍会被查询。任务总览只统计 meta 与 active 成员，避免已经结束的工作切片留下陈旧任务。
@@ -117,6 +119,7 @@ thread_role_status: active
 ---
 thread_role: workspace
 thread_role_status: active
+attention_fallback: true
 ---
 ```
 
@@ -232,13 +235,16 @@ order: asc
 
 只有 `active` 和 `dormant` thread 可以成为新子 thread 的父节点。父节点之后改变状态不会破坏已有层级。
 
-**Open thread overview** 会打开或聚焦一个可常驻的 Overview tab；`thread-overview` 代码块仍可在笔记中嵌入同一视图。独立 Tab 的思维导图画布铺满整个视图，筛选与操作控件悬浮在右上角；画布四周保留足够空白，让边缘内容也能滚动到视图中央，并提供放大、缩小和适应视图控件。Mac 触控板可在画布上双指捏合缩放，缩放中心保持在手势位置；普通双指滚动仍用于平移，切换标签回来会保留地图视角。嵌入笔记时仍按文档宽度展示。视图把 thread 层级渲染成横向思维导图：从虚拟 Threads 根节点向右分叉，以曲线连接父子节点，画布可横纵滚动。紧凑的 Status 菜单默认选择 `active` 与 `dormant`，展开后可任意勾选八种状态；筛选结果所依赖的未选中祖先会作为淡色结构节点保留，避免层级断裂。Tasks 可在“今日活跃”和“全部未完成”之间切换；“今日活跃”只保留尚未完成、未等待、未列为候选且没有被未来开始或计划日期推迟的任务。任务右上角的 pin 按钮会在原任务写入 `[thread_pin:: true]`，并把它汇总到 Overview 左侧的固定任务区；再次点击即可取消，任务链接仍定位原文。固定区不受状态与 Tasks 筛选影响。**Expand all tasks** 会展开当前筛选结果中所有包含任务的节点及其分支，也可一键收起。点击单个节点会展开状态提示和该节点自己的 tasks，不再显示一排子树任务统计；节点右侧的 `+/−` 单独折叠下级分支，任务链接可定位到原文。它只提示，不自动改变状态。外部笔记中的任务只有在同一行明确链接某个 meta 或成员时才归属该 thread。
+**Open thread overview** 会打开或聚焦一个可常驻的 Overview tab；`thread-overview` 代码块仍可在笔记中嵌入同一视图。独立 Tab 的思维导图画布铺满整个视图，筛选与操作控件悬浮在右上角；画布四周保留足够空白，让边缘内容也能滚动到视图中央，并提供放大、缩小和适应视图控件。Mac 触控板可在画布上双指捏合缩放，缩放中心保持在手势位置；普通双指滚动仍用于平移，切换标签回来会保留地图视角。嵌入笔记时仍按文档宽度展示。视图把 thread 层级渲染成横向思维导图：从虚拟 Threads 根节点向右分叉，以曲线连接父子节点，画布可横纵滚动。紧凑的 Status 菜单默认选择 `active` 与 `dormant`，展开后可任意勾选八种状态；筛选结果所依赖的未选中祖先会作为淡色结构节点保留，避免层级断裂。View 可在“全部 thread”和“今日关注”之间切换；“今日关注”只保留今天有 ready task 或 active fallback 的 thread，并以淡色节点保留必要祖先。Tasks 可独立在“今日活跃”和“全部未完成”之间切换；“今日活跃”只保留尚未完成、未等待、未列为候选且没有被未来开始或计划日期推迟的任务。Overview 的任务摘要只展示决策信息：ready 状态省略；没有结束日期时隐藏窗口；截止日在 30 天内显示剩余天数，超过 30 天显示弱化的 `30d+`，逾期显示逾期天数；循环只显示 current，当天显示“今天”、同年省略年份，周期规则收进悬浮提示，只有循环图标可点击并直接推进到下一期，旁边的 current 文字仅用于显示；预计消耗以绿、黄、红、紫的 gauge 图标表示 quick、light、normal、deep。仅当 thread 状态为 `active` 时，带有 `attention_fallback: true` 的 active 成员才可能作为文件入口与任务并列显示；它自身存在任何未完成任务时都不生成入口，Today 筛掉未来任务也不会造成误判。dormant 和其他状态不显示兜底入口。任务标题最前方的 pin 按钮会在原任务写入 `[thread_pin:: true]`，并把它汇总到 Overview 左侧的固定任务区；再次点击即可取消，任务链接仍定位原文。固定区不受状态、View 与 Tasks 筛选影响，会随任务数量增长到当前视图可用高度，超出后在区内滚动，标题栏可整体收起或展开。**Expand all items** 会展开当前筛选结果中所有包含关注项目的节点及其分支，也可一键收起。点击单个节点会展开状态提示和该节点自己的关注项目；节点右侧的 `+/−` 单独折叠下级分支，任务链接定位原文，文件入口直接打开对应成员。它只提示，不自动改变状态。外部笔记中的任务只有在同一行明确链接某个 meta 或成员时才归属该 thread。
 
-Active 成员的编辑视图提供 **Create task** 与 **Edit task**。任务仍是普通 Markdown checkbox，任务内容本身表达要达成的结果；表单只负责读写安排方式、时间窗口和预计消耗。Flexible task 可在窗口内另行安排，并可选择 `quick`/`light`/`normal`/`deep` 的模糊消耗；fixed task 必须同时设置起止时间并占满整个区间。没有起止时间的 flexible task 完全自由。Task 与 checkpoint 的时间输入统一使用插件控制的 24 小时选择器（小时 `00–23`、分钟 `00–59`），不受系统时间显示偏好影响。
+Active 成员的编辑视图提供 **Create task** 与 **Edit task**。任务仍是普通 Markdown checkbox，任务内容本身表达要达成的结果；表单只保存只读的 `task_id`、可选固定、可选的日期窗口、`quick`/`light`/`normal`/`deep` 模糊消耗，以及可选循环。日期窗口通过独立浮层编辑，不改变任务表单尺寸；浮层并排展示两个日历，左侧选择开始、右侧选择结束，各自可翻月，也可清除单侧或整体清空；主表单不再重复提供 Clear 按钮。`task_id` 在创建时自动生成，用于任务移动行号后继续准确定位；表单顶部以小号只读文字展示，左侧 Pin 图标可直接切换固定状态，阅读视图、Live Preview 摘要和 Overview 不显示 ID。表单中预计消耗与 Window 位于第一行；Repeat 单独占下一行，开启后在同行展开 Frequency 与 Current，选择每 N 天时将间隔输入合并在 Frequency 控件内。Task 没有 fixed/flexible 分类：所有任务都可在窗口内安排，精确占用时段的事项由独立 Event 模型承担。
+
+开启 Repeat 时，`current` 默认是当天，并作为当前循环期的独立指针；规则使用精简的 RRULE 风格字符串保存，第一版支持每天、每周、每月和每 N 天。Live Preview、阅读视图和 Overview 会隐藏原始 inline fields，把窗口压缩为 `开始日期 ～ 结束日期`：尚未到开始日期时为灰色，位于窗口内时为绿色，超过结束日期时为红色。界面用紧凑标签展示消耗；recurring 在 Live Preview、阅读视图和 Overview 中只显示 current，当天显示“今天”、同年省略年份，周期规则放在悬浮提示中，只有前面的循环图标可点击推进。进入 Live Preview 当前行时恢复源码以便编辑。铅笔图标可直接调整窗口，**To next** 会在同一行推进 `current`；若推进后仍早于今天，则继续跳过过期 occurrence，直到落在今天或未来，再按最终跨越的总天数移动已有窗口，并把 checkbox 恢复为未完成。循环不会生成新的任务行，执行记录仍由 checkpoint 保存。
 
 ```markdown
-- [ ] 填写今天的训练恢复 checkpoint [schedule_mode:: flexible] [window_start:: 2026-09-18 20:00] [window_end:: 2026-09-18 23:00] [effort:: quick]
-- [ ] 参加项目讨论会并确认版本范围 [schedule_mode:: fixed] [window_start:: 2026-09-19 10:00] [window_end:: 2026-09-19 11:00]
+- [ ] 整理本周任务模型 [task_id:: task-4f8a0d92c3e1] [window_start:: 2026-09-18] [window_end:: 2026-09-20] [effort:: normal]
+- [ ] 填写训练恢复 checkpoint [task_id:: task-238e1b07d6af] [window_end:: 2026-09-18] [effort:: quick] [current:: 2026-09-18] [repeat:: FREQ=DAILY]
+- [ ] 完成月末复盘 [task_id:: task-c9d03f6812ab] [current:: 2026-09-30] [repeat:: FREQ=MONTHLY;BYMONTHDAY=30]
 ```
 
 `thread-children` 代码块动态显示直接子 thread，并链接到各自入口：

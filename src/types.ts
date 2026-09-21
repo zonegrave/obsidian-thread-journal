@@ -36,6 +36,7 @@ export interface ThreadMemberInfo {
 	threadId: string;
 	role: string;
 	roleStatus: ThreadRoleStatus;
+	attentionFallback: boolean;
 }
 
 export interface ThreadJournalSettings {

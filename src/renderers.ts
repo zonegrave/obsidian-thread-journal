@@ -2,6 +2,8 @@ import {
 	App,
 	MarkdownRenderChild,
 	MarkdownRenderer,
+	moment,
+	setIcon,
 	TFile,
 	type MarkdownPostProcessorContext,
 } from 'obsidian';
@@ -29,6 +31,16 @@ import {
 import type { ThreadIndex } from './thread-index';
 import { threadStatusLabel } from './thread-status-model';
 import { t } from './i18n';
+import type { TaskManager } from './task';
+import {
+	parseTaskLine,
+	taskCurrentLabel,
+	taskRepeatLabel,
+	taskWindowLabel,
+	taskWindowState,
+	type TaskData,
+	type TaskEffort,
+} from './task-model';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
 
 interface CheckpointEntryRecord {
@@ -64,6 +76,14 @@ function checkpointTimestamp(entry: ParsedCheckpointEntry): string {
 	return `${entry.values.checkpoint_date ?? ''}T${entry.values.checkpoint_time ?? ''}`;
 }
 
+function taskRepeatRuleDisplay(data: TaskData): string {
+	const label = taskRepeatLabel(data);
+	return label === 'Daily' ? t('Daily')
+		: label === 'Weekly' ? t('Weekly')
+			: label === 'Monthly' ? t('Monthly')
+				: t('Every {count} days', { count: data.repeatInterval });
+}
+
 function addFileLink(
 	app: App,
 	container: HTMLElement,
@@ -84,11 +104,13 @@ function addFileLink(
 export class ThreadRenderers {
 	private readonly sourceCheckpointSignatures = new WeakMap<HTMLElement, string>();
 	private readonly sourceLogSignatures = new WeakMap<HTMLElement, string>();
+	private readonly sourceTaskSignatures = new WeakMap<HTMLElement, string>();
 
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 		private readonly getSettings: () => ThreadJournalSettings,
+		private readonly taskManager: TaskManager,
 		private readonly onEditCheckpoint: (
 			file: TFile,
 			entry: ParsedCheckpointEntry,
@@ -98,6 +120,129 @@ export class ThreadRenderers {
 			entry: ParsedCheckpointEntry,
 		) => void,
 	) {}
+
+	async enhanceTasks(el: HTMLElement, ctx: MarkdownPostProcessorContext): Promise<void> {
+		const current = sourceFile(this.app, ctx);
+		if (!current || !this.index.getThreadFile(current)) return;
+		const section = ctx.getSectionInfo(el);
+		if (!section) return;
+		const sourceTasks = section.text.split(/\r?\n/u).flatMap((sourceLine, index) => {
+			const parsed = parseTaskLine(sourceLine);
+			return parsed ? [{ sourceLine, parsed, line: section.lineStart + index }] : [];
+		});
+		const selector = 'li.task-list-item';
+		const taskElements = [
+			...(el.matches(selector) ? [el] : []),
+			...Array.from(el.querySelectorAll<HTMLElement>(selector)),
+		];
+		if (sourceTasks.length !== taskElements.length) return;
+		for (let index = 0; index < sourceTasks.length; index += 1) {
+			const source = sourceTasks[index];
+			const task = taskElements[index];
+			if (!source || !task) continue;
+			const signature = JSON.stringify(source.parsed);
+			if (this.sourceTaskSignatures.get(task) === signature) continue;
+			this.sourceTaskSignatures.set(task, signature);
+			await this.renderSourceTask(
+				task,
+				current,
+				source.line,
+				source.sourceLine,
+				source.parsed.data,
+				(child) => ctx.addChild(child),
+			);
+		}
+	}
+
+	private async renderSourceTask(
+		item: HTMLElement,
+		file: TFile,
+		line: number,
+		sourceLine: string,
+		data: TaskData,
+		registerChild: MarkdownChildRegistrar,
+	): Promise<void> {
+		const checkbox = Array.from(item.children)
+			.find((child) => child.matches('input.task-list-item-checkbox')) as HTMLInputElement | undefined
+			?? item.querySelector<HTMLInputElement>('input.task-list-item-checkbox');
+		if (!checkbox) return;
+		const nestedLists = Array.from(item.children)
+			.filter((child) => child.tagName === 'UL' || child.tagName === 'OL') as HTMLElement[];
+		item.empty();
+		item.addClass('thread-journal-source-task');
+		item.appendChild(checkbox);
+		const card = item.createDiv({ cls: 'thread-journal-source-task-card' });
+		const content = card.createDiv({ cls: 'thread-journal-source-task-content' });
+		const child = new MarkdownRenderChild(content);
+		registerChild(child);
+		await MarkdownRenderer.render(this.app, data.content, content, file.path, child);
+
+		const window = taskWindowLabel(data);
+		const details = card.createDiv({ cls: 'thread-journal-source-task-details' });
+		const addChip = (text: string, icon: string, modifier = ''): void => {
+			const chip = details.createSpan({
+				cls: `thread-journal-source-task-chip${modifier ? ` is-${modifier}` : ''}`,
+			});
+			setIcon(chip.createSpan({ cls: 'thread-journal-task-chip-icon' }), icon);
+			chip.createSpan({ text });
+		};
+		if (window) {
+			addChip(window, 'calendar-range', taskWindowState(
+				data,
+				moment().format('YYYY-MM-DD'),
+			));
+		}
+		if (data.effort) {
+			const labels: Record<Exclude<TaskEffort, ''>, string> = {
+				quick: t('Quick'),
+				light: t('Light'),
+				normal: t('Normal effort'),
+				deep: t('Deep'),
+			};
+			addChip(labels[data.effort], 'gauge');
+		}
+		if (data.repeat) {
+			const rule = taskRepeatRuleDisplay(data);
+			const current = taskCurrentLabel(
+				data.current,
+				moment().format('YYYY-MM-DD'),
+				t('Today'),
+			);
+			const repeat = details.createSpan({
+				cls: 'thread-journal-source-task-chip is-repeat',
+				attr: { title: rule },
+			});
+			const next = repeat.createEl('button', {
+				cls: 'clickable-icon thread-journal-task-repeat-next',
+				attr: {
+					type: 'button',
+					'aria-label': `${rule} · ${t('To next')}`,
+					title: `${rule} · ${t('To next')}`,
+				},
+			});
+			setIcon(next, 'repeat-2');
+			if (current) repeat.createSpan({ text: current });
+			next.addEventListener('click', () => {
+				next.disabled = true;
+				this.taskManager.moveFileTaskToNext(file, line, sourceLine, () => {
+					next.disabled = false;
+				});
+			});
+		}
+		if (!details.hasChildNodes()) details.remove();
+
+		const actions = card.createDiv({ cls: 'thread-journal-source-task-actions' });
+		const edit = actions.createEl('button', {
+			cls: 'clickable-icon thread-journal-source-task-edit',
+			attr: { type: 'button', 'aria-label': t('Edit task'), title: t('Edit task') },
+		});
+		setIcon(edit, 'pencil');
+		edit.addEventListener('click', () => {
+			this.taskManager.openFileTaskEdit(file, line, sourceLine, data);
+		});
+		for (const list of nestedLists) item.appendChild(list);
+	}
+
 
 	renderChildren(el: HTMLElement, ctx: MarkdownPostProcessorContext): void {
 		const current = sourceFile(this.app, ctx);

@@ -5,30 +5,43 @@ import {
 	Notice,
 	Setting,
 	TFile,
+	moment,
+	setIcon,
 } from 'obsidian';
 import { t } from './i18n';
 import { cursorLineIsFrontmatter } from './checkpoint-core';
 import {
+	advanceTaskLine,
 	buildTaskLine,
+	createTaskId,
 	EMPTY_TASK,
 	parseTaskLine,
 	taskInsertionEdit,
 	taskValidationError,
+	taskWindowLabel,
 	type ParsedTaskLine,
 	type TaskData,
 	type TaskEffort,
-	type TaskScheduleMode,
+	type TaskRepeatFrequency,
 } from './task-model';
+import { openTaskWindowPicker } from './task-window-picker';
 import type { ThreadIndex } from './thread-index';
-import { create24HourTimeSelect, is24HourTime } from './time-input';
 
 type TaskSubmit = (data: TaskData) => void;
+
+function currentDate(): string {
+	return moment().format('YYYY-MM-DD');
+}
+
+function dayOfMonth(value: string): number {
+	const parsed = Number(value.slice(8, 10));
+	return Number.isInteger(parsed) && parsed >= 1 && parsed <= 31 ? parsed : 1;
+}
 
 class TaskModal extends Modal {
 	private data: TaskData;
 	private saving = false;
-	private windowStartIncomplete = false;
-	private windowEndIncomplete = false;
+	private closeWindowPicker?: () => void;
 
 	constructor(
 		app: App,
@@ -37,18 +50,47 @@ class TaskModal extends Modal {
 		private readonly onSubmit: TaskSubmit,
 	) {
 		super(app);
-		this.data = { ...initial };
+		this.data = {
+			...initial,
+			taskId: initial.taskId || createTaskId(),
+		};
 	}
 
 	onOpen(): void {
 		this.modalEl.addClass('thread-journal-task-modal');
-		this.render();
+		this.render(true);
 	}
 
-	private render(): void {
+	private render(focusContent = false): void {
+		this.closeWindowPicker?.();
+		this.closeWindowPicker = undefined;
 		this.contentEl.empty();
 		this.setTitle(this.mode === 'create' ? t('Create task') : t('Edit task'));
 		let focusTarget: HTMLInputElement | undefined;
+		const meta = this.contentEl.createDiv({ cls: 'thread-journal-task-meta' });
+		const pin = meta.createEl('button', {
+			cls: 'clickable-icon thread-journal-task-meta-pin',
+			attr: { type: 'button' },
+		});
+		const updatePin = (): void => {
+			pin.toggleClass('is-pinned', this.data.pinned);
+			pin.setAttribute('aria-pressed', String(this.data.pinned));
+			const label = this.data.pinned ? t('Unpin task') : t('Pin task');
+			pin.setAttribute('aria-label', label);
+			pin.setAttribute('title', label);
+			pin.empty();
+			setIcon(pin, 'pin');
+		};
+		pin.addEventListener('click', () => {
+			this.data.pinned = !this.data.pinned;
+			updatePin();
+		});
+		updatePin();
+		meta.createSpan({
+			cls: 'thread-journal-task-meta-id',
+			text: this.data.taskId,
+			attr: { title: t('Task ID'), 'aria-label': t('Task ID') },
+		});
 
 		new Setting(this.contentEl)
 			.setClass('thread-journal-task-form-field')
@@ -61,57 +103,22 @@ class TaskModal extends Modal {
 				focusTarget = text.inputEl;
 			});
 
-		const choiceFields = this.contentEl.createDiv({
-			cls: 'thread-journal-task-choice-fields',
-		});
+		const choiceFields = this.contentEl.createDiv({ cls: 'thread-journal-task-choice-fields' });
 		new Setting(choiceFields)
 			.setClass('thread-journal-task-form-field')
-			.setName(t('Schedule mode'))
+			.setName(t('Estimated effort'))
 			.addDropdown((dropdown) => dropdown
-				.addOption('flexible', t('Flexible'))
-				.addOption('fixed', t('Fixed'))
-				.setValue(this.data.scheduleMode)
+				.addOption('', t('Not selected'))
+				.addOption('quick', t('Quick'))
+				.addOption('light', t('Light'))
+				.addOption('normal', t('Normal effort'))
+				.addOption('deep', t('Deep'))
+				.setValue(this.data.effort)
 				.onChange((value) => {
-					this.data.scheduleMode = value as TaskScheduleMode;
-					if (this.data.scheduleMode === 'fixed') this.data.effort = '';
-					this.render();
+					this.data.effort = value as TaskEffort;
 				}));
-
-		if (this.data.scheduleMode === 'flexible') {
-			new Setting(choiceFields)
-				.setClass('thread-journal-task-form-field')
-				.setName(t('Estimated effort'))
-				.addDropdown((dropdown) => dropdown
-					.addOption('', t('Not selected'))
-					.addOption('quick', t('Quick'))
-					.addOption('light', t('Light'))
-					.addOption('normal', t('Normal effort'))
-					.addOption('deep', t('Deep'))
-					.setValue(this.data.effort)
-					.onChange((value) => {
-						this.data.effort = value as TaskEffort;
-					}));
-		}
-
-		const timeFields = this.contentEl.createDiv({ cls: 'thread-journal-task-time-fields' });
-		this.addDateTimeField(
-			timeFields,
-			t('Window start'),
-			this.data.windowStart,
-			(value, incomplete) => {
-				this.data.windowStart = value;
-				this.windowStartIncomplete = incomplete;
-			},
-		);
-		this.addDateTimeField(
-			timeFields,
-			t('Window end'),
-			this.data.windowEnd,
-			(value, incomplete) => {
-				this.data.windowEnd = value;
-				this.windowEndIncomplete = incomplete;
-			},
-		);
+		this.addWindowField(choiceFields);
+		this.renderRepeatFields();
 
 		const actions = new Setting(this.contentEl).setClass('thread-journal-task-actions');
 		actions.addButton((button) => button
@@ -122,76 +129,140 @@ class TaskModal extends Modal {
 			.setCta()
 			.onClick(() => {
 				if (this.saving) return;
-				if (this.windowStartIncomplete || this.windowEndIncomplete) {
-					new Notice(t('Enter both a date and a 24-hour time, or clear the boundary.'));
-					return;
-				}
+				if (!this.data.taskId) this.data.taskId = createTaskId();
 				const error = taskValidationError(this.data);
 				if (error === 'content') new Notice(t('Enter task content.'));
-				else if (error === 'fixed-window') new Notice(t('A fixed task requires both a start and an end.'));
-				else if (error === 'window-order') new Notice(t('The window end must be later than its start.'));
+				else if (error === 'window-order') new Notice(t('The window end must be on or after its start.'));
+				else if (error === 'repeat-current') new Notice(t('Choose the current repeat date.'));
+				else if (error === 'repeat-interval') new Notice(t('Enter a repeat interval of at least 2 days.'));
 				if (error) return;
 				this.saving = true;
 				this.onSubmit({ ...this.data });
 				this.close();
 			}));
 
-		window.setTimeout(() => focusTarget?.focus(), 0);
+		if (focusContent) window.setTimeout(() => focusTarget?.focus(), 0);
 	}
 
-	private addDateTimeField(
+	private addWindowField(parent: HTMLElement): void {
+		const setting = new Setting(parent)
+			.setClass('thread-journal-task-form-field')
+			.setClass('is-window')
+			.setName(t('Window'));
+		const label = taskWindowLabel(this.data) || t('Select dates');
+		const trigger = setting.controlEl.createEl('button', {
+			cls: 'thread-journal-task-window-trigger',
+			text: label,
+			attr: {
+				type: 'button',
+				'aria-expanded': 'false',
+				'aria-label': t('Select task window'),
+			},
+		});
+		trigger.addEventListener('click', () => {
+			if (this.closeWindowPicker) {
+				this.closeWindowPicker();
+				this.closeWindowPicker = undefined;
+				return;
+			}
+			trigger.setAttribute('aria-expanded', 'true');
+			this.closeWindowPicker = openTaskWindowPicker(
+				trigger,
+				this.data.windowStart,
+				this.data.windowEnd,
+				(start, end) => {
+					this.data.windowStart = start;
+					this.data.windowEnd = end;
+					this.render();
+				},
+				() => {
+					this.closeWindowPicker = undefined;
+					if (trigger.isConnected) trigger.setAttribute('aria-expanded', 'false');
+				},
+			);
+		});
+	}
+
+	private renderRepeatFields(): void {
+		const fields = this.contentEl.createDiv({
+			cls: `thread-journal-task-repeat-fields${this.data.repeat ? ' is-active' : ''}`,
+		});
+		new Setting(fields)
+			.setClass('thread-journal-task-form-field')
+			.setClass('is-repeat-toggle')
+			.setName(t('Repeat'))
+			.addToggle((toggle) => toggle
+				.setValue(this.data.repeat)
+				.onChange((value) => {
+					this.data.repeat = value;
+					if (value && !this.data.current) this.data.current = currentDate();
+					if (value) this.data.repeatMonthDay = dayOfMonth(this.data.current);
+					this.render();
+				}));
+		if (!this.data.repeat) return;
+		const frequency = new Setting(fields)
+			.setClass('thread-journal-task-form-field')
+			.setName(t('Frequency'))
+			.addDropdown((dropdown) => dropdown
+				.addOption('daily', t('Daily'))
+				.addOption('weekly', t('Weekly'))
+				.addOption('monthly', t('Monthly'))
+				.addOption('custom', t('Every N days'))
+				.setValue(this.data.repeatFrequency)
+				.onChange((value) => {
+					this.data.repeatFrequency = value as TaskRepeatFrequency;
+					if (value === 'monthly') this.data.repeatMonthDay = dayOfMonth(this.data.current);
+					this.render();
+				}));
+		if (this.data.repeatFrequency === 'custom') {
+			frequency.addText((text) => {
+				text.inputEl.type = 'number';
+				text.inputEl.min = '2';
+				text.inputEl.step = '1';
+				text.inputEl.addClass('thread-journal-task-repeat-interval');
+				text.inputEl.setAttribute('aria-label', t('Interval days'));
+				text.setPlaceholder(t('Interval days'));
+				text.setValue(String(this.data.repeatInterval)).onChange((value) => {
+					this.data.repeatInterval = Number(value);
+				});
+			});
+		}
+		this.addDateField(fields, t('Current'), this.data.current, (value) => {
+			this.data.current = value;
+			if (this.data.repeatFrequency === 'monthly') {
+				this.data.repeatMonthDay = dayOfMonth(value);
+			}
+		});
+	}
+
+	private addDateField(
 		parent: HTMLElement,
 		name: string,
 		value: string,
-		onChange: (value: string, incomplete: boolean) => void,
+		onChange: (value: string) => void,
 	): void {
-		let date = value.slice(0, 10);
-		let time = value.slice(11, 16);
-		if (!/^\d{4}-\d{2}-\d{2}$/u.test(date)) date = '';
-		if (!is24HourTime(time)) time = '';
-		let timeIncomplete = false;
 		const setting = new Setting(parent)
 			.setClass('thread-journal-task-form-field')
-			.setClass('is-datetime')
+			.setClass('is-date')
 			.setName(name);
-		const emit = (): void => {
-			const incomplete = timeIncomplete || Boolean(date) !== Boolean(time);
-			onChange(date && time ? `${date}T${time}` : '', incomplete);
-		};
-		const dateInput = setting.controlEl.createEl('input', {
-			attr: { type: 'date', 'aria-label': t('Date') },
+		const input = setting.controlEl.createEl('input', {
+			attr: { type: 'date', 'aria-label': name },
 		});
-		dateInput.value = date;
-		dateInput.addEventListener('input', () => {
-			date = dateInput.value;
-			emit();
-		});
-		const timeControl = create24HourTimeSelect(
-			setting.controlEl,
-			time,
-			(nextTime, incomplete) => {
-				time = nextTime;
-				timeIncomplete = incomplete;
-				emit();
-			},
-			{ hour: t('Hour'), minute: t('Minute') },
-			true,
-		);
+		input.value = value;
+		input.addEventListener('input', () => onChange(input.value));
 		const clear = setting.controlEl.createEl('button', {
 			text: t('Clear'),
 			attr: { type: 'button' },
 		});
 		clear.addEventListener('click', () => {
-			date = '';
-			time = '';
-			timeIncomplete = false;
-			dateInput.value = '';
-			timeControl.setValue('');
-			emit();
+			input.value = '';
+			onChange('');
 		});
 	}
 
 	onClose(): void {
+		this.closeWindowPicker?.();
+		this.closeWindowPicker = undefined;
 		this.contentEl.empty();
 	}
 }
@@ -230,10 +301,56 @@ export class TaskManager {
 			new Notice(t('Move the cursor onto a Markdown task first.'));
 			return;
 		}
-		this.openEditModal(editor, line, parsed);
+		this.openEditorTaskModal(editor, line, parsed);
 	}
 
-	private openEditModal(editor: Editor, line: number, parsed: ParsedTaskLine): void {
+	openFileTaskEdit(
+		file: TFile,
+		line: number,
+		sourceLine: string,
+		initial: TaskData,
+		onSaved?: () => void,
+	): void {
+		new TaskModal(this.app, 'edit', initial, (data) => {
+			void this.app.vault.process(file, (content) => {
+				const lines = content.split('\n');
+				const resolved = resolveSourceLine(lines, line, sourceLine, initial.taskId);
+				const current = lines[resolved];
+				const parsed = current === undefined ? undefined : parseTaskLine(current);
+				if (!parsed) throw new Error(t('The task changed; reopen the form and try again.'));
+				lines[resolved] = buildTaskLine(data, parsed);
+				return lines.join('\n');
+			}).then(onSaved).catch((error: unknown) => {
+				console.error('Thread Journal failed to edit task', error);
+				new Notice(t('Failed to update task: {error}', { error: String(error) }));
+			});
+		}).open();
+	}
+
+	moveFileTaskToNext(
+		file: TFile,
+		line: number,
+		sourceLine: string,
+		onSaved?: () => void,
+	): void {
+		void this.app.vault.process(file, (content) => {
+			const lines = content.split('\n');
+			const taskId = parseTaskLine(sourceLine)?.data.taskId ?? '';
+			const resolved = resolveSourceLine(lines, line, sourceLine, taskId);
+			const current = lines[resolved];
+			const replacement = current === undefined
+				? undefined
+				: advanceTaskLine(current, currentDate());
+			if (!replacement) throw new Error(t('The task is not a valid repeating task.'));
+			lines[resolved] = replacement;
+			return lines.join('\n');
+		}).then(onSaved).catch((error: unknown) => {
+			console.error('Thread Journal failed to move task to next occurrence', error);
+			new Notice(t('Failed to move task to next: {error}', { error: String(error) }));
+		});
+	}
+
+	private openEditorTaskModal(editor: Editor, line: number, parsed: ParsedTaskLine): void {
 		new TaskModal(this.app, 'edit', parsed.data, (data) => {
 			const current = editor.getLine(line);
 			const currentTask = parseTaskLine(current);
@@ -249,4 +366,21 @@ export class TaskManager {
 			});
 		}).open();
 	}
+}
+
+export function resolveSourceLine(
+	lines: readonly string[],
+	line: number,
+	sourceLine: string,
+	taskId = '',
+): number {
+	if (lines[line] === sourceLine) return line;
+	if (taskId) {
+		const idMatches = lines.flatMap((source, index) =>
+			parseTaskLine(source)?.data.taskId === taskId ? [index] : []);
+		if (idMatches.length === 1) return idMatches[0] ?? line;
+	}
+	const matches = lines.flatMap((source, index) => source === sourceLine ? [index] : []);
+	if (matches.length !== 1) throw new Error(t('The task changed; reopen the form and try again.'));
+	return matches[0] ?? line;
 }

@@ -13,6 +13,22 @@ export interface ThreadOverviewNode {
 	children: ThreadOverviewNode[];
 }
 
+export function filterThreadOverviewTree(
+	nodes: readonly ThreadOverviewNode[],
+	matches: (item: ThreadOverviewItem) => boolean,
+): ThreadOverviewNode[] {
+	return nodes.flatMap((node) => {
+		const children = filterThreadOverviewTree(node.children, matches);
+		const ownMatch = matches(node.item);
+		if (!ownMatch && children.length === 0) return [];
+		return [{
+			item: node.item,
+			contextOnly: node.contextOnly || !ownMatch,
+			children,
+		}];
+	});
+}
+
 export function countThreadOverviewDescendants(node: ThreadOverviewNode): number {
 	return node.children.reduce(
 		(total, child) => total + 1 + countThreadOverviewDescendants(child),

@@ -60,12 +60,12 @@ export default class ThreadJournalPlugin extends Plugin {
 		);
 		const getSettings = () => this.settings;
 		this.index = new ThreadIndex(this.app);
+		this.tasks = new TaskManager(this.app, this.index);
 		this.registerView(
 			THREAD_OVERVIEW_VIEW_TYPE,
-			(leaf) => new ThreadOverviewView(leaf, this.index),
+			(leaf) => new ThreadOverviewView(leaf, this.index, this.tasks),
 		);
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
-		this.tasks = new TaskManager(this.app, this.index);
 		this.switcher = new ThreadSwitcherManager(this.app, this.index, this.files);
 		this.parents = new ThreadParentManager(this.index);
 		this.checkpoints = new CheckpointManager(
@@ -93,6 +93,7 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.app,
 			this.index,
 			getSettings,
+			this.tasks,
 			(file, entry) => this.checkpoints.openCheckpointEditModal(file, entry),
 			(file, entry) => this.checkpoints.openCheckpointDeleteModal(file, entry),
 		);
@@ -107,6 +108,10 @@ export default class ThreadJournalPlugin extends Plugin {
 				),
 			(callout, file, entry, registerChild) =>
 				this.renderers.renderSourceLogCallout(callout, file, entry, registerChild),
+			(file, line, sourceLine) =>
+				this.tasks.moveFileTaskToNext(file, line, sourceLine),
+			(file, line, sourceLine, data) =>
+				this.tasks.openFileTaskEdit(file, line, sourceLine, data),
 		));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
 			this.switcher.rememberActiveLeaf(leaf);
@@ -280,10 +285,11 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerRenderers(): void {
-		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, el, ctx));
+		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.tasks, el, ctx));
 		this.registerMarkdownPostProcessor(async (el, ctx) => {
 			await this.renderers.enhanceCheckpointCallouts(el, ctx);
 			await this.renderers.enhanceLogCallouts(el, ctx);
+			await this.renderers.enhanceTasks(el, ctx);
 		});
 		this.registerMarkdownCodeBlockProcessor('thread-entries', async (source, el, ctx) => {
 			await this.renderers.renderEntries(source, el, ctx);

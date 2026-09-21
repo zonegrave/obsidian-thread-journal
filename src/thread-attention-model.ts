@@ -8,6 +8,27 @@ export interface AttentionTask {
  disposition: TodoDisposition;
 }
 
+export interface AttentionFallbackCandidate {
+	path: string;
+	roleStatus: string;
+	attentionFallback: boolean;
+}
+
+export function threadUsesAttentionFallback(status: string): boolean {
+	return status === 'active';
+}
+
+export function selectAttentionFallbackPaths(
+	members: readonly AttentionFallbackCandidate[],
+	openTaskPaths: ReadonlySet<string>,
+): string[] {
+	return members
+		.filter((member) => member.roleStatus === 'active'
+			&& member.attentionFallback
+			&& !openTaskPaths.has(member.path))
+		.map((member) => member.path);
+}
+
 const THREAD_PIN_FIELD = /\s*\[thread_pin::\s*true\]/giu;
 
 export function taskIsPinned(text: string): boolean {
@@ -60,14 +81,14 @@ export function todoDisposition(marker: string, text: string, now: string): Todo
  if (marker === '>' || /\[waiting::\s*true\]/i.test(text)) return 'waiting';
  if (marker !== ' ' && marker !== '/') return 'unknown';
 	const today = now.slice(0, 10);
-	const comparisonNow = /^\d{4}-\d{2}-\d{2}$/u.test(now) ? `${now} 23:59` : now.replace('T', ' ');
 	const leadingDate = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s|$)/)?.[1];
 	if (leadingDate && leadingDate > today) return 'future';
 	const dates = [...text.matchAll(/(?:⏳|🛫|\[(?:scheduled|start)::)\s*(\d{4}-\d{2}-\d{2})/g)];
 	if (dates.some(match => (match[1] ?? '') > today)) return 'future';
-	const windowStart = /\[window_start::\s*(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2})?)\s*\]/u
-		.exec(text)?.[1]?.replace('T', ' ');
-	if (windowStart && windowStart > comparisonNow) return 'future';
+	const windowStart = /\[window_start::\s*(\d{4}-\d{2}-\d{2})\s*\]/u.exec(text)?.[1];
+	if (windowStart && windowStart > today) return 'future';
+	const current = /\[current::\s*(\d{4}-\d{2}-\d{2})\s*\]/u.exec(text)?.[1];
+	if (current && current > today) return 'future';
  // A due date is a deadline, not a reason to postpone starting.
  return 'ready';
 }
