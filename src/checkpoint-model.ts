@@ -7,6 +7,12 @@ import { t } from './i18n';
 
 export type CheckpointFieldRenderMode = 'plain' | 'inline-markdown' | 'block-markdown';
 
+export function checkpointBodyLabels(
+	fields: readonly CheckpointFieldSpec[],
+): ReadonlySet<string> {
+	return new Set(fields.map((field) => field.label));
+}
+
 const FIELD_CONTROLS = new Set<CheckpointFieldControl>([
 	'text',
 	'textarea',

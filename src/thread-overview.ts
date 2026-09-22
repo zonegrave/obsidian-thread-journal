@@ -32,10 +32,13 @@ import {
 } from './thread-overview-model';
 import type { TaskManager } from './task';
 import {
+	TASK_EFFORT_LABELS,
+	taskDeadlineDisplay,
+	taskNextActionLabel,
+	taskRepeatRuleDisplay,
+} from './task-display';
+import {
 	taskCurrentLabel,
-	taskWindowState,
-	type TaskData,
-	type TaskEffort,
 } from './task-model';
 import {
 	clampMapZoom,
@@ -63,42 +66,6 @@ const TASK_DISPOSITION_LABELS: Record<TodoDisposition, TranslationKey> = {
 	candidate: 'candidate',
 	unknown: 'other',
 };
-
-const TASK_EFFORT_LABELS: Record<Exclude<TaskEffort, ''>, TranslationKey> = {
-	quick: 'Quick',
-	light: 'Light',
-	normal: 'Normal effort',
-	deep: 'Deep',
-};
-
-function repeatLabel(data: TaskData): string {
-	if (data.repeatFrequency === 'weekly') return t('Weekly');
-	if (data.repeatFrequency === 'monthly') return t('Monthly');
-	if (data.repeatFrequency === 'custom') {
-		return t('Every {count} days', { count: data.repeatInterval });
-	}
-	return t('Daily');
-}
-
-function taskDeadline(
-	data: TaskData,
-	today: string,
-): { label: string; modifier: string } | undefined {
-	if (!data.windowEnd) return undefined;
-	const end = moment(data.windowEnd, 'YYYY-MM-DD', true).startOf('day');
-	const current = moment(today, 'YYYY-MM-DD', true).startOf('day');
-	if (!end.isValid() || !current.isValid()) return undefined;
-	const days = end.diff(current, 'days');
-	if (days < 0) {
-		return { label: t('{count}d overdue', { count: Math.abs(days) }), modifier: 'overdue' };
-	}
-	if (days === 0) return { label: t('Due today'), modifier: 'current' };
-	if (days > 30) return { label: '30d+', modifier: 'distant' };
-	return {
-		label: t('{count}d left', { count: days }),
-		modifier: taskWindowState(data, today) ?? 'current',
-	};
-}
 
 export const THREAD_OVERVIEW_VIEW_TYPE = 'thread-journal-overview';
 
@@ -319,10 +286,12 @@ class OverviewContent extends MarkdownRenderChild {
 			this.renderZoomControls(toolbar);
 		}
 
-		const { taskIds, branchIds } = this.overviewExpansionTargets(tree);
+		const { nodeIds, taskIds, branchIds } = this.overviewExpansionTargets(tree);
+		const openNodeIds = nodeIds.filter((id) => this.expandedNodes.has(id));
 		const allTasksExpanded = taskIds.length > 0
-			&& taskIds.every((id) => this.expandedNodes.has(id))
-			&& branchIds.every((id) => !this.collapsedBranches.has(id));
+			? taskIds.every((id) => this.expandedNodes.has(id))
+				&& branchIds.every((id) => !this.collapsedBranches.has(id))
+			: openNodeIds.length > 0;
 		const expandButton = toolbar.createEl('button', {
 			cls: 'thread-journal-overview-expand-tasks',
 			text: allTasksExpanded ? t('Collapse items') : t('Expand all items'),
@@ -333,10 +302,10 @@ class OverviewContent extends MarkdownRenderChild {
 					: t('Expand all attention lists'),
 			},
 		});
-		expandButton.disabled = taskIds.length === 0;
+		expandButton.disabled = taskIds.length === 0 && openNodeIds.length === 0;
 		expandButton.addEventListener('click', () => {
 			if (allTasksExpanded) {
-				for (const id of taskIds) this.expandedNodes.delete(id);
+				for (const id of nodeIds) this.expandedNodes.delete(id);
 			} else {
 				for (const id of branchIds) this.collapsedBranches.delete(id);
 				for (const id of taskIds) this.expandedNodes.add(id);
@@ -512,13 +481,16 @@ class OverviewContent extends MarkdownRenderChild {
 	}
 
 	private overviewExpansionTargets(tree: readonly ThreadOverviewNode[]): {
+		nodeIds: string[];
 		taskIds: string[];
 		branchIds: string[];
 	} {
+		const nodeIds: string[] = [];
 		const taskIds: string[] = [];
 		const branchIds: string[] = [];
 		const rowById = new Map(this.rows.map((row) => [row.thread.id, row]));
 		const visit = (node: ThreadOverviewNode): boolean => {
+			nodeIds.push(node.item.id);
 			const row = rowById.get(node.item.id);
 			const hasOwnTasks = Boolean(
 				!node.contextOnly && row
@@ -535,7 +507,7 @@ class OverviewContent extends MarkdownRenderChild {
 			return hasOwnTasks || hasTasksBelow;
 		};
 		for (const node of tree) visit(node);
-		return { taskIds, branchIds };
+		return { nodeIds, taskIds, branchIds };
 	}
 
 	private tasksForRow(row: AttentionRow): AttentionRow['tasks'] {
@@ -906,19 +878,20 @@ class OverviewContent extends MarkdownRenderChild {
 			);
 		}
 		const today = moment().format('YYYY-MM-DD');
-		const deadline = taskDeadline(data, today);
+		const deadline = taskDeadlineDisplay(data, today);
 		if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
 		if (data.effort) {
 			const label = t(TASK_EFFORT_LABELS[data.effort]);
 			const effort = details.createSpan({
-				cls: `thread-journal-overview-task-effort is-${data.effort}`,
+				cls: `thread-journal-task-effort is-${data.effort}`,
 				attr: { title: label, 'aria-label': label },
 			});
 			setIcon(effort, 'gauge');
 		}
 		if (data.repeat) {
 			const current = taskCurrentLabel(data.current, today, t('Today'));
-			const rule = repeatLabel(data);
+			const rule = taskRepeatRuleDisplay(data);
+			const nextLabel = taskNextActionLabel(data, today);
 			const repeat = details.createSpan({
 				cls: 'thread-journal-overview-task-repeat',
 				attr: { title: rule },
@@ -927,8 +900,8 @@ class OverviewContent extends MarkdownRenderChild {
 				cls: 'clickable-icon thread-journal-task-repeat-next',
 				attr: {
 					type: 'button',
-					'aria-label': `${rule} · ${t('To next')}`,
-					title: `${rule} · ${t('To next')}`,
+					'aria-label': `${rule} · ${nextLabel}`,
+					title: `${rule} · ${nextLabel}`,
 				},
 			});
 			setIcon(next, 'repeat-2');

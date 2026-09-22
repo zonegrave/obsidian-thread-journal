@@ -31,6 +31,7 @@ import { ThreadMetaManager } from './thread-meta';
 import { ThreadParentManager } from './thread-parent';
 import { ThreadSwitcherManager } from './thread-switcher';
 import { TaskManager } from './task';
+import { renderTaskReference } from './task-reference';
 import {
 	LANGUAGE_CHANGE_EVENT,
 	resolveLocale,
@@ -110,6 +111,8 @@ export default class ThreadJournalPlugin extends Plugin {
 				this.renderers.renderSourceLogCallout(callout, file, entry, registerChild),
 			(file, line, sourceLine) =>
 				this.tasks.moveFileTaskToNext(file, line, sourceLine),
+			(file, line, sourceLine, pinned) =>
+				this.tasks.setFileTaskPinned(file, line, sourceLine, pinned),
 			(file, line, sourceLine, data) =>
 				this.tasks.openFileTaskEdit(file, line, sourceLine, data),
 		));
@@ -119,7 +122,10 @@ export default class ThreadJournalPlugin extends Plugin {
 		}));
 		this.registerEvent(this.app.workspace.on('layout-change', () => this.breadcrumbs.refresh()));
 		this.registerEvent(this.app.workspace.on('file-open', () => this.breadcrumbs.refresh()));
-		this.registerEvent(this.app.metadataCache.on('changed', () => this.breadcrumbs.refresh()));
+		this.registerEvent(this.app.metadataCache.on('changed', () => {
+			this.tasks.invalidateTaskIndex();
+			this.breadcrumbs.refresh();
+		}));
 		this.switcher.rememberActiveLeaf(
 			this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null,
 		);
@@ -286,6 +292,9 @@ export default class ThreadJournalPlugin extends Plugin {
 
 	private registerRenderers(): void {
 		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.tasks, el, ctx));
+		this.registerMarkdownCodeBlockProcessor('task-reference', (source, el, ctx) => {
+			renderTaskReference(source, el, ctx, this.app, this.tasks);
+		});
 		this.registerMarkdownPostProcessor(async (el, ctx) => {
 			await this.renderers.enhanceCheckpointCallouts(el, ctx);
 			await this.renderers.enhanceLogCallouts(el, ctx);

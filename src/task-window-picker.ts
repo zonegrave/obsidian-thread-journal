@@ -225,3 +225,171 @@ export function openTaskWindowPicker(
 	const popover = new TaskWindowPopover(trigger, start, end, onApply, onClose);
 	return () => popover.close();
 }
+
+class TaskDatePopover {
+	private readonly popover: HTMLElement;
+	private readonly doc: Document;
+	private readonly win: Window;
+	private draftValue: string;
+	private month = moment().startOf('month');
+	private closed = false;
+
+	constructor(
+		private readonly trigger: HTMLElement,
+		value: string,
+		private readonly onApply: (value: string) => void,
+		private readonly onClose: () => void,
+	) {
+		this.doc = trigger.ownerDocument;
+		this.win = this.doc.defaultView ?? window;
+		this.draftValue = validDate(value) ? value : moment().format('YYYY-MM-DD');
+		this.month = moment(this.draftValue, 'YYYY-MM-DD', true).startOf('month');
+		this.popover = this.doc.body.createDiv({
+			cls: 'thread-journal-task-window-popover is-single',
+		});
+		this.render();
+		this.doc.addEventListener('pointerdown', this.handleOutsidePointer, true);
+		this.doc.addEventListener('keydown', this.handleKeydown, true);
+		this.doc.addEventListener('scroll', this.position, true);
+		this.win.addEventListener('resize', this.position);
+	}
+
+	private readonly handleOutsidePointer = (event: PointerEvent): void => {
+		const target = event.target as Node | null;
+		if (!target) return;
+		if (this.popover.contains(target) || this.trigger.contains(target)) return;
+		this.close();
+	};
+
+	private readonly handleKeydown = (event: KeyboardEvent): void => {
+		if (event.key !== 'Escape') return;
+		event.preventDefault();
+		event.stopPropagation();
+		this.close();
+	};
+
+	private readonly position = (): void => {
+		if (this.closed) return;
+		const margin = 8;
+		const gap = 6;
+		const triggerRect = this.trigger.getBoundingClientRect();
+		const width = Math.min(360, this.win.innerWidth - margin * 2);
+		this.popover.style.width = `${width}px`;
+		const popoverRect = this.popover.getBoundingClientRect();
+		const left = Math.min(
+			Math.max(margin, triggerRect.left),
+			Math.max(margin, this.win.innerWidth - width - margin),
+		);
+		const below = triggerRect.bottom + gap;
+		const above = triggerRect.top - popoverRect.height - gap;
+		const top = below + popoverRect.height <= this.win.innerHeight - margin
+			? below
+			: Math.max(margin, above);
+		this.popover.style.left = `${left}px`;
+		this.popover.style.top = `${top}px`;
+	};
+
+	private render(): void {
+		this.popover.empty();
+		this.popover.createDiv({
+			cls: 'thread-journal-task-window-popover-title',
+			text: t('Select current date'),
+		});
+		const calendars = this.popover.createDiv({
+			cls: 'thread-journal-task-window-calendars',
+		});
+		const pane = calendars.createDiv({
+			cls: 'thread-journal-task-window-pane is-current',
+		});
+		const paneTitle = pane.createDiv({ cls: 'thread-journal-task-window-pane-title' });
+		paneTitle.createSpan({ text: t('Current') });
+		paneTitle.createSpan({
+			cls: 'thread-journal-task-window-value',
+			text: this.draftValue,
+		});
+
+		const header = pane.createDiv({ cls: 'thread-journal-task-window-picker-header' });
+		const previous = header.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { type: 'button', 'aria-label': t('Previous month') },
+		});
+		setIcon(previous, 'chevron-left');
+		header.createDiv({
+			cls: 'thread-journal-task-window-picker-month',
+			text: this.month.format('YYYY MMMM'),
+		});
+		const next = header.createEl('button', {
+			cls: 'clickable-icon',
+			attr: { type: 'button', 'aria-label': t('Next month') },
+		});
+		setIcon(next, 'chevron-right');
+		previous.addEventListener('click', () => {
+			this.month = this.month.clone().subtract(1, 'month');
+			this.render();
+		});
+		next.addEventListener('click', () => {
+			this.month = this.month.clone().add(1, 'month');
+			this.render();
+		});
+
+		const calendar = pane.createDiv({ cls: 'thread-journal-task-window-calendar' });
+		for (const weekday of moment.weekdaysMin(true)) {
+			calendar.createDiv({ cls: 'thread-journal-task-window-weekday', text: weekday });
+		}
+		const day = this.month.clone().startOf('month').startOf('week');
+		const today = moment().format('YYYY-MM-DD');
+		for (let index = 0; index < 42; index += 1) {
+			const value = day.format('YYYY-MM-DD');
+			const classes = ['thread-journal-task-window-day'];
+			if (day.month() !== this.month.month()) classes.push('is-outside');
+			if (value === today) classes.push('is-today');
+			if (value === this.draftValue) classes.push('is-start');
+			const button = calendar.createEl('button', {
+				cls: classes.join(' '),
+				text: day.format('D'),
+				attr: { type: 'button', 'aria-label': value },
+			});
+			button.addEventListener('click', () => {
+				this.draftValue = value;
+				this.render();
+			});
+			day.add(1, 'day');
+		}
+
+		const actions = this.popover.createDiv({ cls: 'thread-journal-task-window-actions' });
+		actions.createEl('button', {
+			text: t('Cancel'),
+			attr: { type: 'button' },
+		}).addEventListener('click', () => this.close());
+		actions.createEl('button', {
+			cls: 'mod-cta',
+			text: t('Apply'),
+			attr: { type: 'button' },
+		}).addEventListener('click', () => {
+			this.onApply(this.draftValue);
+			this.close();
+		});
+		this.position();
+	}
+
+	close(): void {
+		if (this.closed) return;
+		this.closed = true;
+		this.doc.removeEventListener('pointerdown', this.handleOutsidePointer, true);
+		this.doc.removeEventListener('keydown', this.handleKeydown, true);
+		this.doc.removeEventListener('scroll', this.position, true);
+		this.win.removeEventListener('resize', this.position);
+		this.popover.remove();
+		this.onClose();
+	}
+}
+
+export function openTaskDatePicker(
+	trigger: HTMLElement,
+	value: string,
+	onApply: (value: string) => void,
+	onClose: () => void,
+): () => void {
+	const popover = new TaskDatePopover(trigger, value, onApply, onClose);
+	return () => popover.close();
+}

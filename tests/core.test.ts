@@ -31,6 +31,7 @@ import {
 } from '../src/checkpoint-core';
 import {
 	activeCheckpointFields,
+	checkpointBodyLabels,
 	checkpointFieldRenderMode,
 	checkpointFieldsForThread,
 	DEFAULT_CHECKPOINT_FIELDS,
@@ -106,6 +107,7 @@ import {
 	taskWindowState,
 	type TaskData,
 } from '../src/task-model';
+import { parseTaskReference } from '../src/task-reference-model';
 import { is24HourTime } from '../src/time-input';
 
 void test('resolves automatic language and translates interpolated UI text', () => {
@@ -579,6 +581,16 @@ void test('normalizes configurable checkpoint fields and protects system keys', 
 	]);
 });
 
+void test('recognizes body field labels independently of the current storage mode', () => {
+	const labels = checkpointBodyLabels(normalizeCheckpointFields([
+		{
+			key: 'checkpoint_summary', label: '摘要', control: 'text', storage: 'inline',
+			required: true,
+		},
+	]));
+	assert.equal(labels.has('摘要'), true);
+});
+
 void test('moves checkpoint select options without changing their values', () => {
 	assert.deepEqual(
 		moveCheckpointOption(['milestone', 'review', 'blocked'], 0, 2),
@@ -1027,6 +1039,19 @@ void test('accepts only explicit 24-hour HH:mm values', () => {
 	assert.equal(is24HourTime('12:60'), false);
 	assert.equal(is24HourTime('9:30'), false);
 	assert.equal(is24HourTime('09:30 PM'), false);
+});
+
+void test('parses task references only through the distinct reference_task_id field', () => {
+	assert.equal(
+		parseTaskReference('reference_task_id: task-abcdef123456'),
+		'task-abcdef123456',
+	);
+	assert.equal(
+		parseTaskReference('[reference_task_id:: task-abcdef123456]'),
+		'task-abcdef123456',
+	);
+	assert.equal(parseTaskReference('task_id: task-abcdef123456'), undefined);
+	assert.equal(parseTaskReference('task-abcdef123456'), undefined);
 });
 
 void test('task form fields round-trip without losing markdown task state or other metadata', () => {

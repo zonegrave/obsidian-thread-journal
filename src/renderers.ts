@@ -12,6 +12,7 @@ import {
 	type ParsedCheckpointEntry,
 } from './checkpoint-core';
 import {
+	checkpointBodyLabels,
 	checkpointFieldRenderMode,
 	checkpointFieldsForThread,
 	type CheckpointFieldRenderMode,
@@ -33,13 +34,15 @@ import { threadStatusLabel } from './thread-status-model';
 import { t } from './i18n';
 import type { TaskManager } from './task';
 import {
+	TASK_EFFORT_LABELS,
+	taskDeadlineDisplay,
+	taskNextActionLabel,
+	taskRepeatRuleDisplay,
+} from './task-display';
+import {
 	parseTaskLine,
 	taskCurrentLabel,
-	taskRepeatLabel,
-	taskWindowLabel,
-	taskWindowState,
 	type TaskData,
-	type TaskEffort,
 } from './task-model';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
 
@@ -74,14 +77,6 @@ function sourceFile(app: App, ctx: MarkdownPostProcessorContext): TFile | undefi
 
 function checkpointTimestamp(entry: ParsedCheckpointEntry): string {
 	return `${entry.values.checkpoint_date ?? ''}T${entry.values.checkpoint_time ?? ''}`;
-}
-
-function taskRepeatRuleDisplay(data: TaskData): string {
-	const label = taskRepeatLabel(data);
-	return label === 'Daily' ? t('Daily')
-		: label === 'Weekly' ? t('Weekly')
-			: label === 'Monthly' ? t('Monthly')
-				: t('Every {count} days', { count: data.repeatInterval });
 }
 
 function addFileLink(
@@ -172,12 +167,38 @@ export class ThreadRenderers {
 		item.addClass('thread-journal-source-task');
 		item.appendChild(checkbox);
 		const card = item.createDiv({ cls: 'thread-journal-source-task-card' });
+		let pinned = data.pinned;
+		const pin = card.createEl('button', {
+			cls: `clickable-icon thread-journal-source-task-pin${pinned ? ' is-pinned' : ''}`,
+			attr: { type: 'button' },
+		});
+		const updatePin = (): void => {
+			pin.toggleClass('is-pinned', pinned);
+			pin.setAttribute('aria-pressed', String(pinned));
+			const label = pinned ? t('Unpin task') : t('Pin task');
+			pin.setAttribute('aria-label', label);
+			pin.setAttribute('title', label);
+			pin.empty();
+			setIcon(pin, pinned ? 'pin-off' : 'pin');
+		};
+		updatePin();
+		pin.addEventListener('click', () => {
+			pin.disabled = true;
+			void this.taskManager.setFileTaskPinned(file, line, sourceLine, !pinned)
+				.then(() => {
+					pinned = !pinned;
+					updatePin();
+				})
+				.catch(() => undefined)
+				.finally(() => {
+					if (pin.isConnected) pin.disabled = false;
+				});
+		});
 		const content = card.createDiv({ cls: 'thread-journal-source-task-content' });
 		const child = new MarkdownRenderChild(content);
 		registerChild(child);
 		await MarkdownRenderer.render(this.app, data.content, content, file.path, child);
 
-		const window = taskWindowLabel(data);
 		const details = card.createDiv({ cls: 'thread-journal-source-task-details' });
 		const addChip = (text: string, icon: string, modifier = ''): void => {
 			const chip = details.createSpan({
@@ -186,26 +207,23 @@ export class ThreadRenderers {
 			setIcon(chip.createSpan({ cls: 'thread-journal-task-chip-icon' }), icon);
 			chip.createSpan({ text });
 		};
-		if (window) {
-			addChip(window, 'calendar-range', taskWindowState(
-				data,
-				moment().format('YYYY-MM-DD'),
-			));
-		}
+		const today = moment().format('YYYY-MM-DD');
+		const deadline = taskDeadlineDisplay(data, today);
+		if (deadline) addChip(deadline.label, 'calendar-clock', deadline.modifier);
 		if (data.effort) {
-			const labels: Record<Exclude<TaskEffort, ''>, string> = {
-				quick: t('Quick'),
-				light: t('Light'),
-				normal: t('Normal effort'),
-				deep: t('Deep'),
-			};
-			addChip(labels[data.effort], 'gauge');
+			const label = t(TASK_EFFORT_LABELS[data.effort]);
+			const effort = details.createSpan({
+				cls: `thread-journal-task-effort is-${data.effort}`,
+				attr: { title: label, 'aria-label': label },
+			});
+			setIcon(effort, 'gauge');
 		}
 		if (data.repeat) {
 			const rule = taskRepeatRuleDisplay(data);
+			const nextLabel = taskNextActionLabel(data, today);
 			const current = taskCurrentLabel(
 				data.current,
-				moment().format('YYYY-MM-DD'),
+				today,
 				t('Today'),
 			);
 			const repeat = details.createSpan({
@@ -216,8 +234,8 @@ export class ThreadRenderers {
 				cls: 'clickable-icon thread-journal-task-repeat-next',
 				attr: {
 					type: 'button',
-					'aria-label': `${rule} · ${t('To next')}`,
-					title: `${rule} · ${t('To next')}`,
+					'aria-label': `${rule} · ${nextLabel}`,
+					title: `${rule} · ${nextLabel}`,
 				},
 			});
 			setIcon(next, 'repeat-2');
@@ -841,12 +859,16 @@ export class ThreadRenderers {
 		registerChild: MarkdownChildRegistrar,
 	): Promise<void> {
 		const knownKeys = new Set(fields.map((field) => field.key));
+		const knownBodyLabels = checkpointBodyLabels(fields);
+		const consumedBodyLabels = new Set<string>();
 		const systemKeys = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
 		const summaryField = fields.find((field) => field.key === 'checkpoint_summary');
+		const summaryBody = summaryField
+			? entry.body.find((item) => item.label === summaryField.label)
+			: undefined;
+		if (summaryBody) consumedBodyLabels.add(summaryBody.label);
 		const summary = entry.values.checkpoint_summary
-			?? (summaryField
-				? entry.body.find((item) => item.label === summaryField.label)?.value
-				: undefined);
+			?? summaryBody?.value;
 		if (summary) {
 			const summaryRenderMode = summaryField
 				&& checkpointFieldRenderMode(summaryField) === 'block-markdown'
@@ -868,7 +890,10 @@ export class ThreadRenderers {
 		let detailCount = 0;
 		for (const field of fields) {
 			if (field.key === 'checkpoint_kind' || field.key === 'checkpoint_summary') continue;
-			const bodyValue = entry.body.find((item) => item.label === field.label)?.value;
+			const bodyValue = consumedBodyLabels.has(field.label)
+				? undefined
+				: entry.body.find((item) => item.label === field.label)?.value;
+			if (bodyValue !== undefined) consumedBodyLabels.add(field.label);
 			const value = entry.values[field.key] || bodyValue;
 			if (!value) continue;
 			await this.renderCheckpointField(
@@ -894,9 +919,7 @@ export class ThreadRenderers {
 			detailCount += 1;
 		}
 		for (const body of entry.body) {
-			if (fields.some((field) => field.storage === 'body' && field.label === body.label)) {
-				continue;
-			}
+			if (knownBodyLabels.has(body.label) || consumedBodyLabels.has(body.label)) continue;
 			await this.renderCheckpointField(
 				details,
 				body.label,

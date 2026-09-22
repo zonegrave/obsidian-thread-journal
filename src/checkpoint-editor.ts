@@ -25,26 +25,20 @@ import {
 } from './inline-log';
 import { t } from './i18n';
 import {
+	TASK_EFFORT_LABELS,
+	taskDeadlineDisplay,
+	taskNextActionLabel,
+	taskRepeatRuleDisplay,
+} from './task-display';
+import {
 	parseTaskLine,
 	taskCurrentLabel,
-	taskRepeatLabel,
-	taskWindowLabel,
-	taskWindowState,
 	type TaskData,
-	type TaskEffort,
 } from './task-model';
 
 const CHECKPOINT_CALLOUT_SELECTOR = '.callout[data-callout="thread-checkpoint"]';
 const LOG_CALLOUT_SELECTOR = '.callout[data-callout="thread-log"]';
 const TASK_RENDER_FIELD = /\s*\[(?:task_id|window_start|window_end|effort|current|repeat|thread_pin)::\s*[^\]]*\]/gu;
-
-function taskRepeatRuleDisplay(data: TaskData): string {
-	const label = taskRepeatLabel(data);
-	return label === 'Daily' ? t('Daily')
-		: label === 'Weekly' ? t('Weekly')
-			: label === 'Monthly' ? t('Monthly')
-				: t('Every {count} days', { count: data.repeatInterval });
-}
 
 class TaskSummaryWidget extends WidgetType {
 	private readonly signature: string;
@@ -55,6 +49,12 @@ class TaskSummaryWidget extends WidgetType {
 		private readonly sourceLine: string,
 		private readonly data: TaskData,
 		private readonly onNext: (file: TFile, line: number, sourceLine: string) => void,
+		private readonly onPin: (
+			file: TFile,
+			line: number,
+			sourceLine: string,
+			pinned: boolean,
+		) => Promise<void>,
 		private readonly onEdit: (
 			file: TFile,
 			line: number,
@@ -76,6 +76,39 @@ class TaskSummaryWidget extends WidgetType {
 	toDOM(view: EditorView): HTMLElement {
 		const host = view.dom.cloneNode(false) as HTMLElement;
 		const container = host.createSpan({ cls: 'thread-journal-task-preview' });
+		let pinned = this.data.pinned;
+		const pin = container.createEl('button', {
+			cls: `clickable-icon thread-journal-task-preview-pin${pinned ? ' is-pinned' : ''}`,
+			attr: { type: 'button' },
+		});
+		const updatePin = (): void => {
+			pin.toggleClass('is-pinned', pinned);
+			pin.setAttribute('aria-pressed', String(pinned));
+			const label = pinned ? t('Unpin task') : t('Pin task');
+			pin.setAttribute('aria-label', label);
+			pin.setAttribute('title', label);
+			pin.empty();
+			setIcon(pin, pinned ? 'pin-off' : 'pin');
+		};
+		updatePin();
+		pin.addEventListener('mousedown', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+		});
+		pin.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			pin.disabled = true;
+			void this.onPin(this.file, this.line, this.sourceLine, !pinned)
+				.then(() => {
+					pinned = !pinned;
+					updatePin();
+				})
+				.catch(() => undefined)
+				.finally(() => {
+					if (pin.isConnected) pin.disabled = false;
+				});
+		});
 		const addChip = (text: string, icon: string, modifier = ''): void => {
 			const chip = container.createSpan({
 				cls: `thread-journal-task-preview-chip${modifier ? ` is-${modifier}` : ''}`,
@@ -83,27 +116,23 @@ class TaskSummaryWidget extends WidgetType {
 			setIcon(chip.createSpan({ cls: 'thread-journal-task-chip-icon' }), icon);
 			chip.createSpan({ text });
 		};
-		const window = taskWindowLabel(this.data);
-		if (window) {
-			addChip(window, 'calendar-range', taskWindowState(
-				this.data,
-				moment().format('YYYY-MM-DD'),
-			));
-		}
+		const today = moment().format('YYYY-MM-DD');
+		const deadline = taskDeadlineDisplay(this.data, today);
+		if (deadline) addChip(deadline.label, 'calendar-clock', deadline.modifier);
 		if (this.data.effort) {
-			const labels: Record<Exclude<TaskEffort, ''>, string> = {
-				quick: t('Quick'),
-				light: t('Light'),
-				normal: t('Normal effort'),
-				deep: t('Deep'),
-			};
-			addChip(labels[this.data.effort], 'gauge');
+			const label = t(TASK_EFFORT_LABELS[this.data.effort]);
+			const effort = container.createSpan({
+				cls: `thread-journal-task-effort is-${this.data.effort}`,
+				attr: { title: label, 'aria-label': label },
+			});
+			setIcon(effort, 'gauge');
 		}
 		if (this.data.repeat) {
 			const rule = taskRepeatRuleDisplay(this.data);
+			const nextLabel = taskNextActionLabel(this.data, today);
 			const current = taskCurrentLabel(
 				this.data.current,
-				moment().format('YYYY-MM-DD'),
+				today,
 				t('Today'),
 			);
 			const repeat = container.createSpan({
@@ -114,8 +143,8 @@ class TaskSummaryWidget extends WidgetType {
 				cls: 'clickable-icon thread-journal-task-repeat-next',
 				attr: {
 					type: 'button',
-					'aria-label': `${rule} · ${t('To next')}`,
-					title: `${rule} · ${t('To next')}`,
+					'aria-label': `${rule} · ${nextLabel}`,
+					title: `${rule} · ${nextLabel}`,
 				},
 			});
 			setIcon(next, 'repeat-2');
@@ -169,6 +198,12 @@ export function checkpointEditorExtension(
 		registerChild: (child: MarkdownRenderChild) => void,
 	) => Promise<void>,
 	onTaskNext: (file: TFile, line: number, sourceLine: string) => void,
+	onTaskPin: (
+		file: TFile,
+		line: number,
+		sourceLine: string,
+		pinned: boolean,
+	) => Promise<void>,
 	onTaskEdit: (file: TFile, line: number, sourceLine: string, data: TaskData) => void,
 ) {
 	return ViewPlugin.fromClass(class CheckpointEditorCallouts {
@@ -220,20 +255,18 @@ export function checkpointEditorExtension(
 								const from = line.from + (match.index ?? 0);
 								ranges.push(Decoration.replace({}).range(from, from + match[0].length));
 							}
-							if (parsed.data.taskId || taskWindowLabel(parsed.data)
-								|| parsed.data.effort || parsed.data.repeat) {
-								ranges.push(Decoration.widget({
-									widget: new TaskSummaryWidget(
-										file,
-										line.number - 1,
-										line.text,
-										parsed.data,
-										onTaskNext,
-										onTaskEdit,
-									),
-									side: 1,
-								}).range(line.to));
-							}
+							ranges.push(Decoration.widget({
+								widget: new TaskSummaryWidget(
+									file,
+									line.number - 1,
+									line.text,
+									parsed.data,
+									onTaskNext,
+									onTaskPin,
+									onTaskEdit,
+								),
+								side: 1,
+							}).range(line.to));
 						}
 					}
 					if (line.to >= visible.to || line.to >= this.view.state.doc.length) break;

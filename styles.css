@@ -1866,19 +1866,6 @@
 	max-width: 100%;
 }
 
-.thread-journal-task-modal .thread-journal-task-form-field.is-date .setting-item-control {
-	display: grid;
-	grid-template-columns: minmax(7.5rem, 1fr) auto;
-	gap: 0.4rem;
-	align-items: center;
-	justify-content: stretch;
-}
-
-.thread-journal-task-modal .thread-journal-task-form-field.is-date input[type="date"] {
-	min-width: 0;
-	width: 100%;
-}
-
 .thread-journal-task-modal input.thread-journal-task-repeat-interval {
 	width: 4.5rem;
 }
@@ -1888,12 +1875,14 @@
 	grid-template-rows: auto auto;
 }
 
-.thread-journal-task-form-field.is-window .setting-item-control {
+.thread-journal-task-form-field.is-window .setting-item-control,
+.thread-journal-task-form-field.is-current-date .setting-item-control {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 }
 
-.thread-journal-task-window-trigger {
+.thread-journal-task-window-trigger,
+.thread-journal-task-current-trigger {
 	justify-content: flex-start;
 	min-width: 0;
 	font-variant-numeric: tabular-nums;
@@ -1925,6 +1914,10 @@
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 0.65rem;
+}
+
+.thread-journal-task-window-popover.is-single .thread-journal-task-window-calendars {
+	grid-template-columns: minmax(0, 1fr);
 }
 
 .thread-journal-task-window-pane {
@@ -2090,8 +2083,7 @@
 	display: none;
 }
 
-.thread-journal-task-actions button,
-.thread-journal-task-form-field.is-date button {
+.thread-journal-task-actions button {
 	max-width: 100%;
 	white-space: normal;
 }
@@ -2110,13 +2102,6 @@
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.thread-journal-task-form-field.is-date .setting-item-control {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.thread-journal-task-form-field.is-date button {
-		justify-self: start;
-	}
 }
 
 .thread-journal-overview-task {
@@ -2166,6 +2151,37 @@
 	margin: 0;
 }
 
+.thread-journal-source-task-pin,
+.thread-journal-task-preview-pin {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 1.4rem;
+	height: 1.4rem;
+	min-width: 1.4rem;
+	min-height: 1.4rem;
+	padding: 0.08rem;
+	color: var(--text-faint);
+	opacity: 0.65;
+}
+
+.thread-journal-source-task-card:hover .thread-journal-source-task-pin,
+.thread-journal-task-preview:hover .thread-journal-task-preview-pin,
+.thread-journal-source-task-pin:focus-visible,
+.thread-journal-task-preview-pin:focus-visible,
+.thread-journal-source-task-pin.is-pinned,
+.thread-journal-task-preview-pin.is-pinned {
+	color: var(--text-accent);
+	opacity: 1;
+}
+
+.thread-journal-source-task-pin svg,
+.thread-journal-task-preview-pin svg {
+	width: 15px;
+	height: 15px;
+}
+
 .thread-journal-source-task-details,
 .thread-journal-source-task-actions {
 	display: flex;
@@ -2201,9 +2217,8 @@
 }
 
 .thread-journal-source-task-chip {
-	padding: 0.08rem 0.35rem;
-	border-radius: var(--radius-s);
-	background: var(--background-modifier-hover);
+	padding: 0;
+	background: transparent;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	font-variant-numeric: tabular-nums;
@@ -2247,9 +2262,8 @@
 }
 
 .thread-journal-task-preview-chip {
-	padding: 0.05rem 0.32rem;
-	border-radius: var(--radius-s);
-	background: var(--background-modifier-hover);
+	padding: 0;
+	background: transparent;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	font-variant-numeric: tabular-nums;
@@ -2258,7 +2272,7 @@
 .thread-journal-source-task-chip.is-upcoming,
 .thread-journal-overview-task-chip.is-upcoming,
 .thread-journal-task-preview-chip.is-upcoming {
-	color: var(--text-muted);
+	color: color-mix(in srgb, var(--text-normal) 65%, var(--text-muted));
 }
 
 .thread-journal-source-task-chip.is-current,
@@ -2289,6 +2303,125 @@
 .thread-journal-task-preview-edit svg {
 	width: 16px;
 	height: 16px;
+}
+
+.thread-journal-task-reference {
+	margin: 0.5rem 0;
+}
+
+.thread-journal-task-reference-card {
+	display: grid;
+	grid-template-columns: auto auto minmax(0, 1fr) auto;
+	align-items: start;
+	gap: 0.3rem 0.45rem;
+	padding: 0.45rem 0.55rem;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	box-shadow: inset 3px 0 var(--interactive-accent);
+}
+
+.thread-journal-task-reference-checkbox {
+	grid-column: 1;
+	margin-top: 0.18rem;
+}
+
+.thread-journal-task-reference-pin {
+	grid-column: 2;
+	width: 1.4rem;
+	height: 1.4rem;
+	min-width: 1.4rem;
+	min-height: 1.4rem;
+	padding: 0.08rem;
+	color: var(--text-faint);
+	opacity: 0.65;
+}
+
+.thread-journal-task-reference-card:hover .thread-journal-task-reference-pin,
+.thread-journal-task-reference-pin:focus-visible,
+.thread-journal-task-reference-pin.is-pinned {
+	color: var(--text-accent);
+	opacity: 1;
+}
+
+.thread-journal-task-reference-pin svg {
+	width: 15px;
+	height: 15px;
+}
+
+.thread-journal-task-reference-body {
+	display: flex;
+	grid-column: 3;
+	min-width: 0;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+
+.thread-journal-task-reference-content > p {
+	margin: 0;
+}
+
+.thread-journal-task-reference-card.is-completed .thread-journal-task-reference-content {
+	color: var(--text-muted);
+	text-decoration: line-through;
+}
+
+.thread-journal-task-reference-details,
+.thread-journal-task-reference-repeat,
+.thread-journal-task-reference-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+.thread-journal-task-reference-details {
+	flex-wrap: wrap;
+}
+
+.thread-journal-task-reference-detail,
+.thread-journal-task-reference-repeat {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.22rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+}
+
+.thread-journal-task-reference-detail.is-upcoming {
+	color: color-mix(in srgb, var(--text-normal) 65%, var(--text-muted));
+}
+
+.thread-journal-task-reference-detail.is-current {
+	color: var(--text-success);
+}
+
+.thread-journal-task-reference-detail.is-overdue {
+	color: var(--text-error);
+}
+
+.thread-journal-task-reference-repeat {
+	color: var(--text-accent);
+}
+
+.thread-journal-task-reference-actions {
+	grid-column: 4;
+	flex-wrap: nowrap;
+}
+
+.thread-journal-task-reference-actions button {
+	width: 1.5rem;
+	height: 1.5rem;
+	min-width: 1.5rem;
+	min-height: 1.5rem;
+	padding: 0.1rem;
+}
+
+.thread-journal-task-reference-message {
+	padding: 0.45rem 0.55rem;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
 }
 
 .markdown-rendered li.thread-journal-source-task > ul,
@@ -2352,6 +2485,10 @@
 	color: var(--text-muted);
 }
 
+.thread-journal-overview-task-detail.is-upcoming {
+	color: color-mix(in srgb, var(--text-normal) 65%, var(--text-muted));
+}
+
 .thread-journal-overview-task-detail.is-disposition-future,
 .thread-journal-overview-task-detail.is-disposition-waiting {
 	color: var(--text-warning);
@@ -2385,7 +2522,8 @@
 
 .thread-journal-source-task .thread-journal-task-repeat-next,
 .thread-journal-task-preview .thread-journal-task-repeat-next,
-.thread-journal-overview-task .thread-journal-task-repeat-next {
+.thread-journal-overview-task .thread-journal-task-repeat-next,
+.thread-journal-task-reference .thread-journal-task-repeat-next {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -2402,30 +2540,30 @@
 	height: 16px;
 }
 
-.thread-journal-overview-task-effort {
+.thread-journal-task-effort {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.thread-journal-overview-task-effort svg {
+.thread-journal-task-effort svg {
 	width: 15px;
 	height: 15px;
 }
 
-.thread-journal-overview-task-effort.is-quick {
+.thread-journal-task-effort.is-quick {
 	color: var(--color-green);
 }
 
-.thread-journal-overview-task-effort.is-light {
+.thread-journal-task-effort.is-light {
 	color: var(--color-yellow);
 }
 
-.thread-journal-overview-task-effort.is-normal {
+.thread-journal-task-effort.is-normal {
 	color: var(--color-red);
 }
 
-.thread-journal-overview-task-effort.is-deep {
+.thread-journal-task-effort.is-deep {
 	color: var(--color-purple);
 }
 

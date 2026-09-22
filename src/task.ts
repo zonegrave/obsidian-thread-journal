@@ -10,6 +10,7 @@ import {
 } from 'obsidian';
 import { t } from './i18n';
 import { cursorLineIsFrontmatter } from './checkpoint-core';
+import { taskLineWithPin } from './thread-attention-model';
 import {
 	advanceTaskLine,
 	buildTaskLine,
@@ -24,10 +25,17 @@ import {
 	type TaskEffort,
 	type TaskRepeatFrequency,
 } from './task-model';
-import { openTaskWindowPicker } from './task-window-picker';
+import { openTaskDatePicker, openTaskWindowPicker } from './task-window-picker';
 import type { ThreadIndex } from './thread-index';
 
 type TaskSubmit = (data: TaskData) => void;
+
+export interface FileTaskLocation {
+	file: TFile;
+	line: number;
+	sourceLine: string;
+	parsed: ParsedTaskLine;
+}
 
 function currentDate(): string {
 	return moment().format('YYYY-MM-DD');
@@ -227,36 +235,41 @@ class TaskModal extends Modal {
 				});
 			});
 		}
-		this.addDateField(fields, t('Current'), this.data.current, (value) => {
-			this.data.current = value;
-			if (this.data.repeatFrequency === 'monthly') {
-				this.data.repeatMonthDay = dayOfMonth(value);
-			}
-		});
-	}
-
-	private addDateField(
-		parent: HTMLElement,
-		name: string,
-		value: string,
-		onChange: (value: string) => void,
-	): void {
-		const setting = new Setting(parent)
+		const current = new Setting(fields)
 			.setClass('thread-journal-task-form-field')
-			.setClass('is-date')
-			.setName(name);
-		const input = setting.controlEl.createEl('input', {
-			attr: { type: 'date', 'aria-label': name },
+			.setClass('is-current-date')
+			.setName(t('Current'));
+		const trigger = current.controlEl.createEl('button', {
+			cls: 'thread-journal-task-current-trigger',
+			text: this.data.current,
+			attr: {
+				type: 'button',
+				'aria-expanded': 'false',
+				'aria-label': t('Select current date'),
+			},
 		});
-		input.value = value;
-		input.addEventListener('input', () => onChange(input.value));
-		const clear = setting.controlEl.createEl('button', {
-			text: t('Clear'),
-			attr: { type: 'button' },
-		});
-		clear.addEventListener('click', () => {
-			input.value = '';
-			onChange('');
+		trigger.addEventListener('click', () => {
+			if (this.closeWindowPicker) {
+				this.closeWindowPicker();
+				this.closeWindowPicker = undefined;
+				return;
+			}
+			trigger.setAttribute('aria-expanded', 'true');
+			this.closeWindowPicker = openTaskDatePicker(
+				trigger,
+				this.data.current,
+				(value) => {
+					this.data.current = value;
+					if (this.data.repeatFrequency === 'monthly') {
+						this.data.repeatMonthDay = dayOfMonth(value);
+					}
+					this.render();
+				},
+				() => {
+					this.closeWindowPicker = undefined;
+					if (trigger.isConnected) trigger.setAttribute('aria-expanded', 'false');
+				},
+			);
 		});
 	}
 
@@ -268,10 +281,37 @@ class TaskModal extends Modal {
 }
 
 export class TaskManager {
+	private taskLocationIndex?: Promise<Map<string, FileTaskLocation[]>>;
+
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 	) {}
+
+	invalidateTaskIndex(): void {
+		this.taskLocationIndex = undefined;
+	}
+
+	async findTasksById(taskId: string): Promise<FileTaskLocation[]> {
+		this.taskLocationIndex ??= this.buildTaskLocationIndex();
+		return [...((await this.taskLocationIndex).get(taskId) ?? [])];
+	}
+
+	private async buildTaskLocationIndex(): Promise<Map<string, FileTaskLocation[]>> {
+		const index = new Map<string, FileTaskLocation[]>();
+		const entries = await Promise.all(this.app.vault.getMarkdownFiles().map(async (file) => {
+			const lines = (await this.app.vault.cachedRead(file)).split('\n');
+			return lines.flatMap((sourceLine, line) => {
+				const parsed = parseTaskLine(sourceLine);
+				return parsed?.data.taskId ? [{ file, line, sourceLine, parsed }] : [];
+			});
+		}));
+		for (const location of entries.flat()) {
+			const taskId = location.parsed.data.taskId;
+			index.set(taskId, [...(index.get(taskId) ?? []), location]);
+		}
+		return index;
+	}
 
 	canCreateTask(editor: Editor, file: TFile | null): boolean {
 		if (!file || this.index.getMember(file)?.roleStatus !== 'active') return false;
@@ -320,11 +360,68 @@ export class TaskManager {
 				if (!parsed) throw new Error(t('The task changed; reopen the form and try again.'));
 				lines[resolved] = buildTaskLine(data, parsed);
 				return lines.join('\n');
-			}).then(onSaved).catch((error: unknown) => {
+			}).then(() => {
+				this.invalidateTaskIndex();
+				onSaved?.();
+			}).catch((error: unknown) => {
 				console.error('Thread Journal failed to edit task', error);
 				new Notice(t('Failed to update task: {error}', { error: String(error) }));
 			});
 		}).open();
+	}
+
+	async setFileTaskPinned(
+		file: TFile,
+		line: number,
+		sourceLine: string,
+		pinned: boolean,
+	): Promise<void> {
+		try {
+			await this.app.vault.process(file, (content) => {
+				const lines = content.split('\n');
+				const taskId = parseTaskLine(sourceLine)?.data.taskId ?? '';
+				const resolved = resolveSourceLine(lines, line, sourceLine, taskId);
+				const current = lines[resolved];
+				if (current === undefined || !parseTaskLine(current)) {
+					throw new Error(t('The task changed; reopen the form and try again.'));
+				}
+				lines[resolved] = taskLineWithPin(current, pinned);
+				return lines.join('\n');
+			});
+			this.invalidateTaskIndex();
+		} catch (error) {
+			console.error('Thread Journal failed to update pinned task', error);
+			new Notice(t('Failed to update pinned task: {error}', { error: String(error) }));
+			throw error;
+		}
+	}
+
+	async setFileTaskCompleted(
+		file: TFile,
+		line: number,
+		sourceLine: string,
+		completed: boolean,
+	): Promise<void> {
+		try {
+			await this.app.vault.process(file, (content) => {
+				const lines = content.split('\n');
+				const taskId = parseTaskLine(sourceLine)?.data.taskId ?? '';
+				const resolved = resolveSourceLine(lines, line, sourceLine, taskId);
+				const current = lines[resolved];
+				const parsed = current === undefined ? undefined : parseTaskLine(current);
+				if (!parsed) throw new Error(t('The task changed; reopen the form and try again.'));
+				lines[resolved] = buildTaskLine(parsed.data, {
+					...parsed,
+					marker: completed ? 'x' : ' ',
+				});
+				return lines.join('\n');
+			});
+			this.invalidateTaskIndex();
+		} catch (error) {
+			console.error('Thread Journal failed to update task completion', error);
+			new Notice(t('Failed to update task: {error}', { error: String(error) }));
+			throw error;
+		}
 	}
 
 	moveFileTaskToNext(
@@ -344,7 +441,10 @@ export class TaskManager {
 			if (!replacement) throw new Error(t('The task is not a valid repeating task.'));
 			lines[resolved] = replacement;
 			return lines.join('\n');
-		}).then(onSaved).catch((error: unknown) => {
+		}).then(() => {
+			this.invalidateTaskIndex();
+			onSaved?.();
+		}).catch((error: unknown) => {
 			console.error('Thread Journal failed to move task to next occurrence', error);
 			new Notice(t('Failed to move task to next: {error}', { error: String(error) }));
 		});
