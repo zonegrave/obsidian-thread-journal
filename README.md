@@ -177,6 +177,8 @@ attention_fallback: true
 
 日期和时间只保存在结构化字段中，卡片标题由字段生成。创建和编辑默认使用右侧非模态表单，可以继续对照主笔记；`Cmd/Ctrl + Enter` 保存。原地卡片提供编辑，查询卡片提供定位、编辑和删除。摘要和文本字段支持 Markdown 与双链。
 
+`effort` 在原地 callout 与查询卡片中渲染为和 Task 一致的 gauge 图标，以绿、黄、红、紫分别表示 `quick`、`light`、`normal`、`deep`；悬浮时显示对应文字，不重复展示原始字段值。
+
 每个 thread 可以把独立字段模板保存在 meta 的 `commit_fields`；没有时继承全局默认。字段支持单行、多行、数字、开关、日期、选择项、必填、正文/inline 保存和废弃。废弃字段不再出现在新表单中，但仍用于解释历史记录。
 
 多行字段使用 `inline` storage 时，换行会在原始 inline property 中无损编码为 `&#10;`，插件在编辑和渲染时恢复为真实换行；使用 `body` storage 时则直接保存为 commit callout 中的多行 Markdown。

@@ -79,6 +79,20 @@ function commitTimestamp(entry: ParsedCommitEntry): string {
 	return `${entry.values.commit_date ?? ''}T${entry.values.commit_time ?? ''}`;
 }
 
+function commitEffortValue(
+	entry: ParsedCommitEntry,
+	fields: ThreadJournalSettings['commitFields'],
+): keyof typeof TASK_EFFORT_LABELS | undefined {
+	const field = fields.find((candidate) => candidate.key === 'effort');
+	const bodyValue = field
+		? entry.body.find((item) => item.label === field.label)?.value
+		: undefined;
+	const value = entry.values.effort ?? bodyValue;
+	return value && Object.prototype.hasOwnProperty.call(TASK_EFFORT_LABELS, value)
+		? value as keyof typeof TASK_EFFORT_LABELS
+		: undefined;
+}
+
 function addFileLink(
 	app: App,
 	container: HTMLElement,
@@ -373,6 +387,7 @@ export class ThreadRenderers {
 				'thread-journal-commit-card-controls',
 			],
 		});
+		this.renderCommitEffort(controls, entry, fields);
 		const edit = controls.createEl('button', {
 			cls: 'thread-journal-commit-edit',
 			text: t('Edit'),
@@ -799,6 +814,7 @@ export class ThreadRenderers {
 				);
 			}
 			const controls = header.createDiv({ cls: 'thread-journal-commit-card-controls' });
+			this.renderCommitEffort(controls, entry, fields);
 			if (entry.blockId) {
 				const blockId = entry.blockId;
 				const locate = controls.createEl('a', {
@@ -882,8 +898,10 @@ export class ThreadRenderers {
 
 		const details = container.createDiv({ cls: 'thread-journal-commit-card-fields' });
 		let detailCount = 0;
+		const displayedEffort = commitEffortValue(entry, fields);
 		for (const field of fields) {
 			if (field.key === 'commit_summary') continue;
+			if (field.key === 'effort' && displayedEffort) continue;
 			const bodyValue = consumedBodyLabels.has(field.label)
 				? undefined
 				: entry.body.find((item) => item.label === field.label)?.value;
@@ -925,6 +943,21 @@ export class ThreadRenderers {
 			detailCount += 1;
 		}
 		if (detailCount === 0) details.remove();
+	}
+
+	private renderCommitEffort(
+		container: HTMLElement,
+		entry: ParsedCommitEntry,
+		fields: ThreadJournalSettings['commitFields'],
+	): void {
+		const value = commitEffortValue(entry, fields);
+		if (!value) return;
+		const label = t(TASK_EFFORT_LABELS[value]);
+		const effort = container.createSpan({
+			cls: `thread-journal-task-effort thread-journal-commit-effort is-${value}`,
+			attr: { title: label, 'aria-label': label },
+		});
+		setIcon(effort, 'gauge');
 	}
 
 	private async renderCommitField(
