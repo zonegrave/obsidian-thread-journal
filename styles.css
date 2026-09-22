@@ -1741,8 +1741,8 @@
 }
 
 .thread-journal-task-meta-pin svg {
-	width: 14px;
-	height: 14px;
+	width: 17px;
+	height: 17px;
 }
 
 .thread-journal-task-meta-id {
@@ -2168,8 +2168,8 @@
 
 .thread-journal-source-task-pin svg,
 .thread-journal-task-preview-pin svg {
-	width: 15px;
-	height: 15px;
+	width: 18px;
+	height: 18px;
 }
 
 .thread-journal-source-task-details,
@@ -2241,8 +2241,8 @@
 .thread-journal-source-task-edit svg,
 .thread-journal-overview-task-edit svg,
 .thread-journal-task-commit svg {
-	width: 16px;
-	height: 16px;
+	width: 19px;
+	height: 19px;
 }
 
 .thread-journal-task-preview {
@@ -2336,8 +2336,8 @@
 }
 
 .thread-journal-task-reference-pin svg {
-	width: 15px;
-	height: 15px;
+	width: 18px;
+	height: 18px;
 }
 
 .thread-journal-task-reference-body {
@@ -2611,8 +2611,8 @@
 }
 
 .thread-journal-overview-task-pin svg {
-	width: 15px;
-	height: 15px;
+	width: 18px;
+	height: 18px;
 }
 
 .thread-journal-overview-task-kind {
