@@ -1,23 +1,23 @@
-import { checkpointFieldKey } from './checkpoint-model';
+import { commitFieldKey } from './commit-model';
 import { t } from './i18n';
-import type { CheckpointFieldSpec } from './types';
+import type { CommitFieldSpec } from './types';
 
-export type CheckpointValue = string | number | boolean;
+export type CommitValue = string | number | boolean;
 
-export interface CheckpointEntryInput {
+export interface CommitEntryInput {
 	date: string;
 	time: string;
 	blockId: string;
-	fields: CheckpointFieldSpec[];
-	values: Record<string, CheckpointValue | undefined>;
+	fields: CommitFieldSpec[];
+	values: Record<string, CommitValue | undefined>;
 }
 
-function valueIsPresent(value: CheckpointValue | undefined): value is CheckpointValue {
+function valueIsPresent(value: CommitValue | undefined): value is CommitValue {
 	if (value === undefined) return false;
 	return typeof value !== 'string' || value.trim().length > 0;
 }
 
-function inlineValue(value: CheckpointValue): string {
+function inlineValue(value: CommitValue): string {
 	if (typeof value !== 'string') return String(value);
 	return value
 		.trim()
@@ -34,7 +34,7 @@ function parsedInlineValue(value: string): string {
 		.replace(/&#38;/g, '&');
 }
 
-function bodyField(field: CheckpointFieldSpec, value: CheckpointValue): string[] {
+function bodyField(field: CommitFieldSpec, value: CommitValue): string[] {
 	const text = String(value).trim();
 	const lines = text.split(/\r?\n/);
 	if (lines.length <= 1) return [`  - **${field.label}：** ${lines[0] ?? ''}`];
@@ -44,25 +44,25 @@ function bodyField(field: CheckpointFieldSpec, value: CheckpointValue): string[]
 	];
 }
 
-export interface ParsedCheckpointBodyField {
+export interface ParsedCommitBodyField {
 	label: string;
 	value: string;
 }
 
-export interface ParsedCheckpointEntry {
+export interface ParsedCommitEntry {
 	blockId?: string;
 	values: Record<string, string>;
-	body: ParsedCheckpointBodyField[];
+	body: ParsedCommitBodyField[];
 }
 
-export interface CheckpointEditState {
-	fields: CheckpointFieldSpec[];
-	values: Record<string, CheckpointValue | undefined>;
+export interface CommitEditState {
+	fields: CommitFieldSpec[];
+	values: Record<string, CommitValue | undefined>;
 }
 
-const CHECKPOINT_SYSTEM_KEYS = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
+const COMMIT_SYSTEM_KEYS = new Set(['commit', 'commit_date', 'commit_time']);
 
-function modalValue(field: CheckpointFieldSpec, value: string): CheckpointValue {
+function modalValue(field: CommitFieldSpec, value: string): CommitValue {
 	if (field.control === 'toggle') return value === 'true';
 	if (field.control === 'number') {
 		const number = Number(value);
@@ -71,12 +71,12 @@ function modalValue(field: CheckpointFieldSpec, value: string): CheckpointValue 
 	return value;
 }
 
-export function checkpointEditState(
-	templateFields: CheckpointFieldSpec[],
-	entry: ParsedCheckpointEntry,
-): CheckpointEditState {
-	const fields: CheckpointFieldSpec[] = [];
-	const values: Record<string, CheckpointValue | undefined> = {};
+export function commitEditState(
+	templateFields: CommitFieldSpec[],
+	entry: ParsedCommitEntry,
+): CommitEditState {
+	const fields: CommitFieldSpec[] = [];
+	const values: Record<string, CommitValue | undefined> = {};
 	const usedKeys = new Set<string>();
 	const usedBodyLabels = new Set<string>();
 
@@ -95,7 +95,7 @@ export function checkpointEditState(
 	}
 
 	for (const [key, value] of Object.entries(entry.values)) {
-		if (CHECKPOINT_SYSTEM_KEYS.has(key) || usedKeys.has(key)) continue;
+		if (COMMIT_SYSTEM_KEYS.has(key) || usedKeys.has(key)) continue;
 		fields.push({
 			key,
 			label: key,
@@ -111,7 +111,7 @@ export function checkpointEditState(
 
 	entry.body.forEach((body, index) => {
 		if (usedBodyLabels.has(body.label)) return;
-		let key = checkpointFieldKey(body.label, `checkpoint_body_${index + 1}`);
+		let key = commitFieldKey(body.label, `commit_body_${index + 1}`);
 		let suffix = 2;
 		while (usedKeys.has(key)) {
 			key = `${key}_${suffix}`;
@@ -133,11 +133,11 @@ export function checkpointEditState(
 	return { fields, values };
 }
 
-export function buildCheckpointEntry(input: CheckpointEntryInput): string {
+export function buildCommitEntry(input: CommitEntryInput): string {
 	const fields = [
-		'[checkpoint:: true]',
-		`[checkpoint_date:: ${input.date}]`,
-		`[checkpoint_time:: ${input.time}]`,
+		'[commit:: true]',
+		`[commit_date:: ${input.date}]`,
+		`[commit_time:: ${input.time}]`,
 	];
 	const body: string[] = [];
 	for (const field of input.fields) {
@@ -148,7 +148,7 @@ export function buildCheckpointEntry(input: CheckpointEntryInput): string {
 	}
 	const blockId = input.blockId.replace(/[^\p{Letter}\p{Number}_-]+/gu, '-');
 	return [
-		'> [!thread-checkpoint]',
+		'> [!thread-commit]',
 		...[
 			`- ${fields.join(' ')} ^${blockId}`,
 			...body,
@@ -171,21 +171,21 @@ function parseInlineFields(line: string): Record<string, string> {
 	return result;
 }
 
-export function parseCheckpointEntries(content: string): ParsedCheckpointEntry[] {
+export function parseCommitEntries(content: string): ParsedCommitEntry[] {
 	const lines = content.split(/\r?\n/);
-	const result: ParsedCheckpointEntry[] = [];
+	const result: ParsedCommitEntry[] = [];
 	for (let index = 0; index < lines.length; index += 1) {
 		const line = unquote(lines[index] ?? '');
-		if (!/^\s*-\s+/.test(line) || !/\[checkpoint::\s*true\]/.test(line)) continue;
-		const entry: ParsedCheckpointEntry = {
+		if (!/^\s*-\s+/.test(line) || !/\[commit::\s*true\]/.test(line)) continue;
+		const entry: ParsedCommitEntry = {
 			blockId: /\^([\p{Letter}\p{Number}_-]+)\s*$/u.exec(line)?.[1],
 			values: parseInlineFields(line),
 			body: [],
 		};
-		let currentBody: ParsedCheckpointBodyField | undefined;
+		let currentBody: ParsedCommitBodyField | undefined;
 		for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
 			const next = unquote(lines[cursor] ?? '');
-			if (/^\s*-\s+.*\[checkpoint::\s*true\]/.test(next)) break;
+			if (/^\s*-\s+.*\[commit::\s*true\]/.test(next)) break;
 			if (/^#{1,6}\s+/.test(next) || /^```/.test(next) || /^\s*>?\s*\[!/.test(next)) break;
 			const bodyMatch = /^\s*-\s+\*\*(.+?)：\*\*\s*(.*)$/.exec(next);
 			if (bodyMatch) {
@@ -210,21 +210,21 @@ export function parseCheckpointEntries(content: string): ParsedCheckpointEntry[]
 	return result;
 }
 
-export function checkpointEntryAroundLine(
+export function commitEntryAroundLine(
 	content: string,
 	line: number,
-): ParsedCheckpointEntry | undefined {
+): ParsedCommitEntry | undefined {
 	const lines = content.split(/\r?\n/);
 	let start = Math.max(0, Math.min(Math.trunc(line), Math.max(0, lines.length - 1)));
 	for (; start >= 0; start -= 1) {
 		const source = lines[start] ?? '';
-		if (/^\s*>\s*\[!thread-checkpoint\]/u.test(source)) break;
+		if (/^\s*>\s*\[!thread-commit\]/u.test(source)) break;
 		if (!/^\s*>/u.test(source)) return undefined;
 	}
 	if (start < 0) return undefined;
 	let end = start + 1;
 	while (end < lines.length && /^\s*>/u.test(lines[end] ?? '')) end += 1;
-	return parseCheckpointEntries(lines.slice(start, end).join('\n'))[0];
+	return parseCommitEntries(lines.slice(start, end).join('\n'))[0];
 }
 
 function withTrailingNewline(lines: string[]): string {
@@ -232,7 +232,7 @@ function withTrailingNewline(lines: string[]): string {
 	return `${lines.join('\n')}\n`;
 }
 
-export function appendCheckpointEntry(content: string, entry: string): string {
+export function appendCommitEntry(content: string, entry: string): string {
 	const lines = content.split(/\r?\n/);
 	while (lines.length > 0 && !(lines[lines.length - 1] ?? '').trim()) lines.pop();
 	if (lines.length > 0) lines.push('');
@@ -240,17 +240,17 @@ export function appendCheckpointEntry(content: string, entry: string): string {
 	return withTrailingNewline(lines);
 }
 
-export interface CheckpointInsertionEdit {
+export interface CommitInsertionEdit {
 	from: { line: number; ch: number };
 	to: { line: number; ch: number };
 	replacement: string;
 }
 
-export function checkpointInsertionEdit(
+export function commitInsertionEdit(
 	lines: readonly string[],
 	entry: string,
 	line: number,
-): CheckpointInsertionEdit {
+): CommitInsertionEdit {
 	const index = Math.max(0, Math.min(Math.trunc(line), Math.max(0, lines.length - 1)));
 	const current = lines[index] ?? '';
 	if (!current.trim()) {
@@ -287,20 +287,20 @@ function escapedPattern(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-interface CheckpointEntryRange {
+interface CommitEntryRange {
 	start: number;
 	end: number;
 }
 
-function checkpointEntryRange(lines: string[], blockId: string): CheckpointEntryRange {
+function commitEntryRange(lines: string[], blockId: string): CommitEntryRange {
 	const blockPattern = new RegExp(`\\^${escapedPattern(blockId)}\\s*$`, 'u');
 	const marker = lines.findIndex((line) => {
 		const unquoted = unquote(line);
-		return /\[checkpoint::\s*true\]/.test(unquoted) && blockPattern.test(unquoted);
+		return /\[commit::\s*true\]/.test(unquoted) && blockPattern.test(unquoted);
 	});
-	if (marker < 0) throw new Error(t('Checkpoint does not exist: {id}', { id: blockId }));
+	if (marker < 0) throw new Error(t('Commit does not exist: {id}', { id: blockId }));
 	const calloutStart = marker > 0
-		&& /^\s*>\s*\[!thread-checkpoint\]/u.test(lines[marker - 1] ?? '')
+		&& /^\s*>\s*\[!thread-commit\]/u.test(lines[marker - 1] ?? '')
 		? marker - 1
 		: marker;
 
@@ -315,20 +315,20 @@ function checkpointEntryRange(lines: string[], blockId: string): CheckpointEntry
 	return { start: calloutStart, end };
 }
 
-export function replaceCheckpointEntry(
+export function replaceCommitEntry(
 	content: string,
 	blockId: string,
 	entry: string,
 ): string {
 	const lines = content.split(/\r?\n/);
-	const { start, end } = checkpointEntryRange(lines, blockId);
+	const { start, end } = commitEntryRange(lines, blockId);
 	lines.splice(start, end - start, ...entry.split('\n'));
 	return withTrailingNewline(lines);
 }
 
-export function deleteCheckpointEntry(content: string, blockId: string): string {
+export function deleteCommitEntry(content: string, blockId: string): string {
 	const lines = content.split(/\r?\n/);
-	const { start, end } = checkpointEntryRange(lines, blockId);
+	const { start, end } = commitEntryRange(lines, blockId);
 	let deleteStart = start;
 	let deleteEnd = end;
 	if (!(lines[deleteEnd] ?? '').trim()) deleteEnd += 1;

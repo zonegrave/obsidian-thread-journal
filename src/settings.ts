@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting, normalizePath } from 'obsidian';
-import { normalizeCheckpointFields } from './checkpoint-model';
-import { renderCheckpointFieldSettings } from './checkpoint-settings';
+import { normalizeCommitFields } from './commit-model';
+import { renderCommitFieldSettings } from './commit-settings';
 import { t, type LanguageSetting } from './i18n';
 import type ThreadJournalPlugin from './main';
 import type { ThreadJournalSettings } from './types';
@@ -12,7 +12,7 @@ export const DEFAULT_SETTINGS: ThreadJournalSettings = {
 	threadRoleTemplatesFolder: 'Templates/Thread Roles',
 	defaultThreadRoleTemplatePath: 'Templates/Thread Roles/Workspace.md',
 	breadcrumbPosition: 'top',
-	checkpointFields: normalizeCheckpointFields(undefined),
+	commitFields: normalizeCommitFields(undefined),
 };
 
 export function normalizedSettings(
@@ -38,7 +38,7 @@ export function normalizedSettings(
 				|| DEFAULT_SETTINGS.defaultThreadRoleTemplatePath,
 		),
 		breadcrumbPosition: merged.breadcrumbPosition === 'bottom' ? 'bottom' : 'top',
-		checkpointFields: normalizeCheckpointFields(raw.checkpointFields),
+		commitFields: normalizeCommitFields(raw.commitFields),
 	};
 }
 
@@ -123,7 +123,7 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 					this.plugin.refreshBreadcrumbBars();
 				}));
 
-		renderCheckpointFieldSettings(containerEl, this.plugin, () => {
+		renderCommitFieldSettings(containerEl, this.plugin, () => {
 			this.display();
 		});
 	}

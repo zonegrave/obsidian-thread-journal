@@ -1,4 +1,4 @@
-export type ThreadEntryType = 'checkpoint' | 'log';
+export type ThreadEntryType = 'commit' | 'log';
 export type ThreadEntryGroupBy = 'none' | 'thread' | 'type';
 export type ThreadEntryDetail = 'none' | 'name' | 'crumb';
 export type ThreadEntryOrder = 'asc' | 'desc';
@@ -22,7 +22,7 @@ export interface ParsedThreadEntriesQuery {
 	errors: string[];
 }
 
-const ENTRY_TYPES = new Set<ThreadEntryType>(['checkpoint', 'log']);
+const ENTRY_TYPES = new Set<ThreadEntryType>(['commit', 'log']);
 const GROUP_VALUES = new Set<ThreadEntryGroupBy>(['none', 'thread', 'type']);
 const THREAD_DETAIL_VALUES = new Set<ThreadEntryDetail>(['none', 'name', 'crumb']);
 const ORDER_VALUES = new Set<ThreadEntryOrder>(['asc', 'desc']);
@@ -130,7 +130,7 @@ export function parseThreadEntriesQuery(source: string): ParsedThreadEntriesQuer
 		}
 	}
 
-	let types: ThreadEntryType[] = ['checkpoint', 'log'];
+	let types: ThreadEntryType[] = ['commit', 'log'];
 	const rawTypes = values.get('type');
 	if (rawTypes !== undefined) {
 		const parsed = listValues(rawTypes);

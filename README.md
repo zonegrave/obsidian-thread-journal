@@ -1,6 +1,6 @@
 # Thread Journal
 
-Thread Journal 是一个本地优先的 Obsidian 插件。它把持续推进的工作组织成 thread pack：一份只负责身份与生命周期的 meta，加上任意数量、任意角色的工作文件；log 与 checkpoint 可以写在任何成员文件中，再按 thread、日期和类型统一查询。
+Thread Journal 是一个本地优先的 Obsidian 插件。它把持续推进的工作组织成 thread pack：一份只负责身份与生命周期的 meta，加上任意数量、任意角色的工作文件；log 与 commit 可以写在任何成员文件中，再按 thread、日期和类型统一查询。
 
 > 插件仍处于探索阶段。当前实现只维护一套数据模型；schema 变化时一次性迁移现有笔记，不在运行时保留旧格式兼容分支。
 
@@ -30,7 +30,7 @@ thread meta（唯一）
 
 这个模型有三个关键点：
 
-1. **Meta 只管理 thread 本身。** 稳定身份、显示名称、状态、父子关系、唯一入口和 checkpoint 字段模板只存一份。
+1. **Meta 只管理 thread 本身。** 稳定身份、显示名称、状态、父子关系、唯一入口和 commit 字段模板只存一份。
 2. **成员文件负责工作内容。** 任意 Markdown 只要带有同一个 `thread_id`，就自动属于该 thread；它可以自由记录，也可以通过 `thread_role` 表达用途。
 3. **角色由模板定义。** `workspace` 和 `context` 不再是插件写死的两种文件。新 thread 只需先创建一个入口文件；需要稳定 Context、研究稿或子任务切片时，再从相应模板扩展。
 
@@ -42,7 +42,7 @@ thread meta（唯一）
 2. `idea` 和 `committed` 只创建 meta，不创建成员或 entry。选择其他初始状态时才选择入口模板；默认 `workspace` 模板几乎为空，可以立刻开始自由工作。
 3. 内容变长或出现稳定分工后，运行 **Create thread file**，从 `context`、`research` 等自定义角色模板扩展 pack。
 4. 用 **Manage thread** 维护显示名称、状态、父节点和默认入口；用 **Manage thread files** 在 pack 内切换并管理成员。
-5. 随手进展用 inline log；阶段节点、方向变化和复盘结果用 checkpoint。
+5. 随手进展用 inline log；阶段节点、方向变化和复盘结果用 commit。
 6. 在入口、日记或 MOC 中使用 `thread-entries` 汇总所需视角。
 
 ## 文件与身份
@@ -68,10 +68,10 @@ created: 2026-09-13
 - `aliases[0]` 是 thread 显示名称；meta 不使用 `title`。
 - `parent` 指向可选的单一父 thread meta。
 - `entry` 指向同一 `thread_id` 下的唯一入口成员。
-- `checkpoint_fields` 可保存当前 thread 独立的 checkpoint 模板。
+- `commit_fields` 可保存当前 thread 独立的 commit 模板。
 - Meta 不保存成员列表；成员通过自己的 `thread_id` 自动归属。
 
-在 meta 或任意成员中运行 **Manage thread**，可以在一个界面中查看 Thread ID 与 meta 路径，并修改 `aliases[0]`、`status`、`parent` 和 `entry`。同一界面也提供 checkpoint 模板与成员管理入口；修改显示名称不会重命名文件。
+在 meta 或任意成员中运行 **Manage thread**，可以在一个界面中查看 Thread ID 与 meta 路径，并修改 `aliases[0]`、`status`、`parent` 和 `entry`。同一界面也提供 commit 模板与成员管理入口；修改显示名称不会重命名文件。
 
 ### Thread 成员
 
@@ -92,7 +92,7 @@ created: 2026-09-13
 - `attention_fallback: true` 表示 active thread 中的 active 成员在自身没有未完成任务时，仍作为可继续工作的文件入口出现在 Thread Overview。省略、设为 `false`，或 thread 处于 dormant 等其他状态时不产生兜底项。
 - 成员可以保留模板自己的普通 `type`，但不能使用 `type: thread`，因为只有 meta 是 thread 身份来源。
 - 文件名、路径和正文结构不参与身份判断，改名或移动后仍由 `thread_id` 归属。
-- Log 和 checkpoint 可以分布在任意成员中；terminated 成员的历史记录仍会被查询。任务总览只统计 meta 与 active 成员，避免已经结束的工作切片留下陈旧任务。
+- Log 和 commit 可以分布在任意成员中；terminated 成员的历史记录仍会被查询。任务总览只统计 meta 与 active 成员，避免已经结束的工作切片留下陈旧任务。
 
 ## 角色模板
 
@@ -132,7 +132,7 @@ attention_fallback: true
 - `{{parent}}`、`{{parent_title}}`
 - `{{created}}`、`{{date}}`、`{{date:YYMMDD}}` 等日期格式
 
-创建成员后，插件会强制写入正确的 `thread_id`、`thread_role`、`thread_role_status: active` 和 `created`，并移除模板中的 thread 级字段，例如 `status`、`parent`、`entry` 与 `checkpoint_fields`。
+创建成员后，插件会强制写入正确的 `thread_id`、`thread_role`、`thread_role_status: active` 和 `created`，并移除模板中的 thread 级字段，例如 `status`、`parent`、`entry` 与 `commit_fields`。
 
 ## Pack 内导航
 
@@ -161,25 +161,25 @@ attention_fallback: true
 - 块 ID 与时间放在同一行，光标落在两者之间，便于直接输入；查询卡片据此定位原始记录行。
 - Log 命令会立即在执行命令时的光标位置插入 callout，随后直接在原文件中编辑，不提供单独表单或 Save 按钮。
 
-## Checkpoint
+## Commit
 
-**Create checkpoint** 可从 meta 或 active 成员运行：
+**Create commit** 可从 meta 或 active 成员运行：
 
-- 从成员的编辑视图运行时，记录在点击 **Save checkpoint** 时按该文件的实时光标位置插入；填表期间可以移动光标。目标文件在保存前需保持打开。
+- 从成员的编辑视图运行时，记录在点击 **Save commit** 时按该文件的实时光标位置插入；填表期间可以移动光标。目标文件在保存前需保持打开。
 - 从 meta 运行时，记录追加到当前入口末尾。
 - 日期、时间、标记和稳定块 ID 由插件生成。
 - 默认字段只有“类型”和“摘要”。
 
 ```markdown
-> [!thread-checkpoint]
-> - [checkpoint:: true] [checkpoint_date:: 2026-09-13] [checkpoint_time:: 15:20] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成 pack 模型] ^cp-20260913-152000-a1b2c
+> [!thread-commit]
+> - [commit:: true] [commit_date:: 2026-09-13] [commit_time:: 15:20] [commit_kind:: milestone] [commit_summary:: 完成 pack 模型] ^cm-20260913-152000-a1b2c
 ```
 
 日期、时间和类型只保存在结构化字段中，卡片标题由字段生成。创建和编辑默认使用右侧非模态表单，可以继续对照主笔记；`Cmd/Ctrl + Enter` 保存。原地卡片提供编辑，查询卡片提供定位、编辑和删除。摘要和文本字段支持 Markdown 与双链。
 
-每个 thread 可以把独立字段模板保存在 meta 的 `checkpoint_fields`；没有时继承全局默认。字段支持单行、多行、数字、开关、日期、选择项、必填、正文/inline 保存和废弃。废弃字段不再出现在新表单中，但仍用于解释历史记录。
+每个 thread 可以把独立字段模板保存在 meta 的 `commit_fields`；没有时继承全局默认。字段支持单行、多行、数字、开关、日期、选择项、必填、正文/inline 保存和废弃。废弃字段不再出现在新表单中，但仍用于解释历史记录。
 
-多行字段使用 `inline` storage 时，换行会在原始 inline property 中无损编码为 `&#10;`，插件在编辑和渲染时恢复为真实换行；使用 `body` storage 时则直接保存为 checkpoint callout 中的多行 Markdown。
+多行字段使用 `inline` storage 时，换行会在原始 inline property 中无损编码为 `&#10;`，插件在编辑和渲染时恢复为真实换行；使用 `body` storage 时则直接保存为 commit callout 中的多行 Markdown。
 
 ## `thread-entries` 查询
 
@@ -189,7 +189,7 @@ attention_fallback: true
 ```thread-entries
 thread_id: 3e9b3f36-7f7d-4205-97b0-82c533155eb0
 date: 2026-09-01..2026-09-13
-type: [checkpoint, log]
+type: [commit, log]
 group_by: thread
 thread_detail: crumb
 order: asc
@@ -200,7 +200,7 @@ order: asc
 | --- | --- | --- |
 | `thread_id` | 单个 UUID，或 `[UUID, UUID]` | 全部 thread |
 | `date` | `YYYY-MM-DD` 或闭区间 | 全部日期 |
-| `type` | `checkpoint`、`log` 或列表 | 两种记录 |
+| `type` | `commit`、`log` 或列表 | 两种记录 |
 | `group_by` | `none`、`thread`、`type` | `none` |
 | `thread_detail` | `none`、`name`、`crumb` | `none` |
 | `order` | `asc`、`desc` | `desc` |
@@ -212,7 +212,7 @@ order: asc
 ````markdown
 ```thread-entries
 date: {{date:YYYY-MM-DD}}
-type: [checkpoint, log]
+type: [commit, log]
 group_by: thread
 order: asc
 ```
@@ -239,11 +239,11 @@ order: asc
 
 Active 成员的编辑视图提供 **Create task** 与 **Edit task**。任务仍是普通 Markdown checkbox，任务内容本身表达要达成的结果；表单只保存只读的 `task_id`、可选固定、可选的日期窗口、`quick`/`light`/`normal`/`deep` 模糊消耗，以及可选循环。日期窗口通过独立浮层编辑，不改变任务表单尺寸；浮层并排展示两个日历，左侧选择开始、右侧选择结束，各自可翻月，也可清除单侧或整体清空；主表单不再重复提供 Clear 按钮。`task_id` 在创建时自动生成，用于任务移动行号后继续准确定位；表单顶部以小号只读文字展示，左侧 Pin 图标可直接切换固定状态，阅读视图、Live Preview 摘要和 Overview 不显示 ID。表单中预计消耗与 Window 位于第一行；Repeat 单独占下一行，开启后在同行展开 Frequency 与 Current，选择每 N 天时将间隔输入合并在 Frequency 控件内。Task 没有 fixed/flexible 分类：所有任务都可在窗口内安排，精确占用时段的事项由独立 Event 模型承担。
 
-开启 Repeat 时，`current` 默认是当天，并作为当前循环期的独立指针；规则使用精简的 RRULE 风格字符串保存，第一版支持每天、每周、每月和每 N 天。Current 使用与 Window 一致的独立日历浮层选择日期，不提供 Clear，保证循环任务始终保留当前期指针。Live Preview、阅读视图和 Overview 会隐藏原始 inline fields，并使用一致的紧凑摘要：开始日期尚未到时显示灰色“未开始”；开始后若没有结束日期则不显示窗口；截止日在 30 天内显示剩余天数，超过 30 天显示 `30d+`，今天截止与逾期分别提示；预计消耗只显示绿、黄、红、紫 gauge 图标；recurring 只显示 current，当天显示“今天”、同年省略年份，周期规则放在悬浮提示中，只有前面的循环图标可点击推进，悬浮时显示实际将到达的下一日期。笔记内的任务摘要在内容前显示 Pin 控件，可直接切换固定状态。进入 Live Preview 当前行时恢复源码以便编辑。铅笔图标可直接调整窗口，**To next** 会在同一行推进 `current`；若推进后仍早于今天，则继续跳过过期 occurrence，直到落在今天或未来，再按最终跨越的总天数移动已有窗口，并把 checkbox 恢复为未完成。循环不会生成新的任务行，执行记录仍由 checkpoint 保存。
+开启 Repeat 时，`current` 默认是当天，并作为当前循环期的独立指针；规则使用精简的 RRULE 风格字符串保存，第一版支持每天、每周、每月和每 N 天。Current 使用与 Window 一致的独立日历浮层选择日期，不提供 Clear，保证循环任务始终保留当前期指针。Live Preview、阅读视图和 Overview 会隐藏原始 inline fields，并使用一致的紧凑摘要：开始日期尚未到时显示灰色“未开始”；开始后若没有结束日期则不显示窗口；截止日在 30 天内显示剩余天数，超过 30 天显示 `30d+`，今天截止与逾期分别提示；预计消耗只显示绿、黄、红、紫 gauge 图标；recurring 只显示 current，当天显示“今天”、同年省略年份，周期规则放在悬浮提示中，只有前面的循环图标可点击推进，悬浮时显示实际将到达的下一日期。笔记内的任务摘要在内容前显示 Pin 控件，可直接切换固定状态。进入 Live Preview 当前行时恢复源码以便编辑。铅笔图标可直接调整窗口，**To next** 会在同一行推进 `current`；若推进后仍早于今天，则继续跳过过期 occurrence，直到落在今天或未来，再按最终跨越的总天数移动已有窗口，并把 checkbox 恢复为未完成。循环不会生成新的任务行，执行记录仍由 commit 保存。
 
 ```markdown
 - [ ] 整理本周任务模型 [task_id:: task-4f8a0d92c3e1] [window_start:: 2026-09-18] [window_end:: 2026-09-20] [effort:: normal]
-- [ ] 填写训练恢复 checkpoint [task_id:: task-238e1b07d6af] [window_end:: 2026-09-18] [effort:: quick] [current:: 2026-09-18] [repeat:: FREQ=DAILY]
+- [ ] 填写训练恢复 commit [task_id:: task-238e1b07d6af] [window_end:: 2026-09-18] [effort:: quick] [current:: 2026-09-18] [repeat:: FREQ=DAILY]
 - [ ] 完成月末复盘 [task_id:: task-c9d03f6812ab] [current:: 2026-09-30] [repeat:: FREQ=MONTHLY;BYMONTHDAY=30]
 ```
 
@@ -272,8 +272,8 @@ reference_task_id: task-4f8a0d92c3e1
 | --- | --- | --- |
 | **Create thread** | 任意位置 | 创建 meta；非 idea/committed 状态同时选择模板并创建入口 |
 | **Create thread file** | meta 或成员 | 从角色模板向当前 pack 添加成员 |
-| **Manage thread** | meta 或成员 | 查看 Thread ID 与 meta 路径；修改显示名称、状态、父节点和入口；进入 checkpoint 模板与成员管理 |
-| **Edit checkpoint template** | meta 或成员 | 直接编辑当前 thread 的 checkpoint 字段模板 |
+| **Manage thread** | meta 或成员 | 查看 Thread ID 与 meta 路径；修改显示名称、状态、父节点和入口；进入 commit 模板与成员管理 |
+| **Edit commit template** | meta 或成员 | 直接编辑当前 thread 的 commit 字段模板 |
 | **Manage thread files** | meta 或成员 | 打开成员、设置入口、终止或重新激活成员 |
 | **Switch active thread role** | meta 或成员 | 在当前 pack 的 active 成员间循环切换；从 meta 或 terminated 成员进入入口 |
 | **Manage open threads** | 任意位置 | 按 thread 管理当前窗口里的标签 |
@@ -281,7 +281,7 @@ reference_task_id: task-4f8a0d92c3e1
 | **Create task** | active 成员编辑视图 | 在光标位置通过统一表单创建 Markdown task |
 | **Edit task** | active 成员的 task 行 | 编辑原任务的内容、安排方式、时间窗口和消耗 |
 | **Insert inline log** | active 成员编辑视图 | 在光标处插入 log |
-| **Create checkpoint** | meta 或成员 | 打开 checkpoint 侧栏表单 |
+| **Create commit** | meta 或成员 | 打开 commit 侧栏表单 |
 
 ## 设置
 
@@ -291,7 +291,7 @@ reference_task_id: task-4f8a0d92c3e1
 - **Thread 角色模板目录**：可用于新建入口和成员的模板集合。
 - **默认入口模板**：新建 thread 时默认选择的角色模板。
 - **Breadcrumb 位置**：控制固定工具条显示在正文上方或下方。
-- **默认 checkpoint 模板**：未设置独立模板的 thread 所继承的字段。
+- **默认 commit 模板**：未设置独立模板的 thread 所继承的字段。
 
 ## 开发与本地安装
 

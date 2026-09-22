@@ -1,4 +1,4 @@
-export function moveCheckpointOption(
+export function moveCommitOption(
 	options: readonly string[],
 	from: number,
 	to: number,

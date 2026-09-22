@@ -8,76 +8,76 @@ import {
 	moment,
 } from 'obsidian';
 import {
-	appendCheckpointEntry,
-	buildCheckpointEntry,
-	checkpointEditState,
-	checkpointInsertionEdit,
+	appendCommitEntry,
+	buildCommitEntry,
+	commitEditState,
+	commitInsertionEdit,
 	cursorLineIsFrontmatter,
-	deleteCheckpointEntry,
-	replaceCheckpointEntry,
-	type CheckpointValue,
-	type ParsedCheckpointEntry,
-} from './checkpoint-core';
+	deleteCommitEntry,
+	replaceCommitEntry,
+	type CommitValue,
+	type ParsedCommitEntry,
+} from './commit-core';
 import {
-	activeCheckpointFields,
-	checkpointFieldsForThread,
-} from './checkpoint-model';
+	activeCommitFields,
+	commitFieldsForThread,
+} from './commit-model';
 import {
-	CHECKPOINT_PANEL_VIEW_TYPE,
-	CheckpointPanelView,
-	type CheckpointPanelRequest,
-} from './checkpoint-panel';
-import { CheckpointTemplateModal } from './checkpoint-template';
+	COMMIT_PANEL_VIEW_TYPE,
+	CommitPanelView,
+	type CommitPanelRequest,
+} from './commit-panel';
+import { CommitTemplateModal } from './commit-template';
 import type { ThreadIndex } from './thread-index';
 import { THREAD_STATUS_CHOICES, type ThreadStatus } from './thread-status-model';
 import { t } from './i18n';
-import type { CheckpointFieldSpec, ThreadJournalSettings } from './types';
+import type { CommitFieldSpec, ThreadJournalSettings } from './types';
 import { create24HourTimeSelect, is24HourTime } from './time-input';
 
-function checkpointBlockId(): string {
+function commitBlockId(): string {
 	const suffix = Math.random().toString(36).slice(2, 7);
-	return `cp-${moment().format('YYYYMMDD-HHmmss')}-${suffix}`;
+	return `cm-${moment().format('YYYYMMDD-HHmmss')}-${suffix}`;
 }
 
-function valueIsPresent(value: CheckpointValue | undefined): boolean {
+function valueIsPresent(value: CommitValue | undefined): boolean {
 	return value !== undefined && (typeof value !== 'string' || value.trim().length > 0);
 }
 
-function checkpointStatus(value: CheckpointValue | undefined): ThreadStatus | undefined {
+function commitStatus(value: CommitValue | undefined): ThreadStatus | undefined {
 	if (typeof value !== 'string') return undefined;
 	return THREAD_STATUS_CHOICES.some((choice) => choice.value === value)
 		? value as ThreadStatus
 		: undefined;
 }
 
-function threadCheckpointFields(app: App, file: TFile): unknown {
+function threadCommitFields(app: App, file: TFile): unknown {
 	const frontmatter: unknown = app.metadataCache.getFileCache(file)?.frontmatter;
 	if (typeof frontmatter !== 'object' || frontmatter === null) return undefined;
-	return (frontmatter as Record<string, unknown>).checkpoint_fields;
+	return (frontmatter as Record<string, unknown>).commit_fields;
 }
 
-interface CheckpointModalInitialState {
+interface CommitModalInitialState {
 	date: string;
 	time: string;
-	values: Record<string, CheckpointValue | undefined>;
+	values: Record<string, CommitValue | undefined>;
 }
 
-type CheckpointSubmit = (
+type CommitSubmit = (
 	date: string,
 	time: string,
-	values: Record<string, CheckpointValue | undefined>,
+	values: Record<string, CommitValue | undefined>,
 ) => Promise<void>;
 
-function checkpointFormValues(
-	fields: CheckpointFieldSpec[],
+function commitFormValues(
+	fields: CommitFieldSpec[],
 	date: string,
 	time: string,
-	initial?: Record<string, CheckpointValue | undefined>,
-): Record<string, CheckpointValue | undefined> {
-	const values: Record<string, CheckpointValue | undefined> = {
+	initial?: Record<string, CommitValue | undefined>,
+): Record<string, CommitValue | undefined> {
+	const values: Record<string, CommitValue | undefined> = {
 		...initial,
-		checkpoint_date: date,
-		checkpoint_time: time,
+		commit_date: date,
+		commit_time: time,
 	};
 	for (const field of fields) {
 		if (values[field.key] !== undefined) continue;
@@ -90,41 +90,41 @@ function checkpointFormValues(
 	return values;
 }
 
-class CheckpointModal extends Modal {
+class CommitModal extends Modal {
 	private date: string;
 	private time: string;
-	private readonly values: Record<string, CheckpointValue | undefined>;
+	private readonly values: Record<string, CommitValue | undefined>;
 	private saving = false;
 
 	constructor(
 		app: App,
 		private readonly threadTitle: string,
-		private readonly fields: CheckpointFieldSpec[],
-		private readonly onSubmit: CheckpointSubmit,
-		private readonly initial?: CheckpointModalInitialState,
+		private readonly fields: CommitFieldSpec[],
+		private readonly onSubmit: CommitSubmit,
+		private readonly initial?: CommitModalInitialState,
 	) {
 		super(app);
 		this.date = initial?.date || moment().format('YYYY-MM-DD');
 		this.time = initial?.time || moment().format('HH:mm');
-		this.values = checkpointFormValues(fields, this.date, this.time, initial?.values);
+		this.values = commitFormValues(fields, this.date, this.time, initial?.values);
 	}
 
 	onOpen(): void {
-		this.modalEl.addClass('thread-journal-checkpoint-modal');
-		this.setTitle(this.initial ? t('Edit checkpoint') : t('Create checkpoint'));
+		this.modalEl.addClass('thread-journal-commit-modal');
+		this.setTitle(this.initial ? t('Edit commit') : t('Create commit'));
 		this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-target',
+			cls: 'thread-journal-commit-target',
 			text: this.threadTitle,
 		});
 
 		const systemFields = this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-system-fields',
+			cls: 'thread-journal-commit-system-fields',
 		});
 		new Setting(systemFields)
-			.setClass('thread-journal-checkpoint-form-field')
+			.setClass('thread-journal-commit-form-field')
 			.setClass('is-compact')
 			.setName(t('Date'))
-			.setDesc(t('The date when the checkpoint occurred.'))
+			.setDesc(t('The date when the commit occurred.'))
 			.addText((text) => {
 				text.inputEl.type = 'date';
 				text.setValue(this.date).onChange((value) => {
@@ -133,10 +133,10 @@ class CheckpointModal extends Modal {
 			});
 
 		const timeSetting = new Setting(systemFields)
-			.setClass('thread-journal-checkpoint-form-field')
+			.setClass('thread-journal-commit-form-field')
 			.setClass('is-compact')
 			.setName(t('Time'))
-			.setDesc(t('The time when the checkpoint occurred, in 24-hour HH:mm format.'));
+			.setDesc(t('The time when the commit occurred, in 24-hour HH:mm format.'));
 		create24HourTimeSelect(
 			timeSetting.controlEl,
 			this.time,
@@ -146,18 +146,18 @@ class CheckpointModal extends Modal {
 
 		let focusTarget: HTMLInputElement | HTMLTextAreaElement | undefined;
 		const customFields = this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-custom-fields',
+			cls: 'thread-journal-commit-custom-fields',
 		});
 		for (const field of this.fields) {
 			const wide = field.control === 'text' || field.control === 'textarea';
 			const setting = new Setting(customFields)
-				.setClass('thread-journal-checkpoint-form-field')
+				.setClass('thread-journal-commit-form-field')
 				.setClass(wide ? 'is-wide' : 'is-compact')
 				.setClass(`is-${field.control}`)
 				.setName(`${field.label}${field.required ? ' *' : ''}`)
 				.setDesc(field.storage === 'inline'
 					? t('Queryable field · {key}', { key: field.key })
-					: t('Checkpoint body · {key}', { key: field.key }));
+					: t('Commit body · {key}', { key: field.key }));
 				switch (field.control) {
 				case 'textarea':
 					setting.addTextArea((text) => {
@@ -211,18 +211,18 @@ class CheckpointModal extends Modal {
 		}
 
 		const actions = new Setting(this.contentEl)
-			.setClass('thread-journal-checkpoint-actions');
+			.setClass('thread-journal-commit-actions');
 		actions.addButton((button) => button
-			.setButtonText(this.initial ? t('Save changes') : t('Save checkpoint'))
+			.setButtonText(this.initial ? t('Save changes') : t('Save commit'))
 			.setCta()
 			.onClick(async () => {
 				if (this.saving) return;
 				if (!/^\d{4}-\d{2}-\d{2}$/.test(this.date)) {
-					new Notice(t('Enter a valid checkpoint date.'));
+					new Notice(t('Enter a valid commit date.'));
 					return;
 				}
 				if (!is24HourTime(this.time)) {
-					new Notice(t('Enter a valid checkpoint time.'));
+					new Notice(t('Enter a valid commit time.'));
 					return;
 				}
 				const missing = this.fields.find((field) =>
@@ -237,8 +237,8 @@ class CheckpointModal extends Modal {
 					await this.onSubmit(this.date, this.time, { ...this.values });
 					this.close();
 				} catch (error) {
-					console.error('Thread Journal failed to save checkpoint', error);
-					new Notice(t('Failed to save checkpoint: {error}', { error: String(error) }));
+					console.error('Thread Journal failed to save commit', error);
+					new Notice(t('Failed to save commit: {error}', { error: String(error) }));
 					this.saving = false;
 					button.setDisabled(false);
 				}
@@ -252,40 +252,40 @@ class CheckpointModal extends Modal {
 	}
 }
 
-class CheckpointDeleteModal extends Modal {
+class CommitDeleteModal extends Modal {
 	private deleting = false;
 
 	constructor(
 		app: App,
 		private readonly threadFile: TFile,
-		private readonly entry: ParsedCheckpointEntry,
+		private readonly entry: ParsedCommitEntry,
 		private readonly onConfirm: () => Promise<void>,
 	) {
 		super(app);
 	}
 
 	onOpen(): void {
-		this.setTitle(t('Delete checkpoint'));
-		const date = this.entry.values.checkpoint_date || t('No date entered');
-		const time = this.entry.values.checkpoint_time;
+		this.setTitle(t('Delete commit'));
+		const date = this.entry.values.commit_date || t('No date entered');
+		const time = this.entry.values.commit_time;
 		this.contentEl.createEl('p', {
-			text: t('Delete the checkpoint from {timestamp}?', {
+			text: t('Delete the commit from {timestamp}?', {
 				timestamp: `${date}${time ? ` ${time}` : ''}`,
 			}),
 		});
 		this.contentEl.createEl('p', {
 			cls: 'mod-warning',
-			text: t('Only this checkpoint block in {file} will be deleted.', {
+			text: t('Only this commit block in {file} will be deleted.', {
 				file: this.threadFile.basename,
 			}),
 		});
 		const actions = new Setting(this.contentEl)
-			.setClass('thread-journal-checkpoint-actions');
+			.setClass('thread-journal-commit-actions');
 		actions.addButton((button) => button
 			.setButtonText(t('Cancel'))
 			.onClick(() => this.close()));
 		actions.addButton((button) => button
-			.setButtonText(t('Delete checkpoint'))
+			.setButtonText(t('Delete commit'))
 			.setDestructive()
 			.setCta()
 			.onClick(async () => {
@@ -296,8 +296,8 @@ class CheckpointDeleteModal extends Modal {
 					await this.onConfirm();
 					this.close();
 				} catch (error) {
-					console.error('Thread Journal failed to delete checkpoint', error);
-					new Notice(t('Failed to delete checkpoint: {error}', { error: String(error) }));
+					console.error('Thread Journal failed to delete commit', error);
+					new Notice(t('Failed to delete commit: {error}', { error: String(error) }));
 					this.deleting = false;
 					button.setDisabled(false);
 				}
@@ -309,7 +309,7 @@ class CheckpointDeleteModal extends Modal {
 	}
 }
 
-export class CheckpointManager {
+export class CommitManager {
 	constructor(
 		private readonly app: App,
 		private readonly index: ThreadIndex,
@@ -322,7 +322,7 @@ export class CheckpointManager {
 		return this.index.getThreadFile(file);
 	}
 
-	canCreateCurrentCheckpoint(): boolean {
+	canCreateCurrentCommit(): boolean {
 		const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
 		if (!file) return false;
 		if (this.index.getThread(file)) return true;
@@ -330,17 +330,17 @@ export class CheckpointManager {
 		return member?.roleStatus === 'active' && Boolean(this.index.getThreadForMember(file));
 	}
 
-	private openCheckpointForm(
+	private openCommitForm(
 		threadFile: TFile,
-		fields: CheckpointFieldSpec[],
-		onSubmit: CheckpointSubmit,
-		initial?: CheckpointModalInitialState,
+		fields: CommitFieldSpec[],
+		onSubmit: CommitSubmit,
+		initial?: CommitModalInitialState,
 	): void {
 		const date = initial?.date || moment().format('YYYY-MM-DD');
 		const time = initial?.time || moment().format('HH:mm');
 		const threadTitle = this.index.getThread(threadFile)?.title ?? threadFile.basename;
-		const values = checkpointFormValues(fields, date, time, initial?.values);
-		const request: CheckpointPanelRequest = {
+		const values = commitFormValues(fields, date, time, initial?.values);
+		const request: CommitPanelRequest = {
 			mode: initial ? 'edit' : 'create',
 			threadTitle,
 			fields,
@@ -349,34 +349,34 @@ export class CheckpointManager {
 			values,
 			onSubmit,
 		};
-		void this.openCheckpointPanel(request).catch((error: unknown) => {
-			console.error('Thread Journal failed to open checkpoint side panel', error);
-			new Notice(t('Failed to open the checkpoint side panel; using the fallback form.'));
-			this.openFallbackCheckpointForm(threadTitle, fields, onSubmit, initial);
+		void this.openCommitPanel(request).catch((error: unknown) => {
+			console.error('Thread Journal failed to open commit side panel', error);
+			new Notice(t('Failed to open the commit side panel; using the fallback form.'));
+			this.openFallbackCommitForm(threadTitle, fields, onSubmit, initial);
 		});
 	}
 
-	private async openCheckpointPanel(request: CheckpointPanelRequest): Promise<void> {
+	private async openCommitPanel(request: CommitPanelRequest): Promise<void> {
 		const leaf = await this.app.workspace.ensureSideLeaf(
-			CHECKPOINT_PANEL_VIEW_TYPE,
+			COMMIT_PANEL_VIEW_TYPE,
 			'right',
 			{ active: true, reveal: true },
 		);
 		await leaf.loadIfDeferred();
-		if (!(leaf.view instanceof CheckpointPanelView)) {
-			throw new Error(t('The checkpoint side panel did not load correctly.'));
+		if (!(leaf.view instanceof CommitPanelView)) {
+			throw new Error(t('The commit side panel did not load correctly.'));
 		}
 		leaf.view.setForm(request);
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
-	private openFallbackCheckpointForm(
+	private openFallbackCommitForm(
 		threadTitle: string,
-		fields: CheckpointFieldSpec[],
-		onSubmit: CheckpointSubmit,
-		initial?: CheckpointModalInitialState,
+		fields: CommitFieldSpec[],
+		onSubmit: CommitSubmit,
+		initial?: CommitModalInitialState,
 	): void {
-		new CheckpointModal(
+		new CommitModal(
 			this.app,
 			threadTitle,
 			fields,
@@ -385,30 +385,30 @@ export class CheckpointManager {
 		).open();
 	}
 
-	openCheckpointTemplateModal(threadFile: TFile): void {
+	openCommitTemplateModal(threadFile: TFile): void {
 		if (!this.index.getThread(threadFile)) {
 			new Notice(t('The current file is not a valid thread meta.'));
 			return;
 		}
-		const ownTemplate = threadCheckpointFields(this.app, threadFile);
-		const fields = checkpointFieldsForThread(
+		const ownTemplate = threadCommitFields(this.app, threadFile);
+		const fields = commitFieldsForThread(
 			ownTemplate,
-			this.getSettings().checkpointFields,
+			this.getSettings().commitFields,
 		);
-		new CheckpointTemplateModal(
+		new CommitTemplateModal(
 			this.app,
 			this.index.getThread(threadFile)?.title ?? threadFile.basename,
 			fields,
 			!Array.isArray(ownTemplate),
 			async (nextFields) => {
 				await this.app.fileManager.processFrontMatter(threadFile, (metadata) => {
-					(metadata as Record<string, unknown>).checkpoint_fields = nextFields;
+					(metadata as Record<string, unknown>).commit_fields = nextFields;
 				});
 			},
 		).open();
 	}
 
-	openCurrentCheckpointModal(): void {
+	openCurrentCommitModal(): void {
 		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		const activeFile = activeView?.file;
 		const threadFile = activeFile ? this.index.getThreadFile(activeFile) : undefined;
@@ -418,7 +418,7 @@ export class CheckpointManager {
 		}
 		const member = activeFile ? this.index.getMember(activeFile) : undefined;
 		if (member?.roleStatus === 'terminated') {
-			new Notice(t('The current thread role is terminated and cannot create checkpoints.'));
+			new Notice(t('The current thread role is terminated and cannot create commits.'));
 			return;
 		}
 		const originMember = activeFile && member?.roleStatus === 'active'
@@ -428,29 +428,29 @@ export class CheckpointManager {
 		const originView = originMember && activeView?.getMode() === 'source'
 			? activeView
 			: undefined;
-		void this.openNewCheckpointForm(threadFile, originMember, originView);
+		void this.openNewCommitForm(threadFile, originMember, originView);
 	}
 
-	private async openNewCheckpointForm(
+	private async openNewCommitForm(
 		threadFile: TFile,
 		originMember?: TFile,
 		originView?: MarkdownView,
 	): Promise<void> {
 		const targetFile = originMember ?? this.index.getEntry(threadFile);
 		if (!targetFile) {
-			new Notice(t('The current thread has no valid entry file for saving the checkpoint.'));
+			new Notice(t('The current thread has no valid entry file for saving the commit.'));
 			return;
 		}
-		const ownTemplate = threadCheckpointFields(this.app, threadFile);
-		const fields = activeCheckpointFields(checkpointFieldsForThread(
+		const ownTemplate = threadCommitFields(this.app, threadFile);
+		const fields = activeCommitFields(commitFieldsForThread(
 			ownTemplate,
-			this.getSettings().checkpointFields,
+			this.getSettings().commitFields,
 		));
-		this.openCheckpointForm(threadFile, fields, async (date, time, values) => {
-			const entry = buildCheckpointEntry({
+		this.openCommitForm(threadFile, fields, async (date, time, values) => {
+			const entry = buildCommitEntry({
 				date,
 				time,
-				blockId: checkpointBlockId(),
+				blockId: commitBlockId(),
 				fields,
 				values,
 			});
@@ -463,7 +463,7 @@ export class CheckpointManager {
 					throw new Error(t('Keep the target thread file open in editing view until saving.'));
 				}
 				if (this.index.getMember(targetFile)?.roleStatus !== 'active') {
-					throw new Error(t('The current thread role is terminated and cannot create checkpoints.'));
+					throw new Error(t('The current thread role is terminated and cannot create commits.'));
 				}
 				const editor = originView.editor;
 				const lines = Array.from({ length: editor.lineCount() }, (_, line) => editor.getLine(line));
@@ -471,14 +471,14 @@ export class CheckpointManager {
 				if (cursorLineIsFrontmatter(lines, cursorLine)) {
 					throw new Error(t('Move the cursor into the document body first.'));
 				}
-				const edit = checkpointInsertionEdit(lines, entry, cursorLine);
+				const edit = commitInsertionEdit(lines, entry, cursorLine);
 				editor.replaceRange(edit.replacement, edit.from, edit.to);
 				await originView.save();
 			} else {
 				await this.app.vault.process(targetFile, (content) =>
-					appendCheckpointEntry(content, entry));
+					appendCommitEntry(content, entry));
 			}
-			const nextStatus = checkpointStatus(values.status_after);
+			const nextStatus = commitStatus(values.status_after);
 			if (nextStatus) {
 				try {
 					await this.app.fileManager.processFrontMatter(threadFile, (frontmatter) => {
@@ -486,19 +486,19 @@ export class CheckpointManager {
 						metadata.status = nextStatus;
 					});
 				} catch (error) {
-					console.error('Thread Journal failed to update status after checkpoint', error);
-					new Notice(t('Checkpoint saved, but the status update failed: {error}', { error: String(error) }));
+					console.error('Thread Journal failed to update status after commit', error);
+					new Notice(t('Commit saved, but the status update failed: {error}', { error: String(error) }));
 					return;
 				}
 			}
 			const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
-			new Notice(t('Created a checkpoint for {title}.', { title }));
+			new Notice(t('Created a commit for {title}.', { title }));
 		});
 	}
 
-	openCheckpointEditModal(sourceFile: TFile, entry: ParsedCheckpointEntry): void {
+	openCommitEditModal(sourceFile: TFile, entry: ParsedCommitEntry): void {
 		if (!entry.blockId) {
-			new Notice(t('This checkpoint has no block ID and cannot be edited safely.'));
+			new Notice(t('This commit has no block ID and cannot be edited safely.'));
 			return;
 		}
 		const threadFile = this.index.getThreadForMember(sourceFile);
@@ -506,17 +506,17 @@ export class CheckpointManager {
 			new Notice(t('Cannot locate the thread meta from the thread ID.'));
 			return;
 		}
-		const ownTemplate = threadCheckpointFields(this.app, threadFile);
-		const templateFields = checkpointFieldsForThread(
+		const ownTemplate = threadCommitFields(this.app, threadFile);
+		const templateFields = commitFieldsForThread(
 			ownTemplate,
-			this.getSettings().checkpointFields,
+			this.getSettings().commitFields,
 		);
-		const editState = checkpointEditState(templateFields, entry);
-		this.openCheckpointForm(
+		const editState = commitEditState(templateFields, entry);
+		this.openCommitForm(
 			threadFile,
 			editState.fields,
 			async (date, time, values) => {
-				const replacement = buildCheckpointEntry({
+				const replacement = buildCommitEntry({
 					date,
 					time,
 					blockId: entry.blockId ?? '',
@@ -524,21 +524,21 @@ export class CheckpointManager {
 					values,
 				});
 				await this.app.vault.process(sourceFile, (content) =>
-					replaceCheckpointEntry(content, entry.blockId ?? '', replacement));
+					replaceCommitEntry(content, entry.blockId ?? '', replacement));
 				const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
-				new Notice(t('Updated the checkpoint for {title}.', { title }));
+				new Notice(t('Updated the commit for {title}.', { title }));
 			},
 			{
-				date: entry.values.checkpoint_date || moment().format('YYYY-MM-DD'),
-				time: entry.values.checkpoint_time || moment().format('HH:mm'),
+				date: entry.values.commit_date || moment().format('YYYY-MM-DD'),
+				time: entry.values.commit_time || moment().format('HH:mm'),
 				values: editState.values,
 			},
 		);
 	}
 
-	openCheckpointDeleteModal(sourceFile: TFile, entry: ParsedCheckpointEntry): void {
+	openCommitDeleteModal(sourceFile: TFile, entry: ParsedCommitEntry): void {
 		if (!entry.blockId) {
-			new Notice(t('This checkpoint has no block ID and cannot be deleted safely.'));
+			new Notice(t('This commit has no block ID and cannot be deleted safely.'));
 			return;
 		}
 		const threadFile = this.index.getThreadForMember(sourceFile);
@@ -546,11 +546,11 @@ export class CheckpointManager {
 			new Notice(t('Cannot locate the thread meta from the thread ID.'));
 			return;
 		}
-		new CheckpointDeleteModal(this.app, sourceFile, entry, async () => {
+		new CommitDeleteModal(this.app, sourceFile, entry, async () => {
 			await this.app.vault.process(sourceFile, (content) =>
-				deleteCheckpointEntry(content, entry.blockId ?? ''));
+				deleteCommitEntry(content, entry.blockId ?? ''));
 			const title = this.index.getThread(threadFile)?.title ?? threadFile.basename;
-			new Notice(t('Deleted the checkpoint for {title}.', { title }));
+			new Notice(t('Deleted the commit for {title}.', { title }));
 		}).open();
 	}
 }

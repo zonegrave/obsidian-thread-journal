@@ -1,41 +1,41 @@
 import { Setting } from 'obsidian';
-import { cloneDefaultCheckpointFields } from './checkpoint-model';
-import { createCheckpointOptionEditor } from './checkpoint-option-editor';
+import { cloneDefaultCommitFields } from './commit-model';
+import { createCommitOptionEditor } from './commit-option-editor';
 import { t } from './i18n';
 import type ThreadJournalPlugin from './main';
-import type { CheckpointFieldSpec } from './types';
+import type { CommitFieldSpec } from './types';
 
 async function updateField(
 	plugin: ThreadJournalPlugin,
 	index: number,
-	patch: Partial<CheckpointFieldSpec>,
+	patch: Partial<CommitFieldSpec>,
 ): Promise<void> {
-	const current = plugin.settings.checkpointFields[index];
+	const current = plugin.settings.commitFields[index];
 	if (!current) return;
-	plugin.settings.checkpointFields[index] = { ...current, ...patch };
+	plugin.settings.commitFields[index] = { ...current, ...patch };
 	await plugin.saveSettings();
 }
 
-export function renderCheckpointFieldSettings(
+export function renderCommitFieldSettings(
 	containerEl: HTMLElement,
 	plugin: ThreadJournalPlugin,
 	refresh: () => void,
 ): void {
 	const sectionEl = containerEl.createDiv({
-		cls: 'thread-journal-checkpoint-settings',
+		cls: 'thread-journal-commit-settings',
 	});
-	sectionEl.createEl('h3', { text: t('Default checkpoint template') });
+	sectionEl.createEl('h3', { text: t('Default commit template') });
 	sectionEl.createEl('p', {
 		cls: 'setting-item-description',
-		text: t('Threads without an independent template use these fields. Deprecated fields are hidden from new forms, retained for historical checkpoints, and placed last.'),
+		text: t('Threads without an independent template use these fields. Deprecated fields are hidden from new forms, retained for historical commits, and placed last.'),
 	});
 
-	plugin.settings.checkpointFields.forEach((field, index) => {
-		const previous = plugin.settings.checkpointFields[index - 1];
-		const next = plugin.settings.checkpointFields[index + 1];
+	plugin.settings.commitFields.forEach((field, index) => {
+		const previous = plugin.settings.commitFields[index - 1];
+		const next = plugin.settings.commitFields[index + 1];
 		let deleteConfirmation: HTMLElement | undefined;
 		const card = sectionEl.createDiv({
-			cls: `thread-journal-checkpoint-field-setting${field.deprecated ? ' is-deprecated' : ''}`,
+			cls: `thread-journal-commit-field-setting${field.deprecated ? ' is-deprecated' : ''}`,
 		});
 		new Setting(card)
 			.setName(field.label || field.key)
@@ -45,7 +45,7 @@ export function renderCheckpointFieldSettings(
 				.setTooltip(t('Move up'))
 				.setDisabled(!previous || previous.deprecated !== field.deprecated)
 				.onClick(async () => {
-					const fields = plugin.settings.checkpointFields;
+					const fields = plugin.settings.commitFields;
 					if (index <= 0) return;
 					const current = fields[index];
 					const previous = fields[index - 1];
@@ -60,7 +60,7 @@ export function renderCheckpointFieldSettings(
 				.setTooltip(t('Move down'))
 				.setDisabled(!next || next.deprecated !== field.deprecated)
 				.onClick(async () => {
-					const fields = plugin.settings.checkpointFields;
+					const fields = plugin.settings.commitFields;
 					if (index >= fields.length - 1) return;
 					const current = fields[index];
 					const next = fields[index + 1];
@@ -76,18 +76,18 @@ export function renderCheckpointFieldSettings(
 				.onClick(() => {
 					if (deleteConfirmation?.isConnected) return;
 					deleteConfirmation = card.createDiv({
-						cls: 'thread-journal-checkpoint-field-delete-confirmation',
+						cls: 'thread-journal-commit-field-delete-confirmation',
 					});
 					deleteConfirmation.createDiv({
-						cls: 'thread-journal-checkpoint-field-delete-message',
+						cls: 'thread-journal-commit-field-delete-message',
 						text: t('Delete {field}?', { field: field.label || field.key }),
 					});
 					deleteConfirmation.createDiv({
 						cls: 'setting-item-description',
-						text: t('This removes the field from the template. Existing checkpoint records are not rewritten.'),
+						text: t('This removes the field from the template. Existing commit records are not rewritten.'),
 					});
 					const actions = new Setting(deleteConfirmation)
-						.setClass('thread-journal-checkpoint-actions');
+						.setClass('thread-journal-commit-actions');
 					actions.addButton((cancel) => cancel
 						.setButtonText(t('Cancel'))
 						.onClick(() => {
@@ -100,7 +100,7 @@ export function renderCheckpointFieldSettings(
 						.setCta()
 						.onClick(async () => {
 							confirm.setDisabled(true);
-							plugin.settings.checkpointFields.splice(index, 1);
+							plugin.settings.commitFields.splice(index, 1);
 							await plugin.saveSettings();
 							refresh();
 						}));
@@ -117,7 +117,7 @@ export function renderCheckpointFieldSettings(
 
 		new Setting(card)
 			.setName(t('Field key'))
-			.setDesc(t('Used in Dataview queries. checkpoint, checkpoint_date, and checkpoint_time are reserved.'))
+			.setDesc(t('Used in Dataview queries. commit, commit_date, and commit_time are reserved.'))
 			.addText((text) => text
 				.setValue(field.key)
 				.setPlaceholder(t('Field key'))
@@ -137,21 +137,21 @@ export function renderCheckpointFieldSettings(
 				.setValue(field.control)
 				.onChange(async (value) => {
 					await updateField(plugin, index, {
-						control: value as CheckpointFieldSpec['control'],
+						control: value as CommitFieldSpec['control'],
 					});
 					refresh();
 				}));
 
 		new Setting(card)
 			.setName(t('Storage'))
-			.setDesc(t('Queryable fields are written to the checkpoint header; body fields appear as indented content.'))
+			.setDesc(t('Queryable fields are written to the commit header; body fields appear as indented content.'))
 			.addDropdown((dropdown) => dropdown
 				.addOption('inline', t('Queryable field'))
-				.addOption('body', t('Checkpoint body'))
+				.addOption('body', t('Commit body'))
 				.setValue(field.storage)
 				.onChange(async (value) => {
 					await updateField(plugin, index, {
-						storage: value as CheckpointFieldSpec['storage'],
+						storage: value as CommitFieldSpec['storage'],
 					});
 				}));
 
@@ -166,7 +166,7 @@ export function renderCheckpointFieldSettings(
 
 		new Setting(card)
 			.setName(t('Deprecate'))
-			.setDesc(t('Stop using this field in new checkpoints. Existing records still display their saved data.'))
+			.setDesc(t('Stop using this field in new commits. Existing records still display their saved data.'))
 			.addToggle((toggle) => toggle
 				.setValue(field.deprecated)
 				.onChange(async (value) => {
@@ -181,7 +181,7 @@ export function renderCheckpointFieldSettings(
 			const optionsSetting = new Setting(card)
 				.setName(t('Options'))
 				.setDesc(t('Drag to reorder options.'));
-			createCheckpointOptionEditor(
+			createCommitOptionEditor(
 				optionsSetting.controlEl,
 				field.options,
 				(options) => {
@@ -198,9 +198,9 @@ export function renderCheckpointFieldSettings(
 		.addButton((button) => button
 			.setButtonText(t('Add field'))
 			.onClick(async () => {
-				const index = plugin.settings.checkpointFields.length + 1;
-				plugin.settings.checkpointFields.push({
-					key: `checkpoint_field_${index}`,
+				const index = plugin.settings.commitFields.length + 1;
+				plugin.settings.commitFields.push({
+					key: `commit_field_${index}`,
 					label: t('Custom field {index}', { index }),
 					control: 'text',
 					storage: 'inline',
@@ -217,18 +217,18 @@ export function renderCheckpointFieldSettings(
 			.onClick(() => {
 				if (restoreConfirmation?.isConnected) return;
 				restoreConfirmation = sectionEl.createDiv({
-					cls: 'thread-journal-checkpoint-template-reset-confirmation',
+					cls: 'thread-journal-commit-template-reset-confirmation',
 				});
 				restoreConfirmation.createDiv({
-					cls: 'thread-journal-checkpoint-field-delete-message',
+					cls: 'thread-journal-commit-field-delete-message',
 					text: t('Restore the minimal default template?'),
 				});
 				restoreConfirmation.createDiv({
 					cls: 'setting-item-description',
-					text: t('This replaces all global checkpoint fields. Independent thread templates and existing checkpoint records are not changed.'),
+					text: t('This replaces all global commit fields. Independent thread templates and existing commit records are not changed.'),
 				});
 				const actions = new Setting(restoreConfirmation)
-					.setClass('thread-journal-checkpoint-actions');
+					.setClass('thread-journal-commit-actions');
 				actions.addButton((cancel) => cancel
 					.setButtonText(t('Cancel'))
 					.onClick(() => {
@@ -241,7 +241,7 @@ export function renderCheckpointFieldSettings(
 					.setCta()
 					.onClick(async () => {
 						confirm.setDisabled(true);
-						plugin.settings.checkpointFields = cloneDefaultCheckpointFields();
+						plugin.settings.commitFields = cloneDefaultCommitFields();
 						await plugin.saveSettings();
 						refresh();
 					}));

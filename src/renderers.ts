@@ -8,15 +8,15 @@ import {
 	type MarkdownPostProcessorContext,
 } from 'obsidian';
 import {
-	parseCheckpointEntries,
-	type ParsedCheckpointEntry,
-} from './checkpoint-core';
+	parseCommitEntries,
+	type ParsedCommitEntry,
+} from './commit-core';
 import {
-	checkpointBodyLabels,
-	checkpointFieldRenderMode,
-	checkpointFieldsForThread,
-	type CheckpointFieldRenderMode,
-} from './checkpoint-model';
+	commitBodyLabels,
+	commitFieldRenderMode,
+	commitFieldsForThread,
+	type CommitFieldRenderMode,
+} from './commit-model';
 import {
 	compareThreadEntryTimestamps,
 	formatThreadEntryTimestamp,
@@ -46,15 +46,15 @@ import {
 } from './task-model';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
 
-interface CheckpointEntryRecord {
-	type: 'checkpoint';
+interface CommitEntryRecord {
+	type: 'commit';
 	thread: ThreadInfo;
 	memberFile: TFile;
 	date: string;
 	time: string;
 	timestamp: string;
-	entry: ParsedCheckpointEntry;
-	fields: ThreadJournalSettings['checkpointFields'];
+	entry: ParsedCommitEntry;
+	fields: ThreadJournalSettings['commitFields'];
 }
 
 interface LogEntryRecord {
@@ -67,7 +67,7 @@ interface LogEntryRecord {
 	entry: ParsedInlineLogEntry;
 }
 
-type ThreadEntryRecord = CheckpointEntryRecord | LogEntryRecord;
+type ThreadEntryRecord = CommitEntryRecord | LogEntryRecord;
 type MarkdownChildRegistrar = (child: MarkdownRenderChild) => void;
 
 function sourceFile(app: App, ctx: MarkdownPostProcessorContext): TFile | undefined {
@@ -75,8 +75,8 @@ function sourceFile(app: App, ctx: MarkdownPostProcessorContext): TFile | undefi
 	return file instanceof TFile ? file : undefined;
 }
 
-function checkpointTimestamp(entry: ParsedCheckpointEntry): string {
-	return `${entry.values.checkpoint_date ?? ''}T${entry.values.checkpoint_time ?? ''}`;
+function commitTimestamp(entry: ParsedCommitEntry): string {
+	return `${entry.values.commit_date ?? ''}T${entry.values.commit_time ?? ''}`;
 }
 
 function addFileLink(
@@ -97,7 +97,7 @@ function addFileLink(
 }
 
 export class ThreadRenderers {
-	private readonly sourceCheckpointSignatures = new WeakMap<HTMLElement, string>();
+	private readonly sourceCommitSignatures = new WeakMap<HTMLElement, string>();
 	private readonly sourceLogSignatures = new WeakMap<HTMLElement, string>();
 	private readonly sourceTaskSignatures = new WeakMap<HTMLElement, string>();
 
@@ -106,13 +106,13 @@ export class ThreadRenderers {
 		private readonly index: ThreadIndex,
 		private readonly getSettings: () => ThreadJournalSettings,
 		private readonly taskManager: TaskManager,
-		private readonly onEditCheckpoint: (
+		private readonly onEditCommit: (
 			file: TFile,
-			entry: ParsedCheckpointEntry,
+			entry: ParsedCommitEntry,
 		) => void,
-		private readonly onDeleteCheckpoint: (
+		private readonly onDeleteCommit: (
 			file: TFile,
-			entry: ParsedCheckpointEntry,
+			entry: ParsedCommitEntry,
 		) => void,
 	) {}
 
@@ -290,13 +290,13 @@ export class ThreadRenderers {
 		}
 	}
 
-	async enhanceCheckpointCallouts(
+	async enhanceCommitCallouts(
 		el: HTMLElement,
 		ctx: MarkdownPostProcessorContext,
 	): Promise<void> {
 		const current = sourceFile(this.app, ctx);
 		if (!current || !this.index.getThreadForMember(current)) return;
-		const selector = '.callout[data-callout="thread-checkpoint"]';
+		const selector = '.callout[data-callout="thread-commit"]';
 		const callouts = [
 			...(el.matches(selector) ? [el] : []),
 			...Array.from(el.querySelectorAll<HTMLElement>(selector)),
@@ -304,11 +304,11 @@ export class ThreadRenderers {
 		if (callouts.length === 0) return;
 		const section = ctx.getSectionInfo(el);
 		if (!section) return;
-		const entries = parseCheckpointEntries(section.text);
+		const entries = parseCommitEntries(section.text);
 		await Promise.all(callouts.map(async (callout, index) => {
 			const entry = entries[index];
 			if (!entry?.blockId) return;
-			await this.renderSourceCheckpointCallout(
+			await this.renderSourceCommitCallout(
 				callout,
 				current,
 				entry,
@@ -345,42 +345,42 @@ export class ThreadRenderers {
 		}));
 	}
 
-	async renderSourceCheckpointCallout(
+	async renderSourceCommitCallout(
 		callout: HTMLElement,
 		memberFile: TFile,
-		entry: ParsedCheckpointEntry,
+		entry: ParsedCommitEntry,
 		registerChild: MarkdownChildRegistrar,
 	): Promise<void> {
 		const thread = this.index.getThreadForMember(memberFile);
 		if (!thread) return;
-		const fields = this.checkpointFields(thread);
+		const fields = this.commitFields(thread);
 		const signature = JSON.stringify([entry, fields]);
-		if (this.sourceCheckpointSignatures.get(callout) === signature) return;
+		if (this.sourceCommitSignatures.get(callout) === signature) return;
 		const title = callout.querySelector<HTMLElement>('.callout-title');
 		const titleInner = title?.querySelector<HTMLElement>('.callout-title-inner');
 		const content = callout.querySelector<HTMLElement>('.callout-content');
 		if (!title || !titleInner || !content) return;
-		this.sourceCheckpointSignatures.set(callout, signature);
-		callout.addClass('thread-journal-source-checkpoint-card');
+		this.sourceCommitSignatures.set(callout, signature);
+		callout.addClass('thread-journal-source-commit-card');
 
-		const date = entry.values.checkpoint_date || t('No date entered');
-		const time = entry.values.checkpoint_time || '';
+		const date = entry.values.commit_date || t('No date entered');
+		const time = entry.values.commit_time || '';
 		titleInner.setText(formatThreadEntryTimestamp(date, time));
-		title.querySelector('.thread-journal-source-checkpoint-controls')?.remove();
+		title.querySelector('.thread-journal-source-commit-controls')?.remove();
 		const controls = title.createDiv({
 			cls: [
-				'thread-journal-source-checkpoint-controls',
-				'thread-journal-checkpoint-card-controls',
+				'thread-journal-source-commit-controls',
+				'thread-journal-commit-card-controls',
 			],
 		});
-		const kind = entry.values.checkpoint_kind;
+		const kind = entry.values.commit_kind;
 		if (kind) {
-			controls.createSpan({ cls: 'thread-journal-checkpoint-card-kind', text: kind });
+			controls.createSpan({ cls: 'thread-journal-commit-card-kind', text: kind });
 		}
 		const edit = controls.createEl('button', {
-			cls: 'thread-journal-checkpoint-edit',
+			cls: 'thread-journal-commit-edit',
 			text: t('Edit'),
-			attr: { type: 'button', 'aria-label': t('Edit current checkpoint') },
+			attr: { type: 'button', 'aria-label': t('Edit current commit') },
 		});
 		edit.addEventListener('mousedown', (event) => {
 			event.preventDefault();
@@ -389,11 +389,11 @@ export class ThreadRenderers {
 		edit.addEventListener('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			this.onEditCheckpoint(memberFile, entry);
+			this.onEditCommit(memberFile, entry);
 		});
 
 		content.empty();
-		await this.renderCheckpointContent(
+		await this.renderCommitContent(
 			content,
 			entry,
 			fields,
@@ -474,18 +474,18 @@ export class ThreadRenderers {
 			(membersByThread.get(thread.id) ?? []).map(async (memberFile) => {
 			const content = await this.app.vault.cachedRead(memberFile);
 			const entries: ThreadEntryRecord[] = [];
-			if (parsed.query.types.includes('checkpoint')) {
-				const fields = this.checkpointFields(thread.file);
-				for (const entry of parseCheckpointEntries(content)) {
-					const entryDate = entry.values.checkpoint_date ?? '';
+			if (parsed.query.types.includes('commit')) {
+				const fields = this.commitFields(thread.file);
+				for (const entry of parseCommitEntries(content)) {
+					const entryDate = entry.values.commit_date ?? '';
 					if (date && (entryDate < date.from || entryDate > date.to)) continue;
 					entries.push({
-						type: 'checkpoint',
+						type: 'commit',
 						thread,
 						memberFile,
 						date: entryDate,
-						time: entry.values.checkpoint_time ?? '',
-						timestamp: checkpointTimestamp(entry),
+						time: entry.values.commit_time ?? '',
+						timestamp: commitTimestamp(entry),
 						entry,
 						fields,
 					});
@@ -530,15 +530,15 @@ export class ThreadRenderers {
 		);
 	}
 
-	private checkpointFields(thread: TFile): ThreadJournalSettings['checkpointFields'] {
+	private commitFields(thread: TFile): ThreadJournalSettings['commitFields'] {
 		const rawFrontmatter: unknown = this.app.metadataCache
 			.getFileCache(thread)?.frontmatter;
 		const ownFields = typeof rawFrontmatter === 'object' && rawFrontmatter !== null
-			? (rawFrontmatter as Record<string, unknown>).checkpoint_fields
+			? (rawFrontmatter as Record<string, unknown>).commit_fields
 			: undefined;
-		return checkpointFieldsForThread(
+		return commitFieldsForThread(
 			ownFields,
-			this.getSettings().checkpointFields,
+			this.getSettings().commitFields,
 		);
 	}
 
@@ -585,12 +585,12 @@ export class ThreadRenderers {
 		}
 
 		if (groupBy === 'type') {
-			for (const type of ['checkpoint', 'log'] as const) {
+			for (const type of ['commit', 'log'] as const) {
 				const group = records.filter((record) => record.type === type);
 				if (group.length === 0) continue;
 				const section = this.createEntryGroup(container);
 				const summary = section.createEl('summary', {
-					text: type === 'checkpoint' ? t('Checkpoint') : t('Log'),
+					text: type === 'commit' ? t('Commit') : t('Log'),
 				});
 				this.addEntryCount(summary, group.length);
 				const cards = section.createDiv({ cls: 'thread-journal-entry-cards' });
@@ -676,8 +676,8 @@ export class ThreadRenderers {
 		threadDetail: ThreadEntryDetail,
 	): Promise<void> {
 		for (const record of records) {
-			if (record.type === 'checkpoint') {
-				await this.renderCheckpointCards(
+			if (record.type === 'commit') {
+				await this.renderCommitCards(
 					container,
 					record.memberFile,
 					[record.entry],
@@ -770,11 +770,11 @@ export class ThreadRenderers {
 		);
 	}
 
-	private async renderCheckpointCards(
+	private async renderCommitCards(
 		container: HTMLElement,
 		sourceFile: TFile,
-		entries: ParsedCheckpointEntry[],
-		fields: ThreadJournalSettings['checkpointFields'],
+		entries: ParsedCommitEntry[],
+		fields: ThreadJournalSettings['commitFields'],
 		renderSourcePath: string,
 		dateFiltered: boolean,
 		threadDetail: ThreadEntryDetail,
@@ -782,15 +782,15 @@ export class ThreadRenderers {
 		registerChild: MarkdownChildRegistrar,
 	): Promise<void> {
 		for (const entry of entries) {
-			const card = container.createDiv({ cls: 'thread-journal-checkpoint-card' });
-			const header = card.createDiv({ cls: 'thread-journal-checkpoint-card-header' });
+			const card = container.createDiv({ cls: 'thread-journal-commit-card' });
+			const header = card.createDiv({ cls: 'thread-journal-commit-card-header' });
 			const identity = header.createDiv({
-				cls: 'thread-journal-checkpoint-card-identity',
+				cls: 'thread-journal-commit-card-identity',
 			});
-			const date = entry.values.checkpoint_date || t('No date entered');
-			const time = entry.values.checkpoint_time || '';
+			const date = entry.values.commit_date || t('No date entered');
+			const time = entry.values.commit_time || '';
 			identity.createSpan({
-				cls: 'thread-journal-checkpoint-card-date',
+				cls: 'thread-journal-commit-card-date',
 				text: formatThreadEntryTimestamp(date, time, dateFiltered),
 			});
 			if (threadDetail !== 'none') {
@@ -802,17 +802,17 @@ export class ThreadRenderers {
 					threadDetail,
 				);
 			}
-			const controls = header.createDiv({ cls: 'thread-journal-checkpoint-card-controls' });
-			const kind = entry.values.checkpoint_kind;
-			if (kind) controls.createSpan({ cls: 'thread-journal-checkpoint-card-kind', text: kind });
+			const controls = header.createDiv({ cls: 'thread-journal-commit-card-controls' });
+			const kind = entry.values.commit_kind;
+			if (kind) controls.createSpan({ cls: 'thread-journal-commit-card-kind', text: kind });
 			if (entry.blockId) {
 				const blockId = entry.blockId;
 				const locate = controls.createEl('a', {
-					cls: 'thread-journal-checkpoint-locate',
+					cls: 'thread-journal-commit-locate',
 					text: t('Locate'),
 					attr: {
 						href: `${sourceFile.path}#^${blockId}`,
-						'aria-label': t('Locate checkpoint in thread file'),
+						'aria-label': t('Locate commit in thread file'),
 					},
 				});
 				locate.addEventListener('click', (event) => {
@@ -824,24 +824,24 @@ export class ThreadRenderers {
 					);
 				});
 				const edit = controls.createEl('button', {
-					cls: 'thread-journal-checkpoint-edit',
+					cls: 'thread-journal-commit-edit',
 					text: t('Edit'),
-					attr: { type: 'button', 'aria-label': t('Edit checkpoint') },
+					attr: { type: 'button', 'aria-label': t('Edit commit') },
 				});
 				edit.addEventListener('click', () => {
-					this.onEditCheckpoint(sourceFile, entry);
+					this.onEditCommit(sourceFile, entry);
 				});
 				const remove = controls.createEl('button', {
-					cls: 'thread-journal-checkpoint-delete',
+					cls: 'thread-journal-commit-delete',
 					text: t('Delete'),
-					attr: { type: 'button', 'aria-label': t('Delete checkpoint') },
+					attr: { type: 'button', 'aria-label': t('Delete commit') },
 				});
 				remove.addEventListener('click', () => {
-					this.onDeleteCheckpoint(sourceFile, entry);
+					this.onDeleteCommit(sourceFile, entry);
 				});
 			}
 
-			await this.renderCheckpointContent(
+			await this.renderCommitContent(
 				card,
 				entry,
 				fields,
@@ -851,31 +851,31 @@ export class ThreadRenderers {
 		}
 	}
 
-	private async renderCheckpointContent(
+	private async renderCommitContent(
 		container: HTMLElement,
-		entry: ParsedCheckpointEntry,
-		fields: ThreadJournalSettings['checkpointFields'],
+		entry: ParsedCommitEntry,
+		fields: ThreadJournalSettings['commitFields'],
 		sourcePath: string,
 		registerChild: MarkdownChildRegistrar,
 	): Promise<void> {
 		const knownKeys = new Set(fields.map((field) => field.key));
-		const knownBodyLabels = checkpointBodyLabels(fields);
+		const knownBodyLabels = commitBodyLabels(fields);
 		const consumedBodyLabels = new Set<string>();
-		const systemKeys = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
-		const summaryField = fields.find((field) => field.key === 'checkpoint_summary');
+		const systemKeys = new Set(['commit', 'commit_date', 'commit_time']);
+		const summaryField = fields.find((field) => field.key === 'commit_summary');
 		const summaryBody = summaryField
 			? entry.body.find((item) => item.label === summaryField.label)
 			: undefined;
 		if (summaryBody) consumedBodyLabels.add(summaryBody.label);
-		const summary = entry.values.checkpoint_summary
+		const summary = entry.values.commit_summary
 			?? summaryBody?.value;
 		if (summary) {
 			const summaryRenderMode = summaryField
-				&& checkpointFieldRenderMode(summaryField) === 'block-markdown'
+				&& commitFieldRenderMode(summaryField) === 'block-markdown'
 				? 'block-markdown'
 				: 'inline-markdown';
 			const summaryEl = container.createDiv({
-				cls: 'thread-journal-checkpoint-card-summary',
+				cls: 'thread-journal-commit-card-summary',
 			});
 			await this.renderMarkdownValue(
 				summaryEl,
@@ -886,21 +886,21 @@ export class ThreadRenderers {
 			);
 		}
 
-		const details = container.createDiv({ cls: 'thread-journal-checkpoint-card-fields' });
+		const details = container.createDiv({ cls: 'thread-journal-commit-card-fields' });
 		let detailCount = 0;
 		for (const field of fields) {
-			if (field.key === 'checkpoint_kind' || field.key === 'checkpoint_summary') continue;
+			if (field.key === 'commit_kind' || field.key === 'commit_summary') continue;
 			const bodyValue = consumedBodyLabels.has(field.label)
 				? undefined
 				: entry.body.find((item) => item.label === field.label)?.value;
 			if (bodyValue !== undefined) consumedBodyLabels.add(field.label);
 			const value = entry.values[field.key] || bodyValue;
 			if (!value) continue;
-			await this.renderCheckpointField(
+			await this.renderCommitField(
 				details,
 				field.label,
 				value,
-				checkpointFieldRenderMode(field),
+				commitFieldRenderMode(field),
 				sourcePath,
 				registerChild,
 			);
@@ -908,7 +908,7 @@ export class ThreadRenderers {
 		}
 		for (const [key, value] of Object.entries(entry.values)) {
 			if (systemKeys.has(key) || knownKeys.has(key) || !value) continue;
-			await this.renderCheckpointField(
+			await this.renderCommitField(
 				details,
 				key,
 				value,
@@ -920,7 +920,7 @@ export class ThreadRenderers {
 		}
 		for (const body of entry.body) {
 			if (knownBodyLabels.has(body.label) || consumedBodyLabels.has(body.label)) continue;
-			await this.renderCheckpointField(
+			await this.renderCommitField(
 				details,
 				body.label,
 				body.value,
@@ -933,22 +933,22 @@ export class ThreadRenderers {
 		if (detailCount === 0) details.remove();
 	}
 
-	private async renderCheckpointField(
+	private async renderCommitField(
 		container: HTMLElement,
 		label: string,
 		value: string,
-		mode: CheckpointFieldRenderMode,
+		mode: CommitFieldRenderMode,
 		sourcePath: string,
 		registerChild: MarkdownChildRegistrar,
 	): Promise<void> {
-		const row = container.createDiv({ cls: 'thread-journal-checkpoint-card-field' });
-		row.createSpan({ cls: 'thread-journal-checkpoint-card-field-label', text: label });
+		const row = container.createDiv({ cls: 'thread-journal-commit-card-field' });
+		row.createSpan({ cls: 'thread-journal-commit-card-field-label', text: label });
 		if (mode === 'plain') {
-			row.createSpan({ cls: 'thread-journal-checkpoint-card-field-value', text: value });
+			row.createSpan({ cls: 'thread-journal-commit-card-field-value', text: value });
 			return;
 		}
 		if (mode === 'block-markdown') row.addClass('is-block');
-		const valueEl = row.createDiv({ cls: 'thread-journal-checkpoint-card-field-value' });
+		const valueEl = row.createDiv({ cls: 'thread-journal-commit-card-field-value' });
 		await this.renderMarkdownValue(valueEl, value, sourcePath, registerChild, mode);
 	}
 
@@ -957,7 +957,7 @@ export class ThreadRenderers {
 		value: string,
 		sourcePath: string,
 		registerChild: MarkdownChildRegistrar,
-		mode: Exclude<CheckpointFieldRenderMode, 'plain'>,
+		mode: Exclude<CommitFieldRenderMode, 'plain'>,
 	): Promise<void> {
 		container.addClass(`thread-journal-${mode}`);
 		const child = new MarkdownRenderChild(container);

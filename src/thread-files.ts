@@ -299,7 +299,7 @@ export class ThreadFileManager {
 			delete metadata.status;
 			delete metadata.parent;
 			delete metadata.entry;
-			delete metadata.checkpoint_fields;
+			delete metadata.commit_fields;
 		});
 		return file;
 	}

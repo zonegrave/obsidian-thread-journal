@@ -12,12 +12,12 @@ import {
 	TFile,
 	getLanguage,
 } from 'obsidian';
-import { CheckpointManager } from './checkpoint';
-import { checkpointEditorExtension } from './checkpoint-editor';
+import { CommitManager } from './commit';
+import { commitEditorExtension } from './commit-editor';
 import {
-	CHECKPOINT_PANEL_VIEW_TYPE,
-	CheckpointPanelView,
-} from './checkpoint-panel';
+	COMMIT_PANEL_VIEW_TYPE,
+	CommitPanelView,
+} from './commit-panel';
 import { ThreadRenderers } from './renderers';
 import {
 	DEFAULT_SETTINGS,
@@ -48,7 +48,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	private files!: ThreadFileManager;
 	private meta!: ThreadMetaManager;
 	private parents!: ThreadParentManager;
-	private checkpoints!: CheckpointManager;
+	private commits!: CommitManager;
 	private switcher!: ThreadSwitcherManager;
 	private breadcrumbs!: ThreadBreadcrumbManager;
 	private tasks!: TaskManager;
@@ -56,8 +56,8 @@ export default class ThreadJournalPlugin extends Plugin {
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.registerView(
-			CHECKPOINT_PANEL_VIEW_TYPE,
-			(leaf) => new CheckpointPanelView(leaf),
+			COMMIT_PANEL_VIEW_TYPE,
+			(leaf) => new CommitPanelView(leaf),
 		);
 		const getSettings = () => this.settings;
 		this.index = new ThreadIndex(this.app);
@@ -69,7 +69,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
 		this.switcher = new ThreadSwitcherManager(this.app, this.index, this.files);
 		this.parents = new ThreadParentManager(this.index);
-		this.checkpoints = new CheckpointManager(
+		this.commits = new CommitManager(
 			this.app,
 			this.index,
 			getSettings,
@@ -79,7 +79,7 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.index,
 			this.parents,
 			this.files,
-			this.checkpoints,
+			this.commits,
 		);
 		this.breadcrumbs = new ThreadBreadcrumbManager(
 			this.app,
@@ -95,13 +95,13 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.index,
 			getSettings,
 			this.tasks,
-			(file, entry) => this.checkpoints.openCheckpointEditModal(file, entry),
-			(file, entry) => this.checkpoints.openCheckpointDeleteModal(file, entry),
+			(file, entry) => this.commits.openCommitEditModal(file, entry),
+			(file, entry) => this.commits.openCommitDeleteModal(file, entry),
 		);
-		this.registerEditorExtension(checkpointEditorExtension(
+		this.registerEditorExtension(commitEditorExtension(
 			(file) => Boolean(this.index.getThreadForMember(file)),
 			(callout, file, entry, registerChild) =>
-				this.renderers.renderSourceCheckpointCallout(
+				this.renderers.renderSourceCommitCallout(
 					callout,
 					file,
 					entry,
@@ -164,12 +164,12 @@ export default class ThreadJournalPlugin extends Plugin {
 	private registerCommands(): void {
 		this.addCommand({ id: 'thread-overview', name: t('Open thread overview'), callback: () => void openThreadOverview(this.app) });
 		this.addCommand({
-			id: 'edit-current-thread-checkpoint-template',
-			name: t('Edit checkpoint template'),
+			id: 'edit-current-thread-commit-template',
+			name: t('Edit commit template'),
 			checkCallback: (checking) => {
 				const threadFile = this.meta.getCurrentThreadFile();
 				if (!threadFile) return false;
-				if (!checking) this.checkpoints.openCheckpointTemplateModal(threadFile);
+				if (!checking) this.commits.openCommitTemplateModal(threadFile);
 				return true;
 			},
 		});
@@ -184,11 +184,11 @@ export default class ThreadJournalPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: 'create-current-thread-checkpoint',
-			name: t('Create checkpoint'),
+			id: 'create-current-thread-commit',
+			name: t('Create commit'),
 			checkCallback: (checking) => {
-				if (!this.checkpoints.canCreateCurrentCheckpoint()) return false;
-				if (!checking) this.checkpoints.openCurrentCheckpointModal();
+				if (!this.commits.canCreateCurrentCommit()) return false;
+				if (!checking) this.commits.openCurrentCommitModal();
 				return true;
 			},
 		});
@@ -296,7 +296,7 @@ export default class ThreadJournalPlugin extends Plugin {
 			renderTaskReference(source, el, ctx, this.app, this.tasks);
 		});
 		this.registerMarkdownPostProcessor(async (el, ctx) => {
-			await this.renderers.enhanceCheckpointCallouts(el, ctx);
+			await this.renderers.enhanceCommitCallouts(el, ctx);
 			await this.renderers.enhanceLogCallouts(el, ctx);
 			await this.renderers.enhanceTasks(el, ctx);
 		});

@@ -6,7 +6,7 @@ import {
 	Setting,
 	TFile,
 } from 'obsidian';
-import type { CheckpointManager } from './checkpoint';
+import type { CommitManager } from './commit';
 import type { ThreadFileManager } from './thread-files';
 import type { ThreadIndex } from './thread-index';
 import { replaceThreadDisplayAlias } from './thread-meta-model';
@@ -34,7 +34,7 @@ interface ThreadMetaModalContext {
 	parentCandidates: ThreadInfo[];
 	entryCandidates: ThreadMemberInfo[];
 	memberCount: number;
-	checkpointTemplate: string;
+	commitTemplate: string;
 }
 
 class ThreadMetaModal extends Modal {
@@ -50,7 +50,7 @@ class ThreadMetaModal extends Modal {
 		private readonly onSave: (data: ThreadMetaFormData) => Promise<void>,
 		private readonly onOpenMeta: () => void,
 		private readonly onManageFiles: () => void,
-		private readonly onEditCheckpointTemplate: () => void,
+		private readonly onEditCommitTemplate: () => void,
 	) {
 		super(app);
 		this.title = context.thread.title;
@@ -132,13 +132,13 @@ class ThreadMetaModal extends Modal {
 			});
 
 		new Setting(this.contentEl)
-			.setName(t('Checkpoint template'))
-			.setDesc(this.context.checkpointTemplate)
+			.setName(t('Commit template'))
+			.setDesc(this.context.commitTemplate)
 			.addButton((button) => button
 				.setButtonText(t('Edit'))
 				.onClick(() => {
 					this.close();
-					this.onEditCheckpointTemplate();
+					this.onEditCommitTemplate();
 				}));
 
 		new Setting(this.contentEl)
@@ -194,7 +194,7 @@ export class ThreadMetaManager {
 		private readonly index: ThreadIndex,
 		private readonly parents: ThreadParentManager,
 		private readonly files: ThreadFileManager,
-		private readonly checkpoints: CheckpointManager,
+		private readonly commits: CommitManager,
 	) {}
 
 	getCurrentThreadFile(): TFile | undefined {
@@ -221,7 +221,7 @@ export class ThreadMetaManager {
 		const parentFile = this.index.getParentFile(threadFile);
 		const frontmatter: unknown = this.app.metadataCache.getFileCache(threadFile)?.frontmatter;
 		const ownFields = typeof frontmatter === 'object' && frontmatter !== null
-			? (frontmatter as Record<string, unknown>).checkpoint_fields
+			? (frontmatter as Record<string, unknown>).commit_fields
 			: undefined;
 		const members = this.index.getMembersByThreadId(thread.id);
 		const activeMembers = members
@@ -234,7 +234,7 @@ export class ThreadMetaManager {
 			parentCandidates: this.parents.getCandidates(threadFile),
 			entryCandidates: activeMembers,
 			memberCount: members.length,
-			checkpointTemplate: Array.isArray(ownFields)
+			commitTemplate: Array.isArray(ownFields)
 				? t('Independent template · {count} fields', { count: ownFields.length })
 				: t('Uses the global default template'),
 		};
@@ -244,7 +244,7 @@ export class ThreadMetaManager {
 			(data) => this.save(threadFile, data),
 			() => void this.files.openFile(threadFile),
 			() => this.files.openThreadFilesModal(threadFile),
-			() => this.checkpoints.openCheckpointTemplateModal(threadFile),
+			() => this.commits.openCommitTemplateModal(threadFile),
 		).open();
 	}
 

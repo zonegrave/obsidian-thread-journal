@@ -19,25 +19,25 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { resolveLocale, setLocale, translate } from '../src/i18n';
 import {
-	appendCheckpointEntry,
-	buildCheckpointEntry,
-	checkpointEditState,
-	checkpointEntryAroundLine,
-	checkpointInsertionEdit,
+	appendCommitEntry,
+	buildCommitEntry,
+	commitEditState,
+	commitEntryAroundLine,
+	commitInsertionEdit,
 	cursorLineIsFrontmatter,
-	deleteCheckpointEntry,
-	parseCheckpointEntries,
-	replaceCheckpointEntry,
-} from '../src/checkpoint-core';
+	deleteCommitEntry,
+	parseCommitEntries,
+	replaceCommitEntry,
+} from '../src/commit-core';
 import {
-	activeCheckpointFields,
-	checkpointBodyLabels,
-	checkpointFieldRenderMode,
-	checkpointFieldsForThread,
-	DEFAULT_CHECKPOINT_FIELDS,
-	normalizeCheckpointFields,
-} from '../src/checkpoint-model';
-import { moveCheckpointOption } from '../src/checkpoint-option-model';
+	activeCommitFields,
+	commitBodyLabels,
+	commitFieldRenderMode,
+	commitFieldsForThread,
+	DEFAULT_COMMIT_FIELDS,
+	normalizeCommitFields,
+} from '../src/commit-model';
+import { moveCommitOption } from '../src/commit-option-model';
 import {
 	buildThreadFileName,
 	stripWikiLink,
@@ -362,7 +362,7 @@ void test('parses the unified thread entries query', () => {
 	assert.deepEqual(parseThreadEntriesQuery([
 		'thread_id: 20e15ed8-5de0-44bc-919f-54d49294c14c',
 		'date: 2026-09-01..2026-09-04',
-		'type: [checkpoint, log]',
+		'type: [commit, log]',
 		'group_by: thread',
 		'thread_detail: crumb',
 		'order: asc',
@@ -370,7 +370,7 @@ void test('parses the unified thread entries query', () => {
 		query: {
 			threadIds: ['20e15ed8-5de0-44bc-919f-54d49294c14c'],
 			date: { from: '2026-09-01', to: '2026-09-04' },
-			types: ['checkpoint', 'log'],
+			types: ['commit', 'log'],
 			groupBy: 'thread',
 			threadDetail: 'crumb',
 			order: 'asc',
@@ -381,7 +381,7 @@ void test('parses the unified thread entries query', () => {
 		query: {
 			threadIds: undefined,
 			date: undefined,
-			types: ['checkpoint', 'log'],
+			types: ['commit', 'log'],
 			groupBy: 'none',
 			threadDetail: 'none',
 			order: 'desc',
@@ -398,7 +398,7 @@ void test('parses the unified thread entries query', () => {
 void test('reports invalid thread entries query values', () => {
 	const result = parseThreadEntriesQuery([
 		'date: 2026-09-05..2026-09-01',
-		'type: checkpoint, thought',
+		'type: commit, thought',
 		'group_by: day',
 		'thread_detail: full',
 		'order: newest',
@@ -413,7 +413,7 @@ void test('reports invalid thread entries query values', () => {
 	assert.match(result.errors.join('\n'), /unknown/);
 });
 
-void test('formats checkpoint and log timestamps consistently', () => {
+void test('formats commit and log timestamps consistently', () => {
 	assert.equal(formatThreadEntryTimestamp('2026-09-05', '07:20'), '26/09/05 07:20');
 	assert.equal(formatThreadEntryTimestamp('2026-09-05', '07:20', true), '07:20');
 	assert.equal(formatThreadEntryTimestamp('2026-09-05', '', true), '26/09/05');
@@ -553,21 +553,21 @@ void test('renders thread member template placeholders', () => {
 	assert.match(rendered, /2026-08-31 \/ 260831/);
 });
 
-void test('normalizes configurable checkpoint fields and protects system keys', () => {
-	assert.deepEqual(DEFAULT_CHECKPOINT_FIELDS.map((field) => ({
+void test('normalizes configurable commit fields and protects system keys', () => {
+	assert.deepEqual(DEFAULT_COMMIT_FIELDS.map((field) => ({
 		key: field.key,
 		control: field.control,
 		storage: field.storage,
 	})), [
-		{ key: 'checkpoint_kind', control: 'select', storage: 'inline' },
-		{ key: 'checkpoint_summary', control: 'textarea', storage: 'body' },
+		{ key: 'commit_kind', control: 'select', storage: 'inline' },
+		{ key: 'commit_summary', control: 'textarea', storage: 'body' },
 	]);
-	assert.deepEqual(normalizeCheckpointFields([
+	assert.deepEqual(normalizeCommitFields([
 		{
 			key: 'custom_score', label: '评分', control: 'number', storage: 'inline', required: true,
 		},
 		{
-			key: 'checkpoint_time', label: '备注', control: 'textarea', storage: 'body', required: false,
+			key: 'commit_time', label: '备注', control: 'textarea', storage: 'body', required: false,
 		},
 	]), [
 		{
@@ -575,42 +575,42 @@ void test('normalizes configurable checkpoint fields and protects system keys', 
 			required: true, deprecated: false, options: [],
 		},
 		{
-			key: 'checkpoint_field_2', label: '备注', control: 'textarea', storage: 'body',
+			key: 'commit_field_2', label: '备注', control: 'textarea', storage: 'body',
 			required: false, deprecated: false, options: [],
 		},
 	]);
 });
 
 void test('recognizes body field labels independently of the current storage mode', () => {
-	const labels = checkpointBodyLabels(normalizeCheckpointFields([
+	const labels = commitBodyLabels(normalizeCommitFields([
 		{
-			key: 'checkpoint_summary', label: '摘要', control: 'text', storage: 'inline',
+			key: 'commit_summary', label: '摘要', control: 'text', storage: 'inline',
 			required: true,
 		},
 	]));
 	assert.equal(labels.has('摘要'), true);
 });
 
-void test('moves checkpoint select options without changing their values', () => {
+void test('moves commit select options without changing their values', () => {
 	assert.deepEqual(
-		moveCheckpointOption(['milestone', 'review', 'blocked'], 0, 2),
+		moveCommitOption(['milestone', 'review', 'blocked'], 0, 2),
 		['review', 'blocked', 'milestone'],
 	);
 	assert.deepEqual(
-		moveCheckpointOption(['milestone', 'review'], 3, 0),
+		moveCommitOption(['milestone', 'review'], 3, 0),
 		['milestone', 'review'],
 	);
 });
 
-void test('uses a per-thread checkpoint template before the global default', () => {
-	const defaults = normalizeCheckpointFields(undefined);
+void test('uses a per-thread commit template before the global default', () => {
+	const defaults = normalizeCommitFields(undefined);
 	assert.deepEqual(
-		checkpointFieldsForThread(undefined, defaults).map((field) => field.key),
-		['checkpoint_kind', 'checkpoint_summary'],
+		commitFieldsForThread(undefined, defaults).map((field) => field.key),
+		['commit_kind', 'commit_summary'],
 	);
-	assert.deepEqual(checkpointFieldsForThread([], defaults), []);
+	assert.deepEqual(commitFieldsForThread([], defaults), []);
 	assert.deepEqual(
-		checkpointFieldsForThread([{
+		commitFieldsForThread([{
 			key: 'risk', label: '风险', control: 'textarea', storage: 'body', required: false,
 		}], defaults),
 		[{
@@ -620,8 +620,8 @@ void test('uses a per-thread checkpoint template before the global default', () 
 	);
 });
 
-void test('moves deprecated fields last and excludes them from new checkpoint input', () => {
-	const fields = normalizeCheckpointFields([
+void test('moves deprecated fields last and excludes them from new commit input', () => {
+	const fields = normalizeCommitFields([
 		{
 			key: 'old_metric', label: '旧指标', control: 'number', storage: 'inline',
 			required: true, deprecated: true,
@@ -635,80 +635,80 @@ void test('moves deprecated fields last and excludes them from new checkpoint in
 	assert.equal(fields[1]?.deprecated, true);
 	assert.equal(fields[1]?.required, false);
 	assert.deepEqual(
-		activeCheckpointFields(fields).map((field) => field.key),
+		activeCommitFields(fields).map((field) => field.key),
 		['current_metric'],
 	);
 });
 
-void test('builds a Dataview-queryable checkpoint with a free-form body', () => {
-	const fields = normalizeCheckpointFields([
+void test('builds a Dataview-queryable commit with a free-form body', () => {
+	const fields = normalizeCommitFields([
 		{
-			key: 'checkpoint_kind', label: '类型', control: 'select', storage: 'inline',
+			key: 'commit_kind', label: '类型', control: 'select', storage: 'inline',
 			required: true, options: ['milestone', 'review'],
 		},
 		{
-			key: 'checkpoint_summary', label: '摘要', control: 'text', storage: 'inline',
+			key: 'commit_summary', label: '摘要', control: 'text', storage: 'inline',
 			required: true,
 		},
 		{
-			key: 'checkpoint_result', label: '阶段成果', control: 'textarea', storage: 'body',
+			key: 'commit_result', label: '阶段成果', control: 'textarea', storage: 'body',
 			required: false,
 		},
 	]);
-	assert.equal(buildCheckpointEntry({
+	assert.equal(buildCommitEntry({
 		date: '2026-08-31',
 		time: '14:35',
-		blockId: 'cp-20260831-01',
+		blockId: 'cm-20260831-01',
 		fields,
 		values: {
-			checkpoint_kind: 'milestone',
-			checkpoint_summary: '完成表单设计',
-			checkpoint_result: '可以自由配置字段。\n长文字保留在正文。',
+			commit_kind: 'milestone',
+			commit_summary: '完成表单设计',
+			commit_result: '可以自由配置字段。\n长文字保留在正文。',
 		},
 	}), [
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成表单设计] ^cp-20260831-01',
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-08-31] [commit_time:: 14:35] [commit_kind:: milestone] [commit_summary:: 完成表单设计] ^cm-20260831-01',
 		'>   - **阶段成果：**',
 		'>     可以自由配置字段。',
 		'>     长文字保留在正文。',
 	].join('\n'));
 });
 
-void test('round-trips multiline inline checkpoint values without delimiter collisions', () => {
-	const fields = normalizeCheckpointFields([
+void test('round-trips multiline inline commit values without delimiter collisions', () => {
+	const fields = normalizeCommitFields([
 		{
-			key: 'checkpoint_summary', label: '摘要', control: 'textarea', storage: 'inline',
+			key: 'commit_summary', label: '摘要', control: 'textarea', storage: 'inline',
 			required: true,
 		},
 	]);
 	const value = '第一行\n\n第二行 & 原样保留 &#10; 和 ]';
-	const entry = buildCheckpointEntry({
+	const entry = buildCommitEntry({
 		date: '2026-09-20',
 		time: '12:30',
-		blockId: 'cp-multiline-inline',
+		blockId: 'cm-multiline-inline',
 		fields,
-		values: { checkpoint_summary: value },
+		values: { commit_summary: value },
 	});
-	assert.match(entry, /\[checkpoint_summary:: 第一行&#10;&#10;第二行 &#38; 原样保留 &#38;#10; 和 &#93;\]/u);
-	assert.equal(parseCheckpointEntries(entry)[0]?.values.checkpoint_summary, value);
+	assert.match(entry, /\[commit_summary:: 第一行&#10;&#10;第二行 &#38; 原样保留 &#38;#10; 和 &#93;\]/u);
+	assert.equal(parseCommitEntries(entry)[0]?.values.commit_summary, value);
 });
 
-void test('parses checkpoint data from a thread member callout', () => {
-	const parsed = parseCheckpointEntries([
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_time:: 14:35] [checkpoint_kind:: milestone] [checkpoint_summary:: 完成表单设计] ^cp-01',
+void test('parses commit data from a thread member callout', () => {
+	const parsed = parseCommitEntries([
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-08-31] [commit_time:: 14:35] [commit_kind:: milestone] [commit_summary:: 完成表单设计] ^cm-01',
 		'>   - **阶段成果：**',
 		'>     可以自由配置字段。',
 		'>     长文字保留在正文。',
 	].join('\n'));
 	assert.deepEqual(parsed, [{
-		blockId: 'cp-01',
+		blockId: 'cm-01',
 		values: {
-			checkpoint: 'true',
-			checkpoint_date: '2026-08-31',
-			checkpoint_time: '14:35',
-			checkpoint_kind: 'milestone',
-			checkpoint_summary: '完成表单设计',
+			commit: 'true',
+			commit_date: '2026-08-31',
+			commit_time: '14:35',
+			commit_kind: 'milestone',
+			commit_summary: '完成表单设计',
 		},
 		body: [{
 			label: '阶段成果',
@@ -717,25 +717,25 @@ void test('parses checkpoint data from a thread member callout', () => {
 	}]);
 });
 
-void test('finds the checkpoint around a Live Preview source line', () => {
+void test('finds the commit around a Live Preview source line', () => {
 	const content = [
 		'# Thread 工作区',
 		'',
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_summary:: 完成] ^cp-live',
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-08-31] [commit_summary:: 完成] ^cm-live',
 		'>   - **阶段成果：** 可见',
 		'',
 		'后续内容',
 	].join('\n');
-	assert.equal(checkpointEntryAroundLine(content, 2)?.blockId, 'cp-live');
-	assert.equal(checkpointEntryAroundLine(content, 4)?.values.checkpoint_summary, '完成');
-	assert.equal(checkpointEntryAroundLine(content, 6), undefined);
+	assert.equal(commitEntryAroundLine(content, 2)?.blockId, 'cm-live');
+	assert.equal(commitEntryAroundLine(content, 4)?.values.commit_summary, '完成');
+	assert.equal(commitEntryAroundLine(content, 6), undefined);
 });
 
-void test('appends checkpoint callouts to a thread member', () => {
+void test('appends commit callouts to a thread member', () => {
 	const entry = [
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] ^cp-new',
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-08-31] ^cm-new',
 	].join('\n');
 	const original = [
 		'# Thread 工作区',
@@ -743,12 +743,12 @@ void test('appends checkpoint callouts to a thread member', () => {
 		'自由记录',
 		'',
 	].join('\n');
-	const result = appendCheckpointEntry(original, entry);
-	assert.match(result, /自由记录\n\n> \[!thread-checkpoint\].*\n> - \[checkpoint:: true\]/);
-	assert.ok(result.indexOf('自由记录') < result.indexOf('^cp-new'));
+	const result = appendCommitEntry(original, entry);
+	assert.match(result, /自由记录\n\n> \[!thread-commit\].*\n> - \[commit:: true\]/);
+	assert.ok(result.indexOf('自由记录') < result.indexOf('^cm-new'));
 });
 
-void test('inserts checkpoint callouts at a thread member cursor line', () => {
+void test('inserts commit callouts at a thread member cursor line', () => {
 	const original = [
 		'# Thread 工作区',
 		'',
@@ -758,10 +758,10 @@ void test('inserts checkpoint callouts at a thread member cursor line', () => {
 	].join('\n');
 	const lines = original.split('\n');
 	const entry = [
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] ^cp-custom',
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-09-01] ^cm-custom',
 	].join('\n');
-	const edit = checkpointInsertionEdit(lines, entry, 2);
+	const edit = commitInsertionEdit(lines, entry, 2);
 	assert.deepEqual(edit.from, { line: 2, ch: 3 });
 	assert.deepEqual(edit.to, { line: 4, ch: 0 });
 	const offset = (position: { line: number; ch: number }): number =>
@@ -770,15 +770,15 @@ void test('inserts checkpoint callouts at a thread member cursor line', () => {
 	const result = original.slice(0, offset(edit.from))
 		+ edit.replacement
 		+ original.slice(offset(edit.to));
-	assert.match(result, /第一段\n\n> \[!thread-checkpoint\][\s\S]*\^cp-custom\n\n第二段/);
-	assert.deepEqual(checkpointInsertionEdit(lines, entry, 3), {
+	assert.match(result, /第一段\n\n> \[!thread-commit\][\s\S]*\^cm-custom\n\n第二段/);
+	assert.deepEqual(commitInsertionEdit(lines, entry, 3), {
 		from: { line: 3, ch: 0 },
 		to: { line: 3, ch: 0 },
 		replacement: `${entry}\n`,
 	});
 });
 
-void test('rejects checkpoint cursor positions inside live frontmatter', () => {
+void test('rejects commit cursor positions inside live frontmatter', () => {
 	const lines = ['---', 'type: thread', 'parent: none', '---', '# Body'];
 	assert.equal(cursorLineIsFrontmatter(lines, 2), true);
 	assert.equal(cursorLineIsFrontmatter(lines, 4), false);
@@ -786,35 +786,35 @@ void test('rejects checkpoint cursor positions inside live frontmatter', () => {
 	assert.equal(cursorLineIsFrontmatter(['# Body'], 0), false);
 });
 
-void test('replaces one checkpoint in place by block id', () => {
+void test('replaces one commit in place by block id', () => {
 	const original = [
 		'# Thread 工作区',
 		'',
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] [checkpoint_summary:: 旧摘要] ^cp-edit',
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-09-01] [commit_summary:: 旧摘要] ^cm-edit',
 		'>   - **详情：** 旧内容',
 		'',
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-08-31] [checkpoint_summary:: 保留] ^cp-keep',
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-08-31] [commit_summary:: 保留] ^cm-keep',
 	].join('\n');
 	const replacement = [
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-02] [checkpoint_time:: 10:30] [checkpoint_summary:: 新摘要] ^cp-edit',
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-09-02] [commit_time:: 10:30] [commit_summary:: 新摘要] ^cm-edit',
 		'>   - **详情：** 新内容',
 	].join('\n');
-	const result = replaceCheckpointEntry(original, 'cp-edit', replacement);
-	assert.match(result, /> \[!thread-checkpoint\]\n> - \[checkpoint:: true\].*\[checkpoint_date:: 2026-09-02\].*\[checkpoint_time:: 10:30\]/);
-	assert.match(result, /> - \[checkpoint:: true\].*新摘要.*\^cp-edit/);
+	const result = replaceCommitEntry(original, 'cm-edit', replacement);
+	assert.match(result, /> \[!thread-commit\]\n> - \[commit:: true\].*\[commit_date:: 2026-09-02\].*\[commit_time:: 10:30\]/);
+	assert.match(result, /> - \[commit:: true\].*新摘要.*\^cm-edit/);
 	assert.match(result, /> {3}- \*\*详情：\*\* 新内容/);
 	assert.doesNotMatch(result, /旧摘要|旧内容/);
-	assert.match(result, /保留.*\^cp-keep/);
-	assert.equal(parseCheckpointEntries(result).length, 2);
+	assert.match(result, /保留.*\^cm-keep/);
+	assert.equal(parseCommitEntries(result).length, 2);
 });
 
-void test('adds active template fields when editing an older checkpoint', () => {
-	const fields = normalizeCheckpointFields([
+void test('adds active template fields when editing an older commit', () => {
+	const fields = normalizeCommitFields([
 		{
-			key: 'checkpoint_summary', label: '摘要', control: 'text', storage: 'inline',
+			key: 'commit_summary', label: '摘要', control: 'text', storage: 'inline',
 			required: true,
 		},
 		{
@@ -826,50 +826,50 @@ void test('adds active template fields when editing an older checkpoint', () => 
 			deprecated: true,
 		},
 	]);
-	const edit = checkpointEditState(fields, {
-		blockId: 'cp-old',
+	const edit = commitEditState(fields, {
+		blockId: 'cm-old',
 		values: {
-			checkpoint: 'true',
-			checkpoint_date: '2026-09-01',
-			checkpoint_summary: '旧记录',
+			commit: 'true',
+			commit_date: '2026-09-01',
+			commit_summary: '旧记录',
 			legacy_only: '保留',
 		},
 		body: [],
 	});
 	assert.deepEqual(edit.fields.map((field) => field.key), [
-		'checkpoint_summary', 'new_note', 'legacy_only',
+		'commit_summary', 'new_note', 'legacy_only',
 	]);
 	assert.equal(edit.values.new_note, undefined);
 	assert.equal(edit.fields.find((field) => field.key === 'new_note')?.required, false);
 	assert.equal(edit.fields.find((field) => field.key === 'legacy_only')?.deprecated, true);
 });
 
-void test('chooses markdown rendering by checkpoint field shape', () => {
-	assert.equal(checkpointFieldRenderMode({ control: 'text', storage: 'inline' }), 'inline-markdown');
-	assert.equal(checkpointFieldRenderMode({ control: 'textarea', storage: 'body' }), 'block-markdown');
-	assert.equal(checkpointFieldRenderMode({ control: 'textarea', storage: 'inline' }), 'block-markdown');
-	assert.equal(checkpointFieldRenderMode({ control: 'text', storage: 'body' }), 'block-markdown');
-	assert.equal(checkpointFieldRenderMode({ control: 'select', storage: 'inline' }), 'plain');
-	assert.equal(checkpointFieldRenderMode({ control: 'number', storage: 'inline' }), 'plain');
-	assert.equal(checkpointFieldRenderMode({ control: 'toggle', storage: 'inline' }), 'plain');
-	assert.equal(checkpointFieldRenderMode({ control: 'date', storage: 'inline' }), 'plain');
+void test('chooses markdown rendering by commit field shape', () => {
+	assert.equal(commitFieldRenderMode({ control: 'text', storage: 'inline' }), 'inline-markdown');
+	assert.equal(commitFieldRenderMode({ control: 'textarea', storage: 'body' }), 'block-markdown');
+	assert.equal(commitFieldRenderMode({ control: 'textarea', storage: 'inline' }), 'block-markdown');
+	assert.equal(commitFieldRenderMode({ control: 'text', storage: 'body' }), 'block-markdown');
+	assert.equal(commitFieldRenderMode({ control: 'select', storage: 'inline' }), 'plain');
+	assert.equal(commitFieldRenderMode({ control: 'number', storage: 'inline' }), 'plain');
+	assert.equal(commitFieldRenderMode({ control: 'toggle', storage: 'inline' }), 'plain');
+	assert.equal(commitFieldRenderMode({ control: 'date', storage: 'inline' }), 'plain');
 });
 
-void test('deletes one checkpoint in place by block id', () => {
+void test('deletes one commit in place by block id', () => {
 	const original = [
 		'# Thread 工作区',
 		'',
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-02] [checkpoint_summary:: 删除] ^cp-delete',
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-09-02] [commit_summary:: 删除] ^cm-delete',
 		'>   - **详情：** 一并删除',
 		'',
-		'> [!thread-checkpoint]',
-		'> - [checkpoint:: true] [checkpoint_date:: 2026-09-01] [checkpoint_summary:: 保留] ^cp-keep',
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-09-01] [commit_summary:: 保留] ^cm-keep',
 	].join('\n');
-	const result = deleteCheckpointEntry(original, 'cp-delete');
-	assert.doesNotMatch(result, /删除|一并删除|cp-delete/);
-	assert.match(result, /保留.*\^cp-keep/);
-	assert.equal(parseCheckpointEntries(result).length, 1);
+	const result = deleteCommitEntry(original, 'cm-delete');
+	assert.doesNotMatch(result, /删除|一并删除|cm-delete/);
+	assert.match(result, /保留.*\^cm-keep/);
+	assert.equal(parseCommitEntries(result).length, 1);
 });
 
 void test('supports only the eight current status values', () => {
@@ -1328,7 +1328,7 @@ void test('localizes model-provided labels without changing stored values', () =
 		assert.ok(dormant);
 		assert.equal(threadStatusOptionLabel(dormant), 'dormant — Dormant');
 		assert.deepEqual(
-			normalizeCheckpointFields(undefined).map((field) => field.label),
+			normalizeCommitFields(undefined).map((field) => field.label),
 			['Type', 'Summary'],
 		);
 		assert.match(parseThreadEntriesQuery('invalid').errors[0] ?? '', /^Line 1/);

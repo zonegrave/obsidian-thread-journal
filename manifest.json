@@ -1,9 +1,9 @@
 {
 	"id": "thread-journal",
 	"name": "Thread Journal",
-	"version": "0.44.3",
+	"version": "0.45.0",
 	"minAppVersion": "1.13.1",
-	"description": "Organize thread packs with flexible role files and structured checkpoints.",
+	"description": "Organize thread packs with flexible role files and structured commits.",
 	"author": "zonegrave",
 	"isDesktopOnly": false
 }

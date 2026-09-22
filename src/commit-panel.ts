@@ -4,37 +4,37 @@ import {
 	type WorkspaceLeaf,
 } from 'obsidian';
 import type {
-	CheckpointValue,
-} from './checkpoint-core';
-import type { CheckpointFieldSpec } from './types';
+	CommitValue,
+} from './commit-core';
+import type { CommitFieldSpec } from './types';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
 import { create24HourTimeSelect, is24HourTime } from './time-input';
 
-export const CHECKPOINT_PANEL_VIEW_TYPE = 'thread-journal-checkpoint-panel';
+export const COMMIT_PANEL_VIEW_TYPE = 'thread-journal-commit-panel';
 
-export interface CheckpointPanelRequest {
+export interface CommitPanelRequest {
 	mode: 'create' | 'edit';
 	threadTitle: string;
-	fields: CheckpointFieldSpec[];
+	fields: CommitFieldSpec[];
 	date: string;
 	time: string;
-	values: Record<string, CheckpointValue | undefined>;
+	values: Record<string, CommitValue | undefined>;
 	onSubmit: (
 		date: string,
 		time: string,
-		values: Record<string, CheckpointValue | undefined>,
+		values: Record<string, CommitValue | undefined>,
 	) => Promise<void>;
 }
 
-function valueIsPresent(value: CheckpointValue | undefined): boolean {
+function valueIsPresent(value: CommitValue | undefined): boolean {
 	return value !== undefined && (typeof value !== 'string' || value.trim().length > 0);
 }
 
-export class CheckpointPanelView extends ItemView {
-	private request?: CheckpointPanelRequest;
+export class CommitPanelView extends ItemView {
+	private request?: CommitPanelRequest;
 	private date = '';
 	private time = '';
-	private values: Record<string, CheckpointValue | undefined> = {};
+	private values: Record<string, CommitValue | undefined> = {};
 	private dirty = false;
 	private saving = false;
 	private discardConfirmationOpen = false;
@@ -44,7 +44,7 @@ export class CheckpointPanelView extends ItemView {
 		previousWidth: string;
 		appliedWidth: string;
 	};
-	private readonly inputPrefix = `thread-journal-checkpoint-${Math.random()
+	private readonly inputPrefix = `thread-journal-commit-${Math.random()
 		.toString(36).slice(2, 8)}`;
 
 	constructor(leaf: WorkspaceLeaf) {
@@ -52,11 +52,11 @@ export class CheckpointPanelView extends ItemView {
 	}
 
 	getViewType(): string {
-		return CHECKPOINT_PANEL_VIEW_TYPE;
+		return COMMIT_PANEL_VIEW_TYPE;
 	}
 
 	getDisplayText(): string {
-		return t('Checkpoint form');
+		return t('Commit form');
 	}
 
 	getIcon(): string {
@@ -64,7 +64,7 @@ export class CheckpointPanelView extends ItemView {
 	}
 
 	async onOpen(): Promise<void> {
-		this.contentEl.addClass('thread-journal-checkpoint-panel-view');
+		this.contentEl.addClass('thread-journal-commit-panel-view');
 		this.registerDomEvent(this.contentEl, 'keydown', (event) => {
 			if (event.key !== 'Enter' || (!event.metaKey && !event.ctrlKey)) return;
 			event.preventDefault();
@@ -87,9 +87,9 @@ export class CheckpointPanelView extends ItemView {
 		this.contentEl.empty();
 	}
 
-	setForm(request: CheckpointPanelRequest): boolean {
+	setForm(request: CommitPanelRequest): boolean {
 		if (this.request && this.dirty) {
-			new Notice(t('The checkpoint side panel has unsaved changes. Save or close it first.'));
+			new Notice(t('The commit side panel has unsaved changes. Save or close it first.'));
 			return false;
 		}
 		this.request = request;
@@ -136,10 +136,10 @@ export class CheckpointPanelView extends ItemView {
 
 	private renderEmpty(): void {
 		this.contentEl.empty();
-		this.contentEl.createEl('h4', { text: t('Checkpoint form') });
+		this.contentEl.createEl('h4', { text: t('Commit form') });
 		this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-panel-empty',
-			text: t('Run “Create checkpoint” from any thread file, or select “Edit” on a card.'),
+			cls: 'thread-journal-commit-panel-empty',
+			text: t('Run “Create commit” from any thread file, or select “Edit” on a card.'),
 		});
 	}
 
@@ -151,40 +151,40 @@ export class CheckpointPanelView extends ItemView {
 		}
 		this.contentEl.empty();
 		this.contentEl.createEl('h4', {
-			cls: 'thread-journal-checkpoint-panel-title',
-			text: request.mode === 'edit' ? t('Edit checkpoint') : t('Create checkpoint'),
+			cls: 'thread-journal-commit-panel-title',
+			text: request.mode === 'edit' ? t('Edit commit') : t('Create commit'),
 		});
 		this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-panel-target',
+			cls: 'thread-journal-commit-panel-target',
 			text: request.threadTitle,
 		});
 
 		const systemFields = this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-panel-system-fields',
+			cls: 'thread-journal-commit-panel-system-fields',
 		});
-		this.addTextField(systemFields, 'checkpoint-date', t('Date'), 'date', this.date, (value) => {
+		this.addTextField(systemFields, 'commit-date', t('Date'), 'date', this.date, (value) => {
 			this.date = value;
 		});
-		this.addTextField(systemFields, 'checkpoint-time', t('Time'), 'time', this.time, (value) => {
+		this.addTextField(systemFields, 'commit-time', t('Time'), 'time', this.time, (value) => {
 			this.time = value;
 		});
 
 		const customFields = this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-panel-fields',
+			cls: 'thread-journal-commit-panel-fields',
 		});
 		let focusTarget: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | undefined;
 		request.fields.forEach((field, index) => {
 			const row = customFields.createDiv({
-				cls: `thread-journal-checkpoint-panel-field is-${field.control}`,
+				cls: `thread-journal-commit-panel-field is-${field.control}`,
 			});
 			const inputId = `${this.inputPrefix}-${index}`;
 			const label = row.createEl('label', {
-				cls: 'thread-journal-checkpoint-panel-label',
+				cls: 'thread-journal-commit-panel-label',
 				attr: { for: inputId, title: field.key },
 			});
 			label.createSpan({ text: field.label });
 			if (field.required) label.createSpan({
-				cls: 'thread-journal-checkpoint-panel-required',
+				cls: 'thread-journal-commit-panel-required',
 				text: ' *',
 			});
 
@@ -255,7 +255,7 @@ export class CheckpointPanelView extends ItemView {
 		}
 
 		const actions = this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-panel-actions',
+			cls: 'thread-journal-commit-panel-actions',
 		});
 		const close = actions.createEl('button', { text: t('Close') });
 		close.addEventListener('click', () => {
@@ -268,7 +268,7 @@ export class CheckpointPanelView extends ItemView {
 		});
 		this.saveButton = actions.createEl('button', {
 			cls: 'mod-cta',
-			text: request.mode === 'edit' ? t('Save changes') : t('Save checkpoint'),
+			text: request.mode === 'edit' ? t('Save changes') : t('Save commit'),
 		});
 		this.saveButton.addEventListener('click', () => void this.save());
 
@@ -277,18 +277,18 @@ export class CheckpointPanelView extends ItemView {
 
 	private renderDiscardConfirmation(): void {
 		const confirmation = this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-panel-discard-confirmation',
+			cls: 'thread-journal-commit-panel-discard-confirmation',
 		});
 		confirmation.createDiv({
-			cls: 'thread-journal-checkpoint-field-delete-message',
-			text: t('Discard unsaved checkpoint changes?'),
+			cls: 'thread-journal-commit-field-delete-message',
+			text: t('Discard unsaved commit changes?'),
 		});
 		confirmation.createDiv({
 			cls: 'setting-item-description',
 			text: t('The values currently entered in this form will be lost.'),
 		});
 		const actions = confirmation.createDiv({
-			cls: 'thread-journal-checkpoint-panel-actions is-inline-confirmation',
+			cls: 'thread-journal-commit-panel-actions is-inline-confirmation',
 		});
 		const keepEditing = actions.createEl('button', { text: t('Keep editing') });
 		keepEditing.addEventListener('click', () => {
@@ -314,10 +314,10 @@ export class CheckpointPanelView extends ItemView {
 		value: string,
 		onChange: (value: string) => void,
 	): void {
-		const row = container.createDiv({ cls: 'thread-journal-checkpoint-panel-field' });
+		const row = container.createDiv({ cls: 'thread-journal-commit-panel-field' });
 		const inputId = `${this.inputPrefix}-${key}`;
 		row.createEl('label', {
-			cls: 'thread-journal-checkpoint-panel-label',
+			cls: 'thread-journal-commit-panel-label',
 			text: labelText,
 			attr: type === 'date' ? { for: inputId } : {},
 		});
@@ -347,11 +347,11 @@ export class CheckpointPanelView extends ItemView {
 		const request = this.request;
 		if (!request || this.saving) return;
 		if (!/^\d{4}-\d{2}-\d{2}$/u.test(this.date)) {
-			new Notice(t('Enter a valid checkpoint date.'));
+			new Notice(t('Enter a valid commit date.'));
 			return;
 		}
 		if (!is24HourTime(this.time)) {
-			new Notice(t('Enter a valid checkpoint time.'));
+			new Notice(t('Enter a valid commit time.'));
 			return;
 		}
 		const missing = request.fields.find((field) =>
@@ -368,8 +368,8 @@ export class CheckpointPanelView extends ItemView {
 			this.dirty = false;
 			this.leaf.detach();
 		} catch (error) {
-			console.error('Thread Journal failed to save checkpoint from side panel', error);
-			new Notice(t('Failed to save checkpoint: {error}', { error: String(error) }));
+			console.error('Thread Journal failed to save commit from side panel', error);
+			new Notice(t('Failed to save commit: {error}', { error: String(error) }));
 			this.saving = false;
 			if (this.saveButton) this.saveButton.disabled = false;
 		}

@@ -1,19 +1,19 @@
 import type {
-	CheckpointFieldControl,
-	CheckpointFieldSpec,
-	CheckpointFieldStorage,
+	CommitFieldControl,
+	CommitFieldSpec,
+	CommitFieldStorage,
 } from './types';
 import { t } from './i18n';
 
-export type CheckpointFieldRenderMode = 'plain' | 'inline-markdown' | 'block-markdown';
+export type CommitFieldRenderMode = 'plain' | 'inline-markdown' | 'block-markdown';
 
-export function checkpointBodyLabels(
-	fields: readonly CheckpointFieldSpec[],
+export function commitBodyLabels(
+	fields: readonly CommitFieldSpec[],
 ): ReadonlySet<string> {
 	return new Set(fields.map((field) => field.label));
 }
 
-const FIELD_CONTROLS = new Set<CheckpointFieldControl>([
+const FIELD_CONTROLS = new Set<CommitFieldControl>([
 	'text',
 	'textarea',
 	'number',
@@ -22,12 +22,12 @@ const FIELD_CONTROLS = new Set<CheckpointFieldControl>([
 	'select',
 ]);
 
-const FIELD_STORAGE = new Set<CheckpointFieldStorage>(['inline', 'body']);
-const RESERVED_KEYS = new Set(['checkpoint', 'checkpoint_date', 'checkpoint_time']);
+const FIELD_STORAGE = new Set<CommitFieldStorage>(['inline', 'body']);
+const RESERVED_KEYS = new Set(['commit', 'commit_date', 'commit_time']);
 
-export const DEFAULT_CHECKPOINT_FIELDS: CheckpointFieldSpec[] = [
+export const DEFAULT_COMMIT_FIELDS: CommitFieldSpec[] = [
 	{
-		key: 'checkpoint_kind',
+		key: 'commit_kind',
 		label: 'Type',
 		control: 'select',
 		storage: 'inline',
@@ -36,7 +36,7 @@ export const DEFAULT_CHECKPOINT_FIELDS: CheckpointFieldSpec[] = [
 		options: ['milestone', 'review'],
 	},
 	{
-		key: 'checkpoint_summary',
+		key: 'commit_summary',
 		label: 'Summary',
 		control: 'textarea',
 		storage: 'body',
@@ -62,7 +62,7 @@ function stringList(value: unknown): string[] {
 	return text ? text.split(',').map((item) => item.trim()).filter(Boolean) : [];
 }
 
-export function checkpointFieldKey(value: unknown, fallback: string): string {
+export function commitFieldKey(value: unknown, fallback: string): string {
 	const raw = textValue(value)
 		.replace(/\s+/g, '_')
 		.replace(/[^\p{Letter}\p{Number}_-]+/gu, '_')
@@ -71,71 +71,71 @@ export function checkpointFieldKey(value: unknown, fallback: string): string {
 	return raw && !RESERVED_KEYS.has(raw) ? raw : fallback;
 }
 
-export function cloneDefaultCheckpointFields(): CheckpointFieldSpec[] {
-	return cloneCheckpointFields(DEFAULT_CHECKPOINT_FIELDS).map((field) => ({
+export function cloneDefaultCommitFields(): CommitFieldSpec[] {
+	return cloneCommitFields(DEFAULT_COMMIT_FIELDS).map((field) => ({
 		...field,
-		label: field.key === 'checkpoint_kind' ? t('Type') : t('Summary'),
+		label: field.key === 'commit_kind' ? t('Type') : t('Summary'),
 	}));
 }
 
-export function cloneCheckpointFields(
-	fields: CheckpointFieldSpec[],
-): CheckpointFieldSpec[] {
+export function cloneCommitFields(
+	fields: CommitFieldSpec[],
+): CommitFieldSpec[] {
 	return fields.map((field) => ({
 		...field,
 		options: [...field.options],
 	}));
 }
 
-export function checkpointFieldsForThread(
+export function commitFieldsForThread(
 	value: unknown,
-	defaultFields: CheckpointFieldSpec[],
-): CheckpointFieldSpec[] {
+	defaultFields: CommitFieldSpec[],
+): CommitFieldSpec[] {
 	return Array.isArray(value)
-		? normalizeCheckpointFields(value)
-		: cloneCheckpointFields(defaultFields);
+		? normalizeCommitFields(value)
+		: cloneCommitFields(defaultFields);
 }
 
 export function placeDeprecatedFieldsLast(
-	fields: CheckpointFieldSpec[],
-): CheckpointFieldSpec[] {
+	fields: CommitFieldSpec[],
+): CommitFieldSpec[] {
 	return [
 		...fields.filter((field) => !field.deprecated),
 		...fields.filter((field) => field.deprecated),
 	];
 }
 
-export function activeCheckpointFields(
-	fields: CheckpointFieldSpec[],
-): CheckpointFieldSpec[] {
+export function activeCommitFields(
+	fields: CommitFieldSpec[],
+): CommitFieldSpec[] {
 	return fields.filter((field) => !field.deprecated);
 }
 
-export function checkpointFieldRenderMode(
-	field: Pick<CheckpointFieldSpec, 'control' | 'storage'>,
-): CheckpointFieldRenderMode {
+export function commitFieldRenderMode(
+	field: Pick<CommitFieldSpec, 'control' | 'storage'>,
+): CommitFieldRenderMode {
 	if (field.control === 'textarea' || field.storage === 'body') {
 		return 'block-markdown';
 	}
 	return field.control === 'text' ? 'inline-markdown' : 'plain';
 }
 
-export function normalizeCheckpointFields(value: unknown): CheckpointFieldSpec[] {
-	if (!Array.isArray(value)) return cloneDefaultCheckpointFields();
+export function normalizeCommitFields(value: unknown): CommitFieldSpec[] {
+	if (!Array.isArray(value)) return cloneDefaultCommitFields();
 	const seen = new Set<string>();
 	const normalized = value.flatMap((item, index) => {
 		if (!isRecord(item)) return [];
-		const fallback = `checkpoint_field_${index + 1}`;
-		let key = checkpointFieldKey(item.key, fallback);
+		const fallback = `commit_field_${index + 1}`;
+		let key = commitFieldKey(item.key, fallback);
 		if (seen.has(key)) {
 			let suffix = 2;
 			while (seen.has(`${key}_${suffix}`)) suffix += 1;
 			key = `${key}_${suffix}`;
 		}
 		seen.add(key);
-		const rawControl = textValue(item.control) as CheckpointFieldControl;
+		const rawControl = textValue(item.control) as CommitFieldControl;
 		const control = FIELD_CONTROLS.has(rawControl) ? rawControl : 'text';
-		const rawStorage = textValue(item.storage) as CheckpointFieldStorage;
+		const rawStorage = textValue(item.storage) as CommitFieldStorage;
 		const storage = FIELD_STORAGE.has(rawStorage)
 			? rawStorage
 			: control === 'textarea' ? 'body' : 'inline';

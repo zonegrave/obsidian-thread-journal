@@ -16,9 +16,9 @@ import {
 	type TFile,
 } from 'obsidian';
 import {
-	checkpointEntryAroundLine,
-	type ParsedCheckpointEntry,
-} from './checkpoint-core';
+	commitEntryAroundLine,
+	type ParsedCommitEntry,
+} from './commit-core';
 import {
 	inlineLogEntryAroundLine,
 	type ParsedInlineLogEntry,
@@ -36,7 +36,7 @@ import {
 	type TaskData,
 } from './task-model';
 
-const CHECKPOINT_CALLOUT_SELECTOR = '.callout[data-callout="thread-checkpoint"]';
+const COMMIT_CALLOUT_SELECTOR = '.callout[data-callout="thread-commit"]';
 const LOG_CALLOUT_SELECTOR = '.callout[data-callout="thread-log"]';
 const TASK_RENDER_FIELD = /\s*\[(?:task_id|window_start|window_end|effort|current|repeat|thread_pin)::\s*[^\]]*\]/gu;
 
@@ -183,12 +183,12 @@ class TaskSummaryWidget extends WidgetType {
 	}
 }
 
-export function checkpointEditorExtension(
+export function commitEditorExtension(
 	isThreadMember: (file: TFile) => boolean,
 	onRender: (
 		callout: HTMLElement,
 		file: TFile,
-		entry: ParsedCheckpointEntry,
+		entry: ParsedCommitEntry,
 		registerChild: (child: MarkdownRenderChild) => void,
 	) => Promise<void>,
 	onRenderLog: (
@@ -206,7 +206,7 @@ export function checkpointEditorExtension(
 	) => Promise<void>,
 	onTaskEdit: (file: TFile, line: number, sourceLine: string, data: TaskData) => void,
 ) {
-	return ViewPlugin.fromClass(class CheckpointEditorCallouts {
+	return ViewPlugin.fromClass(class CommitEditorCallouts {
 		decorations: DecorationSet;
 		private frame?: number;
 		private readonly observer?: MutationObserver;
@@ -305,7 +305,7 @@ export function checkpointEditorExtension(
 			if (!livePreview || !file || !isThreadMember(file)) return;
 
 			const source = this.view.state.doc.toString();
-			this.view.dom.querySelectorAll<HTMLElement>(CHECKPOINT_CALLOUT_SELECTOR).forEach((callout) => {
+			this.view.dom.querySelectorAll<HTMLElement>(COMMIT_CALLOUT_SELECTOR).forEach((callout) => {
 				let position: number;
 				try {
 					position = this.view.posAtDOM(callout);
@@ -313,13 +313,13 @@ export function checkpointEditorExtension(
 					return;
 				}
 				const line = this.view.state.doc.lineAt(position).number - 1;
-				const entry = checkpointEntryAroundLine(source, line);
+				const entry = commitEntryAroundLine(source, line);
 				if (!entry?.blockId) return;
 				void onRender(callout, file, entry, (child) => {
 					child.load();
 					this.renderChildren.add(child);
 				}).catch((error: unknown) => {
-					console.error('Thread Journal failed to render checkpoint Markdown', error);
+					console.error('Thread Journal failed to render commit Markdown', error);
 				});
 			});
 			this.view.dom.querySelectorAll<HTMLElement>(LOG_CALLOUT_SELECTOR).forEach((callout) => {

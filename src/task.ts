@@ -9,7 +9,7 @@ import {
 	setIcon,
 } from 'obsidian';
 import { t } from './i18n';
-import { cursorLineIsFrontmatter } from './checkpoint-core';
+import { cursorLineIsFrontmatter } from './commit-core';
 import { taskLineWithPin } from './thread-attention-model';
 import {
 	advanceTaskLine,

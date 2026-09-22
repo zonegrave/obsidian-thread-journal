@@ -1,16 +1,16 @@
 import { setIcon } from 'obsidian';
 import { t } from './i18n';
-import { moveCheckpointOption } from './checkpoint-option-model';
+import { moveCommitOption } from './commit-option-model';
 
-export function createCheckpointOptionEditor(
+export function createCommitOptionEditor(
 	container: HTMLElement,
 	initialOptions: readonly string[],
 	onChange: (options: string[]) => void,
 ): void {
 	let options = [...initialOptions];
 	let draggedIndex: number | undefined;
-	const editor = container.createDiv({ cls: 'thread-journal-checkpoint-option-editor' });
-	const list = editor.createDiv({ cls: 'thread-journal-checkpoint-option-list' });
+	const editor = container.createDiv({ cls: 'thread-journal-commit-option-editor' });
+	const list = editor.createDiv({ cls: 'thread-journal-commit-option-list' });
 
 	const committedOptions = (): string[] => options
 		.map((option) => option.trim())
@@ -18,7 +18,7 @@ export function createCheckpointOptionEditor(
 	const commit = (): void => onChange(committedOptions());
 	const move = (from: number, to: number): void => {
 		if (from === to) return;
-		options = moveCheckpointOption(options, from, to);
+		options = moveCommitOption(options, from, to);
 		commit();
 		render(to);
 	};
@@ -26,9 +26,9 @@ export function createCheckpointOptionEditor(
 	const render = (focusIndex?: number): void => {
 		list.empty();
 		options.forEach((option, index) => {
-			const row = list.createDiv({ cls: 'thread-journal-checkpoint-option-row' });
+			const row = list.createDiv({ cls: 'thread-journal-commit-option-row' });
 			const drag = row.createEl('button', {
-				cls: 'thread-journal-checkpoint-option-drag',
+				cls: 'thread-journal-commit-option-drag',
 				attr: {
 					type: 'button',
 					'aria-label': t('Drag to reorder option'),
@@ -76,7 +76,7 @@ export function createCheckpointOptionEditor(
 			});
 
 			const input = row.createEl('input', {
-				cls: 'thread-journal-checkpoint-option-input',
+				cls: 'thread-journal-commit-option-input',
 				attr: {
 					type: 'text',
 					'aria-label': t('Option'),
@@ -102,7 +102,7 @@ export function createCheckpointOptionEditor(
 			});
 
 			const remove = row.createEl('button', {
-				cls: 'thread-journal-checkpoint-option-delete',
+				cls: 'thread-journal-commit-option-delete',
 				attr: { type: 'button', 'aria-label': t('Delete option') },
 			});
 			setIcon(remove, 'x');
@@ -117,7 +117,7 @@ export function createCheckpointOptionEditor(
 	};
 
 	const add = editor.createEl('button', {
-		cls: 'thread-journal-checkpoint-option-add',
+		cls: 'thread-journal-commit-option-add',
 		attr: { type: 'button', 'aria-label': t('Add option') },
 	});
 	setIcon(add, 'plus');

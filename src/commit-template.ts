@@ -1,54 +1,54 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
 import {
-	cloneCheckpointFields,
-	normalizeCheckpointFields,
+	cloneCommitFields,
+	normalizeCommitFields,
 	placeDeprecatedFieldsLast,
-} from './checkpoint-model';
-import { createCheckpointOptionEditor } from './checkpoint-option-editor';
+} from './commit-model';
+import { createCommitOptionEditor } from './commit-option-editor';
 import { t } from './i18n';
-import type { CheckpointFieldSpec } from './types';
+import type { CommitFieldSpec } from './types';
 
-export class CheckpointTemplateModal extends Modal {
-	private fields: CheckpointFieldSpec[];
+export class CommitTemplateModal extends Modal {
+	private fields: CommitFieldSpec[];
 	private inherited: boolean;
 	private saveQueue: Promise<void> = Promise.resolve();
 	private saveRevision = 0;
 	private saveTimer: number | undefined;
 	private saveStatusEl: HTMLElement | undefined;
-	private pendingDeleteField: CheckpointFieldSpec | undefined;
+	private pendingDeleteField: CommitFieldSpec | undefined;
 
 	constructor(
 		app: App,
 		private readonly threadTitle: string,
-		initialFields: CheckpointFieldSpec[],
+		initialFields: CommitFieldSpec[],
 		inherited: boolean,
-		private readonly onSave: (fields: CheckpointFieldSpec[]) => Promise<void>,
+		private readonly onSave: (fields: CommitFieldSpec[]) => Promise<void>,
 	) {
 		super(app);
-		this.fields = cloneCheckpointFields(initialFields);
+		this.fields = cloneCommitFields(initialFields);
 		this.inherited = inherited;
 	}
 
 	onOpen(): void {
-		this.modalEl.addClass('thread-journal-checkpoint-template-modal');
-		this.setTitle(t('Edit checkpoint template'));
+		this.modalEl.addClass('thread-journal-commit-template-modal');
+		this.setTitle(t('Edit commit template'));
 		this.render();
 	}
 
 	private render(): void {
 		this.contentEl.empty();
 		this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-target',
+			cls: 'thread-journal-commit-target',
 			text: this.threadTitle,
 		});
 		this.contentEl.createEl('p', {
 			cls: 'setting-item-description',
 			text: this.inherited
-				? t('This thread currently inherits the global default template. The first change creates an independent template. Deprecated fields are hidden from new checkpoints but still explain historical data.')
+				? t('This thread currently inherits the global default template. The first change creates an independent template. Deprecated fields are hidden from new commits but still explain historical data.')
 				: t('This thread uses an independent template. All changes save automatically; deprecated fields still explain historical data.'),
 		});
 		this.saveStatusEl = this.contentEl.createDiv({
-			cls: 'thread-journal-checkpoint-save-status',
+			cls: 'thread-journal-commit-save-status',
 			text: t('Changes save automatically'),
 		});
 
@@ -56,13 +56,13 @@ export class CheckpointTemplateModal extends Modal {
 
 		new Setting(this.contentEl)
 			.setName(t('Template fields'))
-			.setDesc(t('All fields may be removed. A checkpoint then keeps only its fixed date, time, and marker.'))
+			.setDesc(t('All fields may be removed. A commit then keeps only its fixed date, time, and marker.'))
 			.addButton((button) => button
 				.setButtonText(t('Add field'))
 				.onClick(() => {
 					const next = this.fields.length + 1;
-					const field: CheckpointFieldSpec = {
-						key: `checkpoint_field_${next}`,
+					const field: CommitFieldSpec = {
+						key: `commit_field_${next}`,
 						label: t('Custom field {index}', { index: next }),
 						control: 'text',
 						storage: 'inline',
@@ -88,7 +88,7 @@ export class CheckpointTemplateModal extends Modal {
 		}
 		this.inherited = false;
 		const revision = ++this.saveRevision;
-		const snapshot = normalizeCheckpointFields(this.fields);
+		const snapshot = normalizeCommitFields(this.fields);
 		this.updateSaveStatus(t('Saving…'));
 		this.saveQueue = this.saveQueue.then(
 			() => this.onSave(snapshot),
@@ -96,9 +96,9 @@ export class CheckpointTemplateModal extends Modal {
 		).then(() => {
 			if (revision === this.saveRevision) this.updateSaveStatus(t('Saved automatically'));
 		}, (error: unknown) => {
-			console.error('Thread Journal failed to auto-save checkpoint template', error);
+			console.error('Thread Journal failed to auto-save commit template', error);
 			if (revision === this.saveRevision) this.updateSaveStatus(t('Auto-save failed'), true);
-			new Notice(t('Failed to auto-save checkpoint template: {error}', { error: String(error) }));
+			new Notice(t('Failed to auto-save commit template: {error}', { error: String(error) }));
 		});
 	}
 
@@ -125,7 +125,7 @@ export class CheckpointTemplateModal extends Modal {
 		this.queueSave();
 	}
 
-	private moveField(field: CheckpointFieldSpec, index: number, direction: -1 | 1): void {
+	private moveField(field: CommitFieldSpec, index: number, direction: -1 | 1): void {
 		const otherIndex = index + direction;
 		const other = this.fields[otherIndex];
 		if (!other || other.deprecated !== field.deprecated) return;
@@ -134,11 +134,11 @@ export class CheckpointTemplateModal extends Modal {
 		this.renderAndSave();
 	}
 
-	private renderField(field: CheckpointFieldSpec, index: number): void {
+	private renderField(field: CommitFieldSpec, index: number): void {
 		const previous = this.fields[index - 1];
 		const next = this.fields[index + 1];
 		const card = this.contentEl.createDiv({
-			cls: `thread-journal-checkpoint-field-setting${field.deprecated ? ' is-deprecated' : ''}`,
+			cls: `thread-journal-commit-field-setting${field.deprecated ? ' is-deprecated' : ''}`,
 		});
 		new Setting(card)
 			.setName(field.label || field.key)
@@ -173,7 +173,7 @@ export class CheckpointTemplateModal extends Modal {
 
 		new Setting(card)
 			.setName(t('Field key'))
-			.setDesc(t('Used in Dataview queries. checkpoint, checkpoint_date, and checkpoint_time are reserved by the system.'))
+			.setDesc(t('Used in Dataview queries. commit, commit_date, and commit_time are reserved by the system.'))
 			.addText((text) => text
 				.setValue(field.key)
 				.setPlaceholder(t('Field key'))
@@ -193,7 +193,7 @@ export class CheckpointTemplateModal extends Modal {
 				.addOption('select', t('Select'))
 				.setValue(field.control)
 				.onChange((value) => {
-					field.control = value as CheckpointFieldSpec['control'];
+					field.control = value as CommitFieldSpec['control'];
 					if (field.control !== 'select') field.options = [];
 					this.renderAndSave();
 				}));
@@ -203,10 +203,10 @@ export class CheckpointTemplateModal extends Modal {
 			.setDesc(t('Queryable fields are written to the header; body fields are better for longer content.'))
 			.addDropdown((dropdown) => dropdown
 				.addOption('inline', t('Queryable field'))
-				.addOption('body', t('Checkpoint body'))
+				.addOption('body', t('Commit body'))
 				.setValue(field.storage)
 				.onChange((value) => {
-					field.storage = value as CheckpointFieldSpec['storage'];
+					field.storage = value as CommitFieldSpec['storage'];
 					this.queueSave();
 				}));
 
@@ -222,7 +222,7 @@ export class CheckpointTemplateModal extends Modal {
 
 		new Setting(card)
 			.setName(t('Deprecate'))
-			.setDesc(t('Stop using this field in new checkpoints. Existing records still display their saved data.'))
+			.setDesc(t('Stop using this field in new commits. Existing records still display their saved data.'))
 			.addToggle((toggle) => toggle
 				.setValue(field.deprecated)
 				.onChange((value) => {
@@ -236,7 +236,7 @@ export class CheckpointTemplateModal extends Modal {
 			const optionsSetting = new Setting(card)
 				.setName(t('Options'))
 				.setDesc(t('Drag to reorder options.'));
-			createCheckpointOptionEditor(
+			createCommitOptionEditor(
 				optionsSetting.controlEl,
 				field.options,
 				(options) => {
@@ -253,21 +253,21 @@ export class CheckpointTemplateModal extends Modal {
 
 	private renderFieldDeleteConfirmation(
 		card: HTMLElement,
-		field: CheckpointFieldSpec,
+		field: CommitFieldSpec,
 	): void {
 		const confirmation = card.createDiv({
-			cls: 'thread-journal-checkpoint-field-delete-confirmation',
+			cls: 'thread-journal-commit-field-delete-confirmation',
 		});
 		confirmation.createDiv({
-			cls: 'thread-journal-checkpoint-field-delete-message',
+			cls: 'thread-journal-commit-field-delete-message',
 			text: t('Delete {field}?', { field: field.label || field.key }),
 		});
 		confirmation.createDiv({
 			cls: 'setting-item-description',
-			text: t('This removes the field from the template. Existing checkpoint records are not rewritten.'),
+			text: t('This removes the field from the template. Existing commit records are not rewritten.'),
 		});
 		const actions = new Setting(confirmation)
-			.setClass('thread-journal-checkpoint-actions');
+			.setClass('thread-journal-commit-actions');
 		actions.addButton((button) => button
 			.setButtonText(t('Cancel'))
 			.onClick(() => {

@@ -1,7 +1,7 @@
 import type { TFile } from 'obsidian';
 import type { LanguageSetting } from './i18n';
 
-export type CheckpointFieldControl =
+export type CommitFieldControl =
 	| 'text'
 	| 'textarea'
 	| 'number'
@@ -9,13 +9,13 @@ export type CheckpointFieldControl =
 	| 'date'
 	| 'select';
 
-export type CheckpointFieldStorage = 'inline' | 'body';
+export type CommitFieldStorage = 'inline' | 'body';
 
-export interface CheckpointFieldSpec {
+export interface CommitFieldSpec {
 	key: string;
 	label: string;
-	control: CheckpointFieldControl;
-	storage: CheckpointFieldStorage;
+	control: CommitFieldControl;
+	storage: CommitFieldStorage;
 	required: boolean;
 	deprecated: boolean;
 	options: string[];
@@ -46,5 +46,5 @@ export interface ThreadJournalSettings {
 	threadRoleTemplatesFolder: string;
 	defaultThreadRoleTemplatePath: string;
 	breadcrumbPosition: 'top' | 'bottom';
-	checkpointFields: CheckpointFieldSpec[];
+	commitFields: CommitFieldSpec[];
 }
