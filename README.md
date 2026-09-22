@@ -42,7 +42,7 @@ thread meta（唯一）
 2. `idea` 和 `committed` 只创建 meta，不创建成员或 entry。选择其他初始状态时才选择入口模板；默认 `workspace` 模板几乎为空，可以立刻开始自由工作。
 3. 内容变长或出现稳定分工后，运行 **Create thread file**，从 `context`、`research` 等自定义角色模板扩展 pack。
 4. 用 **Manage thread** 维护显示名称、状态、父节点和默认入口；用 **Manage thread files** 在 pack 内切换并管理成员。
-5. 随手进展用 inline log；阶段节点、方向变化和复盘结果用 commit。
+5. 随手进展用 inline log；值得保留的结果、判断或方向用 commit 主动固化。
 6. 在入口、日记或 MOC 中使用 `thread-entries` 汇总所需视角。
 
 ## 文件与身份
@@ -168,14 +168,14 @@ attention_fallback: true
 - 从成员的编辑视图运行时，记录在点击 **Save commit** 时按该文件的实时光标位置插入；填表期间可以移动光标。目标文件在保存前需保持打开。
 - 从 meta 运行时，记录追加到当前入口末尾。
 - 日期、时间、标记和稳定块 ID 由插件生成。
-- 默认字段只有“类型”和“摘要”。
+- 默认字段是必填的“摘要”和可选的“人力消耗”；消耗使用 `quick`、`light`、`normal`、`deep` 四档。
 
 ```markdown
 > [!thread-commit]
-> - [commit:: true] [commit_date:: 2026-09-13] [commit_time:: 15:20] [commit_kind:: milestone] [commit_summary:: 完成 pack 模型] ^cm-20260913-152000-a1b2c
+> - [commit:: true] [commit_date:: 2026-09-13] [commit_time:: 15:20] [commit_summary:: 完成 pack 模型] [effort:: light] ^cm-20260913-152000-a1b2c
 ```
 
-日期、时间和类型只保存在结构化字段中，卡片标题由字段生成。创建和编辑默认使用右侧非模态表单，可以继续对照主笔记；`Cmd/Ctrl + Enter` 保存。原地卡片提供编辑，查询卡片提供定位、编辑和删除。摘要和文本字段支持 Markdown 与双链。
+日期和时间只保存在结构化字段中，卡片标题由字段生成。创建和编辑默认使用右侧非模态表单，可以继续对照主笔记；`Cmd/Ctrl + Enter` 保存。原地卡片提供编辑，查询卡片提供定位、编辑和删除。摘要和文本字段支持 Markdown 与双链。
 
 每个 thread 可以把独立字段模板保存在 meta 的 `commit_fields`；没有时继承全局默认。字段支持单行、多行、数字、开关、日期、选择项、必填、正文/inline 保存和废弃。废弃字段不再出现在新表单中，但仍用于解释历史记录。
 

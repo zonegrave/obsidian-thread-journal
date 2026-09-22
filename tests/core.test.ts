@@ -559,8 +559,8 @@ void test('normalizes configurable commit fields and protects system keys', () =
 		control: field.control,
 		storage: field.storage,
 	})), [
-		{ key: 'commit_kind', control: 'select', storage: 'inline' },
 		{ key: 'commit_summary', control: 'textarea', storage: 'body' },
+		{ key: 'effort', control: 'select', storage: 'inline' },
 	]);
 	assert.deepEqual(normalizeCommitFields([
 		{
@@ -593,12 +593,12 @@ void test('recognizes body field labels independently of the current storage mod
 
 void test('moves commit select options without changing their values', () => {
 	assert.deepEqual(
-		moveCommitOption(['milestone', 'review', 'blocked'], 0, 2),
-		['review', 'blocked', 'milestone'],
+		moveCommitOption(['low', 'medium', 'high'], 0, 2),
+		['medium', 'high', 'low'],
 	);
 	assert.deepEqual(
-		moveCommitOption(['milestone', 'review'], 3, 0),
-		['milestone', 'review'],
+		moveCommitOption(['low', 'high'], 3, 0),
+		['low', 'high'],
 	);
 });
 
@@ -606,7 +606,7 @@ void test('uses a per-thread commit template before the global default', () => {
 	const defaults = normalizeCommitFields(undefined);
 	assert.deepEqual(
 		commitFieldsForThread(undefined, defaults).map((field) => field.key),
-		['commit_kind', 'commit_summary'],
+		['commit_summary', 'effort'],
 	);
 	assert.deepEqual(commitFieldsForThread([], defaults), []);
 	assert.deepEqual(
@@ -643,12 +643,12 @@ void test('moves deprecated fields last and excludes them from new commit input'
 void test('builds a Dataview-queryable commit with a free-form body', () => {
 	const fields = normalizeCommitFields([
 		{
-			key: 'commit_kind', label: '类型', control: 'select', storage: 'inline',
-			required: true, options: ['milestone', 'review'],
-		},
-		{
 			key: 'commit_summary', label: '摘要', control: 'text', storage: 'inline',
 			required: true,
+		},
+		{
+			key: 'effort', label: '人力消耗', control: 'select', storage: 'inline',
+			required: false, options: ['quick', 'light', 'normal', 'deep'],
 		},
 		{
 			key: 'commit_result', label: '阶段成果', control: 'textarea', storage: 'body',
@@ -661,13 +661,13 @@ void test('builds a Dataview-queryable commit with a free-form body', () => {
 		blockId: 'cm-20260831-01',
 		fields,
 		values: {
-			commit_kind: 'milestone',
 			commit_summary: '完成表单设计',
+			effort: 'light',
 			commit_result: '可以自由配置字段。\n长文字保留在正文。',
 		},
 	}), [
 		'> [!thread-commit]',
-		'> - [commit:: true] [commit_date:: 2026-08-31] [commit_time:: 14:35] [commit_kind:: milestone] [commit_summary:: 完成表单设计] ^cm-20260831-01',
+		'> - [commit:: true] [commit_date:: 2026-08-31] [commit_time:: 14:35] [commit_summary:: 完成表单设计] [effort:: light] ^cm-20260831-01',
 		'>   - **阶段成果：**',
 		'>     可以自由配置字段。',
 		'>     长文字保留在正文。',
@@ -696,7 +696,7 @@ void test('round-trips multiline inline commit values without delimiter collisio
 void test('parses commit data from a thread member callout', () => {
 	const parsed = parseCommitEntries([
 		'> [!thread-commit]',
-		'> - [commit:: true] [commit_date:: 2026-08-31] [commit_time:: 14:35] [commit_kind:: milestone] [commit_summary:: 完成表单设计] ^cm-01',
+		'> - [commit:: true] [commit_date:: 2026-08-31] [commit_time:: 14:35] [commit_summary:: 完成表单设计] [effort:: deep] ^cm-01',
 		'>   - **阶段成果：**',
 		'>     可以自由配置字段。',
 		'>     长文字保留在正文。',
@@ -707,8 +707,8 @@ void test('parses commit data from a thread member callout', () => {
 			commit: 'true',
 			commit_date: '2026-08-31',
 			commit_time: '14:35',
-			commit_kind: 'milestone',
 			commit_summary: '完成表单设计',
+			effort: 'deep',
 		},
 		body: [{
 			label: '阶段成果',
@@ -1329,7 +1329,7 @@ void test('localizes model-provided labels without changing stored values', () =
 		assert.equal(threadStatusOptionLabel(dormant), 'dormant — Dormant');
 		assert.deepEqual(
 			normalizeCommitFields(undefined).map((field) => field.label),
-			['Type', 'Summary'],
+			['Summary', 'Effort'],
 		);
 		assert.match(parseThreadEntriesQuery('invalid').errors[0] ?? '', /^Line 1/);
 	} finally {

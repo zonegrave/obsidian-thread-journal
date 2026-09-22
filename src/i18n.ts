@@ -183,7 +183,7 @@ const ZH_TRANSLATIONS = {
 	'This removes the field from the template. Existing commit records are not rewritten.': '这会从模板中删除该字段；已有 commit 记录不会被改写。',
 	'Display name': '显示名称',
 	'Summary': '摘要',
-	'Type': '类型',
+	'Effort': '人力消耗',
 	'Field key': '字段键',
 	'Used in Dataview queries. commit, commit_date, and commit_time are reserved.': 'Dataview 查询时使用；commit、commit_date 和 commit_time 为保留键。',
 	'Control': '控件',

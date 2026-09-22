@@ -27,15 +27,6 @@ const RESERVED_KEYS = new Set(['commit', 'commit_date', 'commit_time']);
 
 export const DEFAULT_COMMIT_FIELDS: CommitFieldSpec[] = [
 	{
-		key: 'commit_kind',
-		label: 'Type',
-		control: 'select',
-		storage: 'inline',
-		required: true,
-		deprecated: false,
-		options: ['milestone', 'review'],
-	},
-	{
 		key: 'commit_summary',
 		label: 'Summary',
 		control: 'textarea',
@@ -43,6 +34,15 @@ export const DEFAULT_COMMIT_FIELDS: CommitFieldSpec[] = [
 		required: true,
 		deprecated: false,
 		options: [],
+	},
+	{
+		key: 'effort',
+		label: 'Effort',
+		control: 'select',
+		storage: 'inline',
+		required: false,
+		deprecated: false,
+		options: ['quick', 'light', 'normal', 'deep'],
 	},
 ];
 
@@ -74,7 +74,7 @@ export function commitFieldKey(value: unknown, fallback: string): string {
 export function cloneDefaultCommitFields(): CommitFieldSpec[] {
 	return cloneCommitFields(DEFAULT_COMMIT_FIELDS).map((field) => ({
 		...field,
-		label: field.key === 'commit_kind' ? t('Type') : t('Summary'),
+		label: field.key === 'commit_summary' ? t('Summary') : t('Effort'),
 	}));
 }
 

@@ -373,10 +373,6 @@ export class ThreadRenderers {
 				'thread-journal-commit-card-controls',
 			],
 		});
-		const kind = entry.values.commit_kind;
-		if (kind) {
-			controls.createSpan({ cls: 'thread-journal-commit-card-kind', text: kind });
-		}
 		const edit = controls.createEl('button', {
 			cls: 'thread-journal-commit-edit',
 			text: t('Edit'),
@@ -803,8 +799,6 @@ export class ThreadRenderers {
 				);
 			}
 			const controls = header.createDiv({ cls: 'thread-journal-commit-card-controls' });
-			const kind = entry.values.commit_kind;
-			if (kind) controls.createSpan({ cls: 'thread-journal-commit-card-kind', text: kind });
 			if (entry.blockId) {
 				const blockId = entry.blockId;
 				const locate = controls.createEl('a', {
@@ -889,7 +883,7 @@ export class ThreadRenderers {
 		const details = container.createDiv({ cls: 'thread-journal-commit-card-fields' });
 		let detailCount = 0;
 		for (const field of fields) {
-			if (field.key === 'commit_kind' || field.key === 'commit_summary') continue;
+			if (field.key === 'commit_summary') continue;
 			const bodyValue = consumedBodyLabels.has(field.label)
 				? undefined
 				: entry.body.find((item) => item.label === field.label)?.value;
