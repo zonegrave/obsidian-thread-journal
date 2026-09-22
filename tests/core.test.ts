@@ -26,6 +26,7 @@ import {
 	commitInsertionEdit,
 	cursorLineIsFrontmatter,
 	deleteCommitEntry,
+	insertCommitAfterTask,
 	parseCommitEntries,
 	replaceCommitEntry,
 } from '../src/commit-core';
@@ -1218,6 +1219,32 @@ void test('task creation replaces an empty line or inserts below the current lin
 		replacement: `\n  ${task}`,
 		cursor: { line: 1, ch: 2 + task.length },
 	});
+});
+
+void test('task commits are inserted after the complete task block', () => {
+	const source = [
+		'# Work',
+		'- [ ] Main task [task_id:: task-main]',
+		'  continuation',
+		'  - [ ] child task',
+		'',
+		'- [ ] Next task',
+	].join('\n');
+	const entry = [
+		'> [!thread-commit]',
+		'> - [commit:: true] [commit_date:: 2026-09-22] ^cm-test',
+	].join('\n');
+	assert.equal(insertCommitAfterTask(source, 1, entry), [
+		'# Work',
+		'- [ ] Main task [task_id:: task-main]',
+		'  continuation',
+		'  - [ ] child task',
+		'',
+		entry,
+		'',
+		'- [ ] Next task',
+		'',
+	].join('\n'));
 });
 
 void test('filters overview tasks to today active or all unfinished tasks', () => {

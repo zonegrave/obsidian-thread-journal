@@ -74,6 +74,12 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.index,
 			getSettings,
 		);
+		this.tasks.setTaskCommitHandler((request) => {
+			this.commits.openTaskCommitModal(
+				request,
+				() => this.tasks.applyCommitOutcome(request),
+			);
+		});
 		this.meta = new ThreadMetaManager(
 			this.app,
 			this.index,
@@ -115,6 +121,8 @@ export default class ThreadJournalPlugin extends Plugin {
 				this.tasks.setFileTaskPinned(file, line, sourceLine, pinned),
 			(file, line, sourceLine, data) =>
 				this.tasks.openFileTaskEdit(file, line, sourceLine, data),
+			(file, line, sourceLine, data) =>
+				this.tasks.openFileTaskCommit(file, line, sourceLine, data),
 		));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
 			this.switcher.rememberActiveLeaf(leaf);

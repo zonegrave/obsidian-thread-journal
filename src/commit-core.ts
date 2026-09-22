@@ -240,6 +240,53 @@ export function appendCommitEntry(content: string, entry: string): string {
 	return withTrailingNewline(lines);
 }
 
+function taskContentIndent(line: string): number | undefined {
+	const unquoted = line.replace(/^(?:\s*>\s?)+/u, '');
+	const match = /^(\s*)(?:[-*+]|\d+[.)])\s+\[[^\]]\]/u.exec(unquoted);
+	return match?.[1]?.length;
+}
+
+export function insertCommitAfterTask(
+	content: string,
+	taskLine: number,
+	entry: string,
+): string {
+	const lines = content.split(/\r?\n/u);
+	const index = Math.max(0, Math.min(Math.trunc(taskLine), Math.max(0, lines.length - 1)));
+	const baseIndent = taskContentIndent(lines[index] ?? '');
+	if (baseIndent === undefined) throw new Error(t('The task changed; reopen the form and try again.'));
+
+	let insertion = index + 1;
+	let pendingBlank: number | undefined;
+	for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+		const source = lines[cursor] ?? '';
+		if (!source.trim()) {
+			pendingBlank ??= cursor;
+			continue;
+		}
+		const indent = source.replace(/^(?:\s*>\s?)+/u, '').match(/^\s*/u)?.[0].length ?? 0;
+		if (indent > baseIndent) {
+			insertion = cursor + 1;
+			pendingBlank = undefined;
+			continue;
+		}
+		insertion = pendingBlank ?? cursor;
+		break;
+	}
+	if (pendingBlank !== undefined) insertion = pendingBlank;
+
+	const before = lines.slice(0, insertion);
+	const after = lines.slice(insertion);
+	while (before.length > 0 && !(before[before.length - 1] ?? '').trim()) before.pop();
+	while (after.length > 0 && !(after[0] ?? '').trim()) after.shift();
+	return withTrailingNewline([
+		...before,
+		'',
+		...entry.split('\n'),
+		...(after.length > 0 ? ['', ...after] : []),
+	]);
+}
+
 export interface CommitInsertionEdit {
 	from: { line: number; ch: number };
 	to: { line: number; ch: number };

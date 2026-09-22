@@ -14,6 +14,7 @@ import {
 	commitInsertionEdit,
 	cursorLineIsFrontmatter,
 	deleteCommitEntry,
+	insertCommitAfterTask,
 	replaceCommitEntry,
 	type CommitValue,
 	type ParsedCommitEntry,
@@ -33,6 +34,7 @@ import { THREAD_STATUS_CHOICES, type ThreadStatus } from './thread-status-model'
 import { t } from './i18n';
 import type { CommitFieldSpec, ThreadJournalSettings } from './types';
 import { create24HourTimeSelect, is24HourTime } from './time-input';
+import { resolveSourceLine, type TaskCommitRequest } from './task';
 
 function commitBlockId(): string {
 	const suffix = Math.random().toString(36).slice(2, 7);
@@ -60,6 +62,7 @@ interface CommitModalInitialState {
 	date: string;
 	time: string;
 	values: Record<string, CommitValue | undefined>;
+	mode?: 'create' | 'edit';
 }
 
 type CommitSubmit = (
@@ -111,7 +114,7 @@ class CommitModal extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass('thread-journal-commit-modal');
-		this.setTitle(this.initial ? t('Edit commit') : t('Create commit'));
+		this.setTitle(this.initial?.mode === 'edit' ? t('Edit commit') : t('Create commit'));
 		this.contentEl.createDiv({
 			cls: 'thread-journal-commit-target',
 			text: this.threadTitle,
@@ -213,7 +216,7 @@ class CommitModal extends Modal {
 		const actions = new Setting(this.contentEl)
 			.setClass('thread-journal-commit-actions');
 		actions.addButton((button) => button
-			.setButtonText(this.initial ? t('Save changes') : t('Save commit'))
+			.setButtonText(this.initial?.mode === 'edit' ? t('Save changes') : t('Save commit'))
 			.setCta()
 			.onClick(async () => {
 				if (this.saving) return;
@@ -341,7 +344,7 @@ export class CommitManager {
 		const threadTitle = this.index.getThread(threadFile)?.title ?? threadFile.basename;
 		const values = commitFormValues(fields, date, time, initial?.values);
 		const request: CommitPanelRequest = {
-			mode: initial ? 'edit' : 'create',
+			mode: initial?.mode === 'edit' ? 'edit' : 'create',
 			threadTitle,
 			fields,
 			date,
@@ -496,6 +499,150 @@ export class CommitManager {
 		});
 	}
 
+	openTaskCommitModal(
+		request: TaskCommitRequest,
+		onTaskCommitted: () => Promise<void>,
+	): void {
+		const sourceThreadFile = this.index.getThreadFile(request.file);
+		const requestedThreadFile = request.threadFile && this.index.getThread(request.threadFile)
+			? request.threadFile
+			: undefined;
+		const linkedThreadFiles = new Map<string, TFile>();
+		if (!sourceThreadFile && !requestedThreadFile) {
+			for (const link of this.app.metadataCache.getFileCache(request.file)?.links ?? []) {
+				if (link.position.start.line !== request.line) continue;
+				const target = this.app.metadataCache.getFirstLinkpathDest(link.link, request.file.path);
+				const linkedThread = target ? this.index.getThreadFile(target) : undefined;
+				if (linkedThread) linkedThreadFiles.set(linkedThread.path, linkedThread);
+			}
+		}
+		if (!sourceThreadFile && !requestedThreadFile && linkedThreadFiles.size > 1) {
+			new Notice(t('The task belongs to multiple threads; create its commit from the thread overview.'));
+			return;
+		}
+		const threadFile = sourceThreadFile
+			?? requestedThreadFile
+			?? [...linkedThreadFiles.values()][0];
+		if (!threadFile) {
+			new Notice(t('The task does not belong to a thread.'));
+			return;
+		}
+		const thread = this.index.getThread(threadFile);
+		if (!thread) {
+			new Notice(t('The task does not belong to a thread.'));
+			return;
+		}
+		const member = this.index.getMember(request.file);
+		const sourceMember = member?.roleStatus === 'active' && member.threadId === thread.id
+			? request.file
+			: undefined;
+		const targetFile = sourceMember ?? this.index.getEntry(threadFile);
+		if (!targetFile) {
+			new Notice(t('The task thread has no valid entry file for saving the commit.'));
+			return;
+		}
+
+		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const originView = sourceMember
+			&& activeView?.file?.path === sourceMember.path
+			&& activeView.getMode() === 'source'
+			? activeView
+			: undefined;
+		const fields = activeCommitFields(commitFieldsForThread(
+			threadCommitFields(this.app, threadFile),
+			this.getSettings().commitFields,
+		));
+		const values: Record<string, CommitValue | undefined> = {};
+		if (fields.some((field) => field.key === 'commit_summary')) {
+			values.commit_summary = request.data.content;
+		}
+		if (request.data.effort && fields.some((field) => field.key === 'effort')) {
+			values.effort = request.data.effort;
+		}
+		const now = moment();
+		this.openCommitForm(
+			threadFile,
+			fields,
+			async (date, time, submittedValues) => {
+				const entry = buildCommitEntry({
+					date,
+					time,
+					blockId: commitBlockId(),
+					fields,
+					values: submittedValues,
+				});
+				if (originView) {
+					if (
+						!originView.containerEl.isConnected
+						|| originView.file?.path !== targetFile.path
+						|| originView.getMode() !== 'source'
+					) {
+						throw new Error(t('Keep the target thread file open in editing view until saving.'));
+					}
+					if (this.index.getMember(targetFile)?.roleStatus !== 'active') {
+						throw new Error(t('The current thread role is terminated and cannot create commits.'));
+					}
+					const editor = originView.editor;
+					const lines = Array.from(
+						{ length: editor.lineCount() },
+						(_, line) => editor.getLine(line),
+					);
+					const cursorLine = editor.getCursor().line;
+					if (cursorLineIsFrontmatter(lines, cursorLine)) {
+						throw new Error(t('Move the cursor into the document body first.'));
+					}
+					const edit = commitInsertionEdit(lines, entry, cursorLine);
+					editor.replaceRange(edit.replacement, edit.from, edit.to);
+					await originView.save();
+				} else if (sourceMember) {
+					await this.app.vault.process(sourceMember, (content) => {
+						const lines = content.split('\n');
+						const resolved = resolveSourceLine(
+							lines,
+							request.line,
+							request.sourceLine,
+							request.data.taskId,
+						);
+						return insertCommitAfterTask(content, resolved, entry);
+					});
+				} else {
+					await this.app.vault.process(targetFile, (content) => appendCommitEntry(content, entry));
+				}
+
+				const nextStatus = commitStatus(submittedValues.status_after);
+				if (nextStatus) {
+					try {
+						await this.app.fileManager.processFrontMatter(threadFile, (frontmatter) => {
+							(frontmatter as Record<string, unknown>).status = nextStatus;
+						});
+					} catch (error) {
+						console.error('Thread Journal failed to update status after task commit', error);
+						new Notice(t('Commit saved, but the status update failed: {error}', {
+							error: String(error),
+						}));
+					}
+				}
+				try {
+					await onTaskCommitted();
+				} catch (error) {
+					console.error('Thread Journal saved the commit but failed to update its task', error);
+					request.onUpdated?.();
+					new Notice(t('Commit saved, but the task could not be updated: {error}', {
+						error: String(error),
+					}));
+					return;
+				}
+				new Notice(t('Created a commit for {title}.', { title: thread.title }));
+			},
+			{
+				date: now.format('YYYY-MM-DD'),
+				time: now.format('HH:mm'),
+				values,
+				mode: 'create',
+			},
+		);
+	}
+
 	openCommitEditModal(sourceFile: TFile, entry: ParsedCommitEntry): void {
 		if (!entry.blockId) {
 			new Notice(t('This commit has no block ID and cannot be edited safely.'));
@@ -532,6 +679,7 @@ export class CommitManager {
 				date: entry.values.commit_date || moment().format('YYYY-MM-DD'),
 				time: entry.values.commit_time || moment().format('HH:mm'),
 				values: editState.values,
+				mode: 'edit',
 			},
 		);
 	}

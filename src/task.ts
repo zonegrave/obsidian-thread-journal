@@ -37,6 +37,17 @@ export interface FileTaskLocation {
 	parsed: ParsedTaskLine;
 }
 
+export interface TaskCommitRequest {
+	file: TFile;
+	line: number;
+	sourceLine: string;
+	data: TaskData;
+	threadFile?: TFile;
+	onUpdated?: () => void;
+}
+
+type TaskCommitHandler = (request: TaskCommitRequest) => void;
+
 function currentDate(): string {
 	return moment().format('YYYY-MM-DD');
 }
@@ -282,6 +293,7 @@ class TaskModal extends Modal {
 
 export class TaskManager {
 	private taskLocationIndex?: Promise<Map<string, FileTaskLocation[]>>;
+	private taskCommitHandler?: TaskCommitHandler;
 
 	constructor(
 		private readonly app: App,
@@ -290,6 +302,53 @@ export class TaskManager {
 
 	invalidateTaskIndex(): void {
 		this.taskLocationIndex = undefined;
+	}
+
+	setTaskCommitHandler(handler: TaskCommitHandler): void {
+		this.taskCommitHandler = handler;
+	}
+
+	openFileTaskCommit(
+		file: TFile,
+		line: number,
+		sourceLine: string,
+		data: TaskData,
+		threadFile?: TFile,
+		onUpdated?: () => void,
+	): void {
+		if (!this.taskCommitHandler) {
+			new Notice(t('Commit creation is not available.'));
+			return;
+		}
+		this.taskCommitHandler({ file, line, sourceLine, data, threadFile, onUpdated });
+	}
+
+	async applyCommitOutcome(request: TaskCommitRequest): Promise<void> {
+		await this.app.vault.process(request.file, (content) => {
+			const lines = content.split('\n');
+			const resolved = resolveSourceLine(
+				lines,
+				request.line,
+				request.sourceLine,
+				request.data.taskId,
+			);
+			const current = lines[resolved];
+			if (current === undefined) {
+				throw new Error(t('The task changed; reopen the form and try again.'));
+			}
+			const parsed = parseTaskLine(current);
+			if (!parsed) throw new Error(t('The task changed; reopen the form and try again.'));
+			if (parsed.data.repeat) {
+				const replacement = advanceTaskLine(current, currentDate());
+				if (!replacement) throw new Error(t('The task is not a valid repeating task.'));
+				lines[resolved] = replacement;
+			} else {
+				lines[resolved] = buildTaskLine(parsed.data, { ...parsed, marker: 'x' });
+			}
+			return lines.join('\n');
+		});
+		this.invalidateTaskIndex();
+		request.onUpdated?.();
 	}
 
 	async findTasksById(taskId: string): Promise<FileTaskLocation[]> {

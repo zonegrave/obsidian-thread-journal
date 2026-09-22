@@ -170,6 +170,8 @@ attention_fallback: true
 - 日期、时间、标记和稳定块 ID 由插件生成。
 - 默认字段是必填的“摘要”和可选的“人力消耗”；消耗使用 `quick`、`light`、`normal`、`deep` 四档。
 
+Task 在阅读视图、Live Preview、Task Reference 和 Overview 中都提供 commit 图标。由 Task 打开时，表单会用任务内容预填摘要并继承 effort；取消或保存失败不会改变任务。Commit 保存成功后，普通任务才会标记完成，循环任务才会推进到下一期。在原 thread 成员的编辑视图触发时，Commit 仍按保存时的实时光标插入；从其他视图触发时，Commit 默认插在原任务完整块之后。若任务保存在 thread 外部，Commit 会写入所属 thread 的 entry，避免把 thread 原始记录散落到外部笔记。
+
 ```markdown
 > [!thread-commit]
 > - [commit:: true] [commit_date:: 2026-09-13] [commit_time:: 15:20] [commit_summary:: 完成 pack 模型] [effort:: light] ^cm-20260913-152000-a1b2c
@@ -257,7 +259,7 @@ reference_task_id: task-4f8a0d92c3e1
 ```
 ````
 
-也可把代码块内容写成 `[reference_task_id:: task-4f8a0d92c3e1]`。引用卡片显示原任务内容、时间状态、预计消耗和循环 current，并可直接切换完成状态、固定、推进循环、编辑或打开原任务。所有操作写回原任务，引用处不复制任务数据；找不到 ID 或发现重复 ID 时显示明确错误，不对不确定目标执行操作。
+也可把代码块内容写成 `[reference_task_id:: task-4f8a0d92c3e1]`。引用卡片显示原任务内容、时间状态、预计消耗和循环 current，并可直接创建 commit、切换完成状态、固定、推进循环、编辑或打开原任务。所有操作写回原任务，引用处不复制任务数据；找不到 ID 或发现重复 ID 时显示明确错误，不对不确定目标执行操作。
 
 `thread-children` 代码块动态显示直接子 thread，并链接到各自入口：
 

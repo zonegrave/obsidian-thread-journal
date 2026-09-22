@@ -6,6 +6,7 @@ import {
 	moment,
 	setIcon,
 	type MarkdownPostProcessorContext,
+	type TFile,
 	type WorkspaceLeaf,
 } from 'obsidian';
 import {
@@ -514,12 +515,20 @@ class OverviewContent extends MarkdownRenderChild {
 		return filterAttentionTasks(row.tasks, this.taskScope);
 	}
 
-	private pinnedTasks(): { task: AttentionRowTask; threadTitle: string }[] {
-		const pinned = new Map<string, { task: AttentionRowTask; threadTitle: string }>();
+	private pinnedTasks(): { task: AttentionRowTask; threadTitle: string; threadFile: TFile }[] {
+		const pinned = new Map<string, {
+			task: AttentionRowTask;
+			threadTitle: string;
+			threadFile: TFile;
+		}>();
 		for (const row of this.rows) {
 			for (const task of row.tasks) {
 				if (!task.pinned || pinned.has(task.key)) continue;
-				pinned.set(task.key, { task, threadTitle: row.thread.title });
+				pinned.set(task.key, {
+					task,
+					threadTitle: row.thread.title,
+					threadFile: row.thread.file,
+				});
 			}
 		}
 		return [...pinned.values()];
@@ -564,14 +573,14 @@ class OverviewContent extends MarkdownRenderChild {
 				text: t('No pinned tasks.'),
 			});
 		} else {
-			for (const { task, threadTitle } of pinned) {
+			for (const { task, threadTitle, threadFile } of pinned) {
 				const item = list.createDiv({ cls: 'thread-journal-overview-pinned-task' });
 				const meta = item.createDiv({ cls: 'thread-journal-overview-pinned-task-meta' });
 				meta.createSpan({ text: threadTitle });
 				this.renderTaskPinButton(item, task);
 				this.renderTaskLink(item, task);
 				this.renderTaskDetails(item, task);
-				this.renderTaskActions(item, task);
+				this.renderTaskActions(item, task, threadFile);
 			}
 		}
 	}
@@ -810,7 +819,7 @@ class OverviewContent extends MarkdownRenderChild {
 			this.renderTaskPinButton(item, task);
 			this.renderTaskLink(item, task);
 			this.renderTaskDetails(item, task);
-			this.renderTaskActions(item, task);
+			this.renderTaskActions(item, task, row.thread.file);
 		}
 		for (const fallback of row.fallbacks) {
 			this.renderFallbackLink(tasks, fallback);
@@ -920,8 +929,23 @@ class OverviewContent extends MarkdownRenderChild {
 		if (!details.hasChildNodes()) details.remove();
 	}
 
-	private renderTaskActions(parent: HTMLElement, task: AttentionRowTask): void {
+	private renderTaskActions(parent: HTMLElement, task: AttentionRowTask, threadFile: TFile): void {
 		const actions = parent.createDiv({ cls: 'thread-journal-overview-task-actions' });
+		const commit = actions.createEl('button', {
+			cls: 'clickable-icon thread-journal-task-commit',
+			attr: { type: 'button', 'aria-label': t('Create commit from task'), title: t('Create commit from task') },
+		});
+		setIcon(commit, 'git-commit-horizontal');
+		commit.addEventListener('click', () => {
+			this.taskManager.openFileTaskCommit(
+				task.file,
+				task.line,
+				task.sourceLine,
+				task.data,
+				threadFile,
+				() => void this.refresh(),
+			);
+		});
 		const edit = actions.createEl('button', {
 			cls: 'clickable-icon thread-journal-overview-task-edit',
 			attr: { type: 'button', 'aria-label': t('Edit task'), title: t('Edit task') },

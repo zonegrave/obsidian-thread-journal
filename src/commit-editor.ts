@@ -61,6 +61,12 @@ class TaskSummaryWidget extends WidgetType {
 			sourceLine: string,
 			data: TaskData,
 		) => void,
+		private readonly onCommit: (
+			file: TFile,
+			line: number,
+			sourceLine: string,
+			data: TaskData,
+		) => void,
 	) {
 		super();
 		this.signature = JSON.stringify(data);
@@ -161,6 +167,20 @@ class TaskSummaryWidget extends WidgetType {
 			});
 		}
 		const actions = container.createSpan({ cls: 'thread-journal-task-preview-actions' });
+		const commit = actions.createEl('button', {
+			cls: 'clickable-icon thread-journal-task-commit',
+			attr: { type: 'button', 'aria-label': t('Create commit from task'), title: t('Create commit from task') },
+		});
+		setIcon(commit, 'git-commit-horizontal');
+		commit.addEventListener('mousedown', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+		});
+		commit.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.onCommit(this.file, this.line, this.sourceLine, this.data);
+		});
 		const edit = actions.createEl('button', {
 			cls: 'clickable-icon thread-journal-task-preview-edit',
 			attr: { type: 'button', 'aria-label': t('Edit task'), title: t('Edit task') },
@@ -205,6 +225,7 @@ export function commitEditorExtension(
 		pinned: boolean,
 	) => Promise<void>,
 	onTaskEdit: (file: TFile, line: number, sourceLine: string, data: TaskData) => void,
+	onTaskCommit: (file: TFile, line: number, sourceLine: string, data: TaskData) => void,
 ) {
 	return ViewPlugin.fromClass(class CommitEditorCallouts {
 		decorations: DecorationSet;
@@ -264,6 +285,7 @@ export function commitEditorExtension(
 									onTaskNext,
 									onTaskPin,
 									onTaskEdit,
+									onTaskCommit,
 								),
 								side: 1,
 							}).range(line.to));

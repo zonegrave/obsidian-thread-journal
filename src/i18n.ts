@@ -32,6 +32,12 @@ const ZH_TRANSLATIONS = {
 	'Create thread': '新建 thread',
 	'Create task': '新建 task',
 	'Edit task': '编辑 task',
+	'Create commit from task': '从 task 创建 commit',
+	'Commit creation is not available.': '当前无法创建 commit。',
+	'The task does not belong to a thread.': '这个 task 不属于任何 thread。',
+	'The task belongs to multiple threads; create its commit from the thread overview.': '这个 task 同时属于多个 thread；请从 thread 总览为它创建 commit。',
+	'The task thread has no valid entry file for saving the commit.': '这个 task 所属的 thread 没有可用于保存 commit 的有效入口文件。',
+	'Commit saved, but the task could not be updated: {error}': 'Commit 已保存，但无法更新 task：{error}',
 	'Failed to switch active thread role: {error}': '切换 active thread role 失败：{error}',
 	'Failed to insert inline log: {error}': '插入 inline log 失败：{error}',
 

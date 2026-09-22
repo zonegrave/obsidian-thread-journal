@@ -187,6 +187,21 @@ class TaskReferenceRenderer extends MarkdownRenderChild {
 		if (!details.hasChildNodes()) details.remove();
 
 		const actions = card.createDiv({ cls: 'thread-journal-task-reference-actions' });
+		const commit = actions.createEl('button', {
+			cls: 'clickable-icon thread-journal-task-commit',
+			attr: { type: 'button', 'aria-label': t('Create commit from task'), title: t('Create commit from task') },
+		});
+		setIcon(commit, 'git-commit-horizontal');
+		commit.addEventListener('click', () => {
+			this.taskManager.openFileTaskCommit(
+				task.file,
+				task.line,
+				task.sourceLine,
+				data,
+				undefined,
+				() => this.scheduleRefresh(),
+			);
+		});
 		const source = actions.createEl('button', {
 			cls: 'clickable-icon',
 			attr: {

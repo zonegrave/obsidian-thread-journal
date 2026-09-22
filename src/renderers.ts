@@ -264,6 +264,14 @@ export class ThreadRenderers {
 		if (!details.hasChildNodes()) details.remove();
 
 		const actions = card.createDiv({ cls: 'thread-journal-source-task-actions' });
+		const commit = actions.createEl('button', {
+			cls: 'clickable-icon thread-journal-task-commit',
+			attr: { type: 'button', 'aria-label': t('Create commit from task'), title: t('Create commit from task') },
+		});
+		setIcon(commit, 'git-commit-horizontal');
+		commit.addEventListener('click', () => {
+			this.taskManager.openFileTaskCommit(file, line, sourceLine, data);
+		});
 		const edit = actions.createEl('button', {
 			cls: 'clickable-icon thread-journal-source-task-edit',
 			attr: { type: 'button', 'aria-label': t('Edit task'), title: t('Edit task') },
