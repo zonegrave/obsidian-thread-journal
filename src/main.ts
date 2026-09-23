@@ -1,3 +1,4 @@
+import { TaskHoldingService } from './task-holding';
 import {
 	openThreadOverview,
 	renderThreadOverview,
@@ -62,6 +63,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		const getSettings = () => this.settings;
 		this.index = new ThreadIndex(this.app);
 		this.tasks = new TaskManager(this.app, this.index);
+		new TaskHoldingService(this.app, () => this.tasks.invalidateTaskIndex()).register(this);
 		this.registerView(
 			THREAD_OVERVIEW_VIEW_TYPE,
 			(leaf) => new ThreadOverviewView(leaf, this.index, this.tasks),
@@ -170,6 +172,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerCommands(): void {
+		this.addCommand({ id: 'holding-queue', name: t('Holding queue'), callback: () => this.tasks.openHoldingQueue() });
 		this.addCommand({ id: 'thread-overview', name: t('Open thread overview'), callback: () => void openThreadOverview(this.app) });
 		this.addCommand({
 			id: 'edit-current-thread-commit-template',

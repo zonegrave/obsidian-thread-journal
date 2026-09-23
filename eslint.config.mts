@@ -30,9 +30,10 @@ export default defineConfig(
 	},
 	...obsidianmd.configs.recommended,
 	{
-		files: ['tests/**/*.ts'],
+		files: ['tests/**/*.ts', 'scripts/**/*.ts'],
 		rules: {
 			'obsidianmd/no-nodejs-modules': 'off',
+			'obsidianmd/no-global-this': 'off',
 		},
 	},
 );

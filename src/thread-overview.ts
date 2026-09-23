@@ -35,6 +35,7 @@ import type { TaskManager } from './task';
 import {
 	TASK_EFFORT_LABELS,
 	taskDeadlineDisplay,
+	taskStateDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
 } from './task-display';
@@ -63,8 +64,9 @@ import { LANGUAGE_CHANGE_EVENT, t, type TranslationKey } from './i18n';
 const TASK_DISPOSITION_LABELS: Record<TodoDisposition, TranslationKey> = {
 	ready: 'ready',
 	future: 'future',
-	waiting: 'waiting',
-	candidate: 'candidate',
+	holding: 'Holding',
+	idea: 'Idea',
+	committed: 'Committed',
 	unknown: 'other',
 };
 
@@ -269,6 +271,8 @@ class OverviewContent extends MarkdownRenderChild {
 			this.viewScope = viewScopeSelect.value === 'today' ? 'today' : 'all';
 			this.render();
 		});
+		const holding = toolbar.createEl('button', { text: t('Holding queue') });
+		holding.addEventListener('click', () => this.taskManager.openHoldingQueue());
 		const taskScope = toolbar.createEl('label', {
 			cls: 'thread-journal-overview-task-scope',
 		});
@@ -278,9 +282,12 @@ class OverviewContent extends MarkdownRenderChild {
 		});
 		taskScopeSelect.createEl('option', { text: t('Active today'), value: 'today' });
 		taskScopeSelect.createEl('option', { text: t('All'), value: 'all' });
+		taskScopeSelect.createEl('option', { text: t('Idea'), value: 'idea' });
+		taskScopeSelect.createEl('option', { text: t('Committed'), value: 'committed' });
+		taskScopeSelect.createEl('option', { text: t('Open'), value: 'open' });
 		taskScopeSelect.value = this.taskScope;
 		taskScopeSelect.addEventListener('change', () => {
-			this.taskScope = taskScopeSelect.value === 'all' ? 'all' : 'today';
+			this.taskScope = taskScopeSelect.value as TaskScope;
 			this.render();
 		});
 		if (parent.hasClass('thread-journal-overview-view')) {
@@ -523,7 +530,7 @@ class OverviewContent extends MarkdownRenderChild {
 		}>();
 		for (const row of this.rows) {
 			for (const task of row.tasks) {
-				if (!task.pinned || pinned.has(task.key)) continue;
+				if (task.data.holding || !task.pinned || pinned.has(task.key)) continue;
 				pinned.set(task.key, {
 					task,
 					threadTitle: row.thread.title,
@@ -887,6 +894,8 @@ class OverviewContent extends MarkdownRenderChild {
 			);
 		}
 		const today = moment().format('YYYY-MM-DD');
+		const state = taskStateDisplay(data, today);
+		if (state) addDetail(state, data.holding ? 'pause-circle' : 'circle-dot');
 		const deadline = taskDeadlineDisplay(data, today);
 		if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
 		if (data.effort) {

@@ -1,3 +1,6 @@
+import { migrateTaskStates } from '../scripts/task-state-migration';
+import { EMPTY_TASK, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
+import { dependencyReference, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
 	attentionHint,
 	filterAttentionTasks,
@@ -1008,13 +1011,13 @@ void test('resolves current wikilinks and aliases', () => {
 	assert.equal(wikiLinkAlias('[[睡眠管理]]'), undefined);
 });
 
-void test('task readiness separates future, waiting, candidates, completion and deadlines', () => {
+void test('task readiness separates future, holding, ideas, completion and deadlines', () => {
  assert.equal(todoDisposition(' ', '2026-10-01 预约', '2026-09-09'), 'future');
  assert.equal(todoDisposition(' ', '预约 📅 2026-10-01', '2026-09-09'), 'ready');
  assert.equal(todoDisposition(' ', '预约 ⏳ 2026-10-01', '2026-09-09'), 'future');
  assert.equal(todoDisposition(' ', '预约 🛫 2026-09-09', '2026-09-09'), 'ready');
- assert.equal(todoDisposition('>', '等回复', '2026-09-09'), 'waiting');
- assert.equal(todoDisposition('?', '考虑一下', '2026-09-09'), 'candidate');
+ assert.equal(todoDisposition(' ', '等回复 [holding:: true]', '2026-09-09'), 'holding');
+ assert.equal(todoDisposition('i', '考虑一下', '2026-09-09'), 'idea');
  assert.equal(todoDisposition('x', '完成', '2026-09-09'), undefined);
  assert.equal(todoDisposition('-', '取消', '2026-09-09'), undefined);
  assert.equal(todoDisposition(' ', '', '2026-09-09'), undefined);
@@ -1056,13 +1059,15 @@ void test('parses task references only through the distinct reference_task_id fi
 });
 
 void test('task form fields round-trip without losing markdown task state or other metadata', () => {
-	const source = '  > - [/] 记录恢复 [task_id:: task-123456789abc] '
+	const source = '  > - [:] 记录恢复 [task_id:: task-123456789abc] '
 		+ '[window_start:: 2026-09-18] [window_end:: 2026-09-20] '
 		+ '[effort:: quick] [current:: 2026-09-18] [repeat:: FREQ=WEEKLY] '
 		+ '[thread_pin:: true] ^task-recovery';
 	const parsed = parseTaskLine(source);
 	assert.ok(parsed);
 	assert.deepEqual(parsed.data, {
+		...EMPTY_TASK,
+		status: 'committed',
 		taskId: 'task-123456789abc',
 		content: '记录恢复',
 		pinned: true,
@@ -1076,7 +1081,7 @@ void test('task form fields round-trip without losing markdown task state or oth
 		repeatMonthDay: 1,
 	});
 	const rebuilt = buildTaskLine(parsed.data, parsed);
-	assert.match(rebuilt, /^ {2}> - \[\/\] 记录恢复/u);
+	assert.match(rebuilt, /^ {2}> - \[:\] 记录恢复/u);
 	assert.match(rebuilt, /\[thread_pin:: true\]/u);
 	assert.match(rebuilt, /\^task-recovery$/u);
 	assert.deepEqual(parseTaskLine(rebuilt)?.data, parsed.data);
@@ -1084,6 +1089,7 @@ void test('task form fields round-trip without losing markdown task state or oth
 
 void test('task validation keeps date bounds optional and validates repeat state', () => {
 	const base: TaskData = {
+		...EMPTY_TASK,
 		taskId: 'task-123456789abc',
 		content: '整理会议结论',
 		pinned: false,
@@ -1142,6 +1148,7 @@ void test('classifies task windows before, during and after their date range', (
 
 void test('advances one repeating task in place and preserves its relative date window', () => {
 	const monthly: TaskData = {
+			...EMPTY_TASK,
 		taskId: 'task-123456789abc',
 		content: '月末复盘',
 		pinned: false,
@@ -1167,12 +1174,13 @@ void test('advances one repeating task in place and preserves its relative date 
 		advanceTaskLine('- [x] 每日记录 [task_id:: task-123456789abc] '
 			+ '[current:: 2026-09-18] [repeat:: FREQ=DAILY]'),
 		'- [ ] 每日记录 [task_id:: task-123456789abc] '
-			+ '[current:: 2026-09-19] [repeat:: FREQ=DAILY]',
+			+ '[completed_occurrences:: 2026-09-18] [current:: 2026-09-19] [repeat:: FREQ=DAILY]',
 	);
 });
 
 void test('skips past repeat occurrences when advancing while preserving the window offset', () => {
 	const daily: TaskData = {
+		...EMPTY_TASK,
 		taskId: 'task-123456789abc',
 		content: '每日记录',
 		pinned: false,
@@ -1251,16 +1259,17 @@ void test('filters overview tasks to today active or all unfinished tasks', () =
 	const tasks = [
 		{ id: 'ready', disposition: 'ready' as const },
 		{ id: 'future', disposition: 'future' as const },
-		{ id: 'waiting', disposition: 'waiting' as const },
-		{ id: 'candidate', disposition: 'candidate' as const },
+		{ id: 'holding', disposition: 'holding' as const },
+		{ id: 'idea', disposition: 'idea' as const },
+		{ id: 'committed', disposition: 'committed' as const },
 		{ id: 'unknown', disposition: 'unknown' as const },
 	];
 	assert.deepEqual(filterAttentionTasks(tasks, 'today').map((task) => task.id), ['ready']);
 	assert.deepEqual(filterAttentionTasks(tasks, 'all').map((task) => task.id), [
 		'ready',
 		'future',
-		'waiting',
-		'candidate',
+		'idea',
+		'committed',
 		'unknown',
 	]);
 });
@@ -1367,4 +1376,113 @@ void test('localizes model-provided labels without changing stored values', () =
 void test('breadcrumb tooltips face the document area', () => {
 	assert.equal(breadcrumbTooltipPlacement('top'), 'bottom');
 	assert.equal(breadcrumbTooltipPlacement('bottom'), 'top');
+});
+
+function holdingTask(id: string, changes: Partial<TaskData> = {}): TaskData {
+	return { ...EMPTY_TASK, taskId: `task-${id.repeat(12)}`, content: id, ...changes };
+}
+
+void test('task states round trip independently of holding and retain other fields', () => {
+	for (const status of ['idea', 'committed', 'open', 'completed', 'cancelled'] as const) {
+		const data = holdingTask('a', { status, holding: true, holdingReview: '2026-10-01', holdingFor: ['task-bbbbbbbbbbbb'] });
+		const line = buildTaskLine(data);
+		assert.ok(line.startsWith(`- [${taskStatusMarker(status)}]`));
+		assert.deepEqual(parseTaskLine(line)?.data, data);
+		const released = releaseTaskHolding(data);
+		assert.equal(released.status, status);
+		assert.equal(released.holding, false);
+		assert.deepEqual(released.holdingFor, []);
+		assert.equal(released.holdingReview, '');
+		assert.doesNotMatch(buildTaskLine(released), /holding/u);
+	}
+});
+
+void test('committed and idea never become ready merely because their date has arrived', () => {
+	assert.equal(todoDisposition(':', 'Committed [window_start:: 2020-01-01]', '2026-09-23'), 'committed');
+	assert.equal(todoDisposition('i', 'Idea [window_end:: 2020-01-01]', '2026-09-23'), 'idea');
+	for (const marker of ['i', ':', ' ']) {
+		assert.equal(todoDisposition(marker, 'Held [holding:: true] [holding_review:: 2020-01-01]', '2026-09-23'), 'holding');
+	}
+});
+
+void test('manual holding remains held before and after the review date', () => {
+	for (const date of ['', '2020-01-01', '2099-12-31']) {
+		assert.equal(holdingResult(holdingTask('a', { holding: true, holdingReview: date }), new Map()), 'manual');
+	}
+	assert.equal(taskValidationError(holdingTask('a', { holding: true, holdingReview: '2026-02-30' })), 'holding-date');
+});
+
+void test('all dependencies must complete; cancelled missing and duplicate tasks require attention', () => {
+	const data = holdingTask('a', { status: 'committed', holding: true, holdingFor: ['task-bbbbbbbbbbbb', 'task-cccccccccccc'] });
+	const b = holdingTask('b', { status: 'completed' });
+	const c = holdingTask('c');
+	const lookup = new Map([[b.taskId, [b]], [c.taskId, [c]]]);
+	assert.equal(holdingResult(data, lookup), 'pending');
+	lookup.set(c.taskId, [{ ...c, status: 'completed' }]);
+	assert.equal(holdingResult(data, lookup), 'ready');
+	assert.equal(holdingResult({ ...data, holdingReview: '2099-12-31' }, lookup), 'ready');
+	lookup.set(c.taskId, [{ ...c, status: 'cancelled' }]);
+	assert.equal(holdingResult(data, lookup), 'invalid');
+	lookup.set(c.taskId, [c, c]);
+	assert.equal(holdingResult(data, lookup), 'invalid');
+	lookup.delete(c.taskId);
+	assert.equal(holdingResult(data, lookup), 'invalid');
+	assert.equal(holdingResult(releaseTaskHolding(data), lookup), 'manual');
+});
+
+void test('holding prevents self dependency, indirect cycles and malformed references', () => {
+	const a = holdingTask('a', { holding: true, holdingFor: ['task-bbbbbbbbbbbb'] });
+	const b = holdingTask('b', { holding: true, holdingFor: [a.taskId] });
+	assert.equal(holdingGraphError(a, new Map([[b.taskId, [b]], [a.taskId, [a]]])), true);
+	assert.equal(holdingGraphError({ ...a, holdingFor: [a.taskId] }, new Map()), true);
+	assert.equal(holdingResult({ ...a, holdingFor: ['bad-id'] }, new Map()), 'invalid');
+	const leaf = holdingTask('c');
+	assert.equal(holdingGraphError({ ...a, holdingFor: [leaf.taskId] }, new Map([[leaf.taskId, [leaf]]])), false);
+});
+
+void test('recurring dependency requires completion of the selected occurrence, not skipping it', () => {
+	const recurring = holdingTask('b', { repeat: true, current: '2026-09-20' });
+	const data = holdingTask('a', { holding: true, holdingFor: [dependencyReference(recurring)] });
+	const skipped = advanceTaskData(recurring, '2026-09-23')!;
+	assert.equal(holdingResult(data, new Map([[recurring.taskId, [skipped]]])), 'pending');
+	const completed = advanceTaskData(completeTaskData(recurring), '2026-09-23')!;
+	assert.equal(completed.status, 'open');
+	assert.deepEqual(completed.completedOccurrences, ['2026-09-20']);
+	assert.equal(holdingResult(data, new Map([[recurring.taskId, [completed]]])), 'ready');
+	assert.equal(holdingResult({ ...data, holdingFor: [`${recurring.taskId}@2026-09-21`] }, new Map([[recurring.taskId, [completed]]])), 'pending');
+	assert.equal(holdingResult({ ...data, holdingFor: [recurring.taskId] }, new Map([[recurring.taskId, [recurring]]])), 'invalid');
+	const line = advanceTaskLine(buildTaskLine({ ...recurring, status: 'completed' }), '2026-09-23')!;
+	assert.deepEqual(parseTaskLine(line)?.data.completedOccurrences, ['2026-09-20']);
+});
+
+void test('task scanner excludes YAML and fenced/indented samples, preserving real nested tasks', () => {
+	const content = ['---', 'example:', '- [ ] YAML', '---', '# Notes', '```md', '- [ ] fenced', '```',
+		'~~~md', '- [ ] tilde fenced', '~~~', '', '    - [ ] indented code', '',
+		'- [ ] real', '    - [:] real nested', '> - [i] quoted task'].join('\n');
+	assert.deepEqual(scanTaskLines(content).map(task => task.parsed.data.content), ['real', 'real nested', 'quoted task']);
+});
+
+void test('state queues exclude holding and separate idea, committed and open', () => {
+	const tasks = ['idea', 'committed', 'ready', 'future', 'holding', 'unknown'].map(disposition => ({ disposition })) as { disposition: import('../src/thread-attention-model').TodoDisposition }[];
+	assert.deepEqual(filterAttentionTasks(tasks, 'idea').map(task => task.disposition), ['idea']);
+	assert.deepEqual(filterAttentionTasks(tasks, 'committed').map(task => task.disposition), ['committed']);
+	assert.deepEqual(filterAttentionTasks(tasks, 'open').map(task => task.disposition), ['ready', 'future']);
+});
+
+void test('one-time state migration preserves note content, ignores examples and is idempotent', () => {
+	const source = ['---', 'example:', '- [?] YAML', '---', '```md', '- [>] example', '```',
+		'- [i] Idea', '- [?] Committed [task_id:: task-aaaaaaaaaaaa] ^anchor',
+		'- [>] Waiting [task_id:: task-bbbbbbbbbbbb] ^waiting', '- [x] Done'].join('\n');
+	const migrated = migrateTaskStates(source);
+	assert.deepEqual(migrated.changedLines, [9, 10]);
+	assert.ok(migrated.content.includes('- [:] Committed [task_id:: task-aaaaaaaaaaaa] ^anchor'));
+	assert.ok(migrated.content.includes('- [ ] Waiting [task_id:: task-bbbbbbbbbbbb] [holding:: true] ^waiting'));
+	assert.ok(migrated.content.includes('- [?] YAML'));
+	assert.ok(migrated.content.includes('- [>] example'));
+	assert.deepEqual(migrateTaskStates(migrated.content), { content: migrated.content, changedLines: [] });
+});
+
+void test('indented examples inside lists are excluded from the dependency graph', () => {
+	const source = ['- Parent', '', '        - [x] Code example', '', '    - [ ] Nested task', '        - [ ] Deep task'].join('\n');
+	assert.deepEqual(scanTaskLines(source).map(task => task.parsed.data.content), ['Nested task', 'Deep task']);
 });

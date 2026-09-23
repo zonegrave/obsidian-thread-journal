@@ -2723,3 +2723,37 @@
 		gap: 3.5rem;
 	}
 }
+
+/* State and holding are independent: held tasks remain readable in their source note. */
+.thread-journal-holding-fields {
+	border-top: 1px solid var(--background-modifier-border);
+	margin-top: 12px;
+	padding-top: 8px;
+}
+.thread-journal-holding-fields .setting-item {
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.thread-journal-holding-fields .setting-item-control {
+	flex-wrap: wrap;
+	max-width: 100%;
+}
+.thread-journal-holding-modal {
+	width: min(760px, 95vw);
+}
+.thread-journal-holding-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	margin: 8px 0;
+	padding: 12px;
+	overflow-wrap: anywhere;
+}
+.thread-journal-holding-card .setting-item {
+	border: 0;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding-top: 0;
+}
+.thread-journal-holding-card .setting-item-control {
+	flex-wrap: wrap;
+}

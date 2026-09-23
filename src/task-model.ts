@@ -1,9 +1,15 @@
+export type TaskStatus = 'idea' | 'committed' | 'open' | 'completed' | 'cancelled';
 export type TaskEffort = '' | 'quick' | 'light' | 'normal' | 'deep';
 export type TaskRepeatFrequency = 'daily' | 'weekly' | 'monthly' | 'custom';
 export type TaskWindowState = 'upcoming' | 'current' | 'overdue';
 
 export interface TaskData {
 	taskId: string;
+	status: TaskStatus;
+	holding: boolean;
+	holdingReview: string;
+	holdingFor: string[];
+	completedOccurrences: string[];
 	content: string;
 	pinned: boolean;
 	windowStart: string;
@@ -35,11 +41,20 @@ const TASK_FIELDS = new Set([
 	'window_start',
 	'window_end',
 	'effort',
+	'holding',
+	'holding_review',
+	'holding_for',
+	'completed_occurrences',
 ]);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/u;
 
 export const EMPTY_TASK: TaskData = {
 	taskId: '',
+	status: 'open',
+	holding: false,
+	holdingReview: '',
+	holdingFor: [],
+	completedOccurrences: [],
 	content: '',
 	pinned: false,
 	windowStart: '',
@@ -56,7 +71,7 @@ function decodeInlineValue(value: string): string {
 	return value.trim().replace(/&#93;/gu, ']');
 }
 
-function validDate(value: string): boolean {
+export function validDate(value: string): boolean {
 	if (!ISO_DATE.test(value)) return false;
 	const [year = 0, month = 0, day = 0] = value.split('-').map(Number);
 	const date = new Date(Date.UTC(year, month - 1, day));
@@ -77,6 +92,32 @@ function inputTaskId(value: string | undefined): string {
 
 export function createTaskId(): string {
 	return `task-${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`;
+}
+
+export function taskStatusFromMarker(marker: string): TaskStatus {
+	if (marker.toLowerCase() === 'x') return 'completed';
+	if (marker === '-') return 'cancelled';
+	if (marker.toLowerCase() === 'i') return 'idea';
+	if (marker === ':') return 'committed';
+	return 'open';
+}
+
+export function taskStatusMarker(status: TaskStatus): string {
+	return { idea: 'i', committed: ':', open: ' ', completed: 'x', cancelled: '-' }[status];
+}
+
+export function releaseTaskHolding(data: TaskData): TaskData {
+	return { ...data, holding: false, holdingReview: '', holdingFor: [] };
+}
+
+export function completeTaskData(data: TaskData): TaskData {
+	return {
+		...releaseTaskHolding(data),
+		status: 'completed',
+		completedOccurrences: data.repeat && validDate(data.current)
+			? [...new Set([...data.completedOccurrences, data.current])].sort()
+			: data.completedOccurrences,
+	};
 }
 
 function taskEffort(value: string | undefined): TaskEffort {
@@ -156,6 +197,11 @@ export function parseTaskLine(line: string): ParsedTaskLine | undefined {
 		close: task[3] ?? '] ',
 		data: {
 			taskId: inputTaskId(fields.get('task_id')),
+			status: taskStatusFromMarker(task[2] ?? ' '),
+			holding: fields.get('holding')?.toLowerCase() === 'true',
+			holdingReview: fields.get('holding_review') ?? '',
+			holdingFor: (fields.get('holding_for') ?? '').split(',').map(value => value.trim()).filter(Boolean),
+			completedOccurrences: (fields.get('completed_occurrences') ?? '').split(',').map(value => value.trim()).filter(validDate),
 			content: body.replace(/\s+/gu, ' ').trim(),
 			pinned: fields.get('thread_pin')?.trim().toLowerCase() === 'true',
 			windowStart: inputDate(fields.get('window_start')),
@@ -172,6 +218,12 @@ export function parseTaskLine(line: string): ParsedTaskLine | undefined {
 export function buildTaskLine(data: TaskData, original?: ParsedTaskLine): string {
 	const fields: string[] = [];
 	if (data.taskId) fields.push(`[task_id:: ${data.taskId}]`);
+	if (data.holding) {
+		fields.push('[holding:: true]');
+		if (data.holdingReview) fields.push(`[holding_review:: ${data.holdingReview}]`);
+		if (data.holdingFor.length) fields.push(`[holding_for:: ${data.holdingFor.join(', ')}]`);
+	}
+	if (data.completedOccurrences.length) fields.push(`[completed_occurrences:: ${data.completedOccurrences.join(', ')}]`);
 	if (data.pinned) fields.push('[thread_pin:: true]');
 	if (data.windowStart) fields.push(`[window_start:: ${data.windowStart}]`);
 	if (data.windowEnd) fields.push(`[window_end:: ${data.windowEnd}]`);
@@ -184,12 +236,13 @@ export function buildTaskLine(data: TaskData, original?: ParsedTaskLine): string
 	const body = [data.content.trim(), ...fields, original?.blockId]
 		.filter((part): part is string => Boolean(part))
 		.join(' ');
-	return `${original?.prefix ?? '- ['}${original?.marker ?? ' '}${original?.close ?? '] '}${body}`;
+	return `${original?.prefix ?? '- ['}${taskStatusMarker(data.status)}${original?.close ?? '] '}${body}`;
 }
 
 export function taskValidationError(
 	data: TaskData,
-): 'task-id' | 'content' | 'window-order' | 'repeat-current' | 'repeat-interval' | undefined {
+): 'task-id' | 'content' | 'window-order' | 'repeat-current' | 'repeat-interval' | 'holding-date' | undefined {
+	if (data.holdingReview && !validDate(data.holdingReview)) return 'holding-date';
 	if (!inputTaskId(data.taskId)) return 'task-id';
 	if (!data.content.trim()) return 'content';
 	if (data.windowStart && data.windowEnd && data.windowEnd < data.windowStart) return 'window-order';
@@ -271,7 +324,8 @@ export function advanceTaskData(data: TaskData, minimumCurrent = ''): TaskData |
 	if (!current) return undefined;
 	const shift = daysBetween(data.current, current);
 	return {
-		...data,
+		...(data.status === 'completed' ? completeTaskData(data) : data),
+		status: 'open',
 		current,
 		windowStart: data.windowStart ? addDays(data.windowStart, shift) : '',
 		windowEnd: data.windowEnd ? addDays(data.windowEnd, shift) : '',
@@ -283,7 +337,7 @@ export function advanceTaskLine(line: string, minimumCurrent = ''): string | und
 	if (!parsed) return undefined;
 	const advanced = advanceTaskData(parsed.data, minimumCurrent);
 	if (!advanced) return undefined;
-	return buildTaskLine(advanced, { ...parsed, marker: ' ' });
+	return buildTaskLine(advanced, parsed);
 }
 
 export function taskRepeatLabel(data: TaskData): string {
