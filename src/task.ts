@@ -24,6 +24,7 @@ import {
 	type TaskData,
 	type TaskEffort,
 	type TaskRepeatFrequency,
+	type TaskStatus,
 } from './task-model';
 import { openTaskDatePicker, openTaskWindowPicker } from './task-window-picker';
 import type { ThreadIndex } from './thread-index';
@@ -123,6 +124,20 @@ class TaskModal extends Modal {
 			});
 
 		const choiceFields = this.contentEl.createDiv({ cls: 'thread-journal-task-choice-fields' });
+		new Setting(choiceFields)
+			.setClass('thread-journal-task-form-field')
+			.setName(t('Task status'))
+			.addDropdown((dropdown) => dropdown
+				.addOption('idea', t('Idea'))
+				.addOption('maybe', t('Maybe'))
+				.addOption('open', t('Open'))
+				.addOption('waiting', t('Waiting'))
+				.addOption('completed', t('Completed'))
+				.addOption('cancelled', t('Cancelled'))
+				.setValue(this.data.status)
+				.onChange((value) => {
+					this.data.status = value as TaskStatus;
+				}));
 		new Setting(choiceFields)
 			.setClass('thread-journal-task-form-field')
 			.setName(t('Estimated effort'))
@@ -343,7 +358,7 @@ export class TaskManager {
 				if (!replacement) throw new Error(t('The task is not a valid repeating task.'));
 				lines[resolved] = replacement;
 			} else {
-				lines[resolved] = buildTaskLine(parsed.data, { ...parsed, marker: 'x' });
+				lines[resolved] = buildTaskLine({ ...parsed.data, status: 'completed' }, parsed);
 			}
 			return lines.join('\n');
 		});
@@ -469,10 +484,10 @@ export class TaskManager {
 				const current = lines[resolved];
 				const parsed = current === undefined ? undefined : parseTaskLine(current);
 				if (!parsed) throw new Error(t('The task changed; reopen the form and try again.'));
-				lines[resolved] = buildTaskLine(parsed.data, {
-					...parsed,
-					marker: completed ? 'x' : ' ',
-				});
+				lines[resolved] = buildTaskLine({
+					...parsed.data,
+					status: completed ? 'completed' : 'open',
+				}, parsed);
 				return lines.join('\n');
 			});
 			this.invalidateTaskIndex();

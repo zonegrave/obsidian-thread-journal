@@ -26,6 +26,8 @@ import {
 import { t } from './i18n';
 import {
 	TASK_EFFORT_LABELS,
+	TASK_STATUS_ICONS,
+	TASK_STATUS_LABELS,
 	taskDeadlineDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
@@ -123,6 +125,13 @@ class TaskSummaryWidget extends WidgetType {
 			chip.createSpan({ text });
 		};
 		const today = moment().format('YYYY-MM-DD');
+		if (this.data.status !== 'open') {
+			addChip(
+				t(TASK_STATUS_LABELS[this.data.status]),
+				TASK_STATUS_ICONS[this.data.status],
+				`status-${this.data.status}`,
+			);
+		}
 		const deadline = taskDeadlineDisplay(this.data, today);
 		if (deadline) addChip(deadline.label, 'calendar-clock', deadline.modifier);
 		if (this.data.effort) {

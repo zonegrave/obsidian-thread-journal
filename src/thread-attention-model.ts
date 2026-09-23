@@ -1,6 +1,6 @@
 import { t } from './i18n';
 
-export type TodoDisposition = 'ready' | 'future' | 'waiting' | 'candidate' | 'unknown';
+export type TodoDisposition = 'ready' | 'future' | 'waiting' | 'idea' | 'maybe' | 'unknown';
 export type TaskScope = 'today' | 'all';
 export interface AttentionTask {
  key: string;
@@ -58,7 +58,8 @@ export interface AttentionSummary {
  ready: number;
  future: number;
  waiting: number;
- candidate: number;
+ idea: number;
+ maybe: number;
  unknown: number;
  suspended: number;
  cycle: boolean;
@@ -77,8 +78,9 @@ export function filterAttentionTasks<T extends { disposition: TodoDisposition }>
 export function todoDisposition(marker: string, text: string, now: string): TodoDisposition | undefined {
  if (marker.toLowerCase() === 'x' || marker === '-') return undefined;
  if (!text.trim()) return undefined;
- if (marker === '?' || /\[candidate::\s*true\]/i.test(text)) return 'candidate';
- if (marker === '>' || /\[waiting::\s*true\]/i.test(text)) return 'waiting';
+ if (marker.toLowerCase() === 'i') return 'idea';
+ if (marker === '?') return 'maybe';
+ if (marker === '>') return 'waiting';
  if (marker !== ' ' && marker !== '/') return 'unknown';
 	const today = now.slice(0, 10);
 	const leadingDate = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s|$)/)?.[1];
@@ -99,7 +101,7 @@ export function summarizeAttention(root: string, nodes: AttentionNode[], tasks: 
  for (const node of nodes) {
   if (node.parent) children.set(node.parent, [...(children.get(node.parent) ?? []), node]);
  }
- const result: AttentionSummary = { open: 0, ready: 0, future: 0, waiting: 0, candidate: 0, unknown: 0, suspended: 0, cycle: false };
+ const result: AttentionSummary = { open: 0, ready: 0, future: 0, waiting: 0, idea: 0, maybe: 0, unknown: 0, suspended: 0, cycle: false };
  const visited = new Set<string>();
  const blocked = new Map<string, boolean>();
  const walk = (id: string, inherited: boolean): void => {

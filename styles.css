@@ -1729,9 +1729,9 @@
 
 .thread-journal-task-meta-pin {
 	flex: 0 0 auto;
-	width: 1.55rem;
-	height: 1.55rem;
-	padding: 0.2rem;
+	width: 1.65rem;
+	height: 1.65rem;
+	padding: 0.08rem;
 	color: var(--text-faint);
 }
 
@@ -1741,8 +1741,8 @@
 }
 
 .thread-journal-task-meta-pin svg {
-	width: 17px;
-	height: 17px;
+	width: 20px;
+	height: 20px;
 }
 
 .thread-journal-task-meta-id {
@@ -1824,7 +1824,7 @@
 }
 
 .thread-journal-task-choice-fields {
-	grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.7fr);
+	grid-template-columns: minmax(0, 0.8fr) minmax(0, 0.9fr) minmax(0, 1.7fr);
 }
 
 .thread-journal-task-date-fields {
@@ -2147,11 +2147,11 @@
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 auto;
-	width: 1.4rem;
-	height: 1.4rem;
-	min-width: 1.4rem;
-	min-height: 1.4rem;
-	padding: 0.08rem;
+	width: 1.55rem;
+	height: 1.55rem;
+	min-width: 1.55rem;
+	min-height: 1.55rem;
+	padding: 0.04rem;
 	color: var(--text-faint);
 	opacity: 0.65;
 }
@@ -2168,8 +2168,8 @@
 
 .thread-journal-source-task-pin svg,
 .thread-journal-task-preview-pin svg {
-	width: 18px;
-	height: 18px;
+	width: 21px;
+	height: 21px;
 }
 
 .thread-journal-source-task-details,
@@ -2221,6 +2221,36 @@
 	color: var(--text-accent);
 }
 
+.thread-journal-source-task-chip.is-status-idea,
+.thread-journal-task-preview-chip.is-status-idea,
+.thread-journal-task-reference-detail.is-status-idea {
+	color: var(--text-muted);
+}
+
+.thread-journal-source-task-chip.is-status-maybe,
+.thread-journal-task-preview-chip.is-status-maybe,
+.thread-journal-task-reference-detail.is-status-maybe {
+	color: var(--color-purple);
+}
+
+.thread-journal-source-task-chip.is-status-waiting,
+.thread-journal-task-preview-chip.is-status-waiting,
+.thread-journal-task-reference-detail.is-status-waiting {
+	color: var(--text-warning);
+}
+
+.thread-journal-source-task-chip.is-status-completed,
+.thread-journal-task-preview-chip.is-status-completed,
+.thread-journal-task-reference-detail.is-status-completed {
+	color: var(--text-success);
+}
+
+.thread-journal-source-task-chip.is-status-cancelled,
+.thread-journal-task-preview-chip.is-status-cancelled,
+.thread-journal-task-reference-detail.is-status-cancelled {
+	color: var(--text-muted);
+}
+
 .thread-journal-source-task-actions button {
 	min-height: 1.65rem;
 	padding: 0.12rem 0.45rem;
@@ -2239,10 +2269,22 @@
 }
 
 .thread-journal-source-task-edit svg,
-.thread-journal-overview-task-edit svg,
-.thread-journal-task-commit svg {
+.thread-journal-overview-task-edit svg {
 	width: 19px;
 	height: 19px;
+}
+
+.thread-journal-task-commit {
+	width: 1.6rem;
+	height: 1.6rem;
+	min-width: 1.6rem;
+	min-height: 1.6rem;
+	padding: 0.02rem;
+}
+
+.thread-journal-task-commit svg {
+	width: 22px;
+	height: 22px;
 }
 
 .thread-journal-task-preview {
@@ -2319,11 +2361,11 @@
 
 .thread-journal-task-reference-pin {
 	grid-column: 2;
-	width: 1.4rem;
-	height: 1.4rem;
-	min-width: 1.4rem;
-	min-height: 1.4rem;
-	padding: 0.08rem;
+	width: 1.55rem;
+	height: 1.55rem;
+	min-width: 1.55rem;
+	min-height: 1.55rem;
+	padding: 0.04rem;
 	color: var(--text-faint);
 	opacity: 0.65;
 }
@@ -2336,8 +2378,8 @@
 }
 
 .thread-journal-task-reference-pin svg {
-	width: 18px;
-	height: 18px;
+	width: 21px;
+	height: 21px;
 }
 
 .thread-journal-task-reference-body {
@@ -2486,6 +2528,14 @@
 	color: var(--text-warning);
 }
 
+.thread-journal-overview-task-detail.is-disposition-idea {
+	color: var(--text-muted);
+}
+
+.thread-journal-overview-task-detail.is-disposition-maybe {
+	color: var(--color-purple);
+}
+
 .thread-journal-overview-pinned-task > .thread-journal-overview-task-details {
 	grid-column: 2 / -1;
 	grid-row: 3;
@@ -2593,11 +2643,12 @@
 .thread-journal-overview-task-pin {
 	grid-column: 1;
 	grid-row: 1;
-	width: 1.4rem;
-	height: 1.4rem;
-	min-width: 1.4rem;
+	width: 1.55rem;
+	height: 1.55rem;
+	min-width: 1.55rem;
+	min-height: 1.55rem;
 	margin-left: 0;
-	padding: 0.08rem;
+	padding: 0.04rem;
 	color: var(--text-faint);
 	opacity: 0.55;
 }
@@ -2611,8 +2662,8 @@
 }
 
 .thread-journal-overview-task-pin svg {
-	width: 18px;
-	height: 18px;
+	width: 21px;
+	height: 21px;
 }
 
 .thread-journal-overview-task-kind {

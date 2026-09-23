@@ -72,7 +72,7 @@ class ThreadMetaModal extends Modal {
 			.setName(t('Meta file'))
 			.setDesc(this.context.thread.file.path)
 			.addButton((button) => button
-				.setButtonText(t('Open'))
+				.setButtonText(t('Open file'))
 				.onClick(() => {
 					this.close();
 					this.onOpenMeta();

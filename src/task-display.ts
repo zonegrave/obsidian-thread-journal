@@ -6,6 +6,7 @@ import {
 	taskWindowState,
 	type TaskData,
 	type TaskEffort,
+	type TaskStatus,
 } from './task-model';
 
 export const TASK_EFFORT_LABELS: Record<Exclude<TaskEffort, ''>, TranslationKey> = {
@@ -13,6 +14,23 @@ export const TASK_EFFORT_LABELS: Record<Exclude<TaskEffort, ''>, TranslationKey>
 	light: 'Light',
 	normal: 'Normal effort',
 	deep: 'Deep',
+};
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, TranslationKey> = {
+	idea: 'Idea',
+	maybe: 'Maybe',
+	open: 'Open',
+	waiting: 'Waiting',
+	completed: 'Completed',
+	cancelled: 'Cancelled',
+};
+
+export const TASK_STATUS_ICONS: Record<Exclude<TaskStatus, 'open'>, string> = {
+	idea: 'lightbulb',
+	maybe: 'circle-help',
+	waiting: 'circle-pause',
+	completed: 'circle-check',
+	cancelled: 'ban',
 };
 
 export function taskRepeatRuleDisplay(data: TaskData): string {

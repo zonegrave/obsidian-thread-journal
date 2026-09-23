@@ -9,6 +9,8 @@ import {
 import { t } from './i18n';
 import {
 	TASK_EFFORT_LABELS,
+	TASK_STATUS_ICONS,
+	TASK_STATUS_LABELS,
 	taskDeadlineDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
@@ -82,7 +84,7 @@ class TaskReferenceRenderer extends MarkdownRenderChild {
 
 	private async renderTask(task: FileTaskLocation): Promise<void> {
 		const { data } = task.parsed;
-		const completed = task.parsed.marker.toLowerCase() === 'x' || task.parsed.marker === '-';
+		const completed = data.status === 'completed' || data.status === 'cancelled';
 		const card = this.containerEl.createDiv({
 			cls: `thread-journal-task-reference-card${completed ? ' is-completed' : ''}`,
 		});
@@ -146,6 +148,13 @@ class TaskReferenceRenderer extends MarkdownRenderChild {
 			detail.createSpan({ text });
 		};
 		const today = moment().format('YYYY-MM-DD');
+		if (data.status !== 'open') {
+			addDetail(
+				t(TASK_STATUS_LABELS[data.status]),
+				TASK_STATUS_ICONS[data.status],
+				`status-${data.status}`,
+			);
+		}
 		const deadline = taskDeadlineDisplay(data, today);
 		if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
 		if (data.effort) {

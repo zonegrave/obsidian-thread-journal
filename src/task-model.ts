@@ -1,10 +1,12 @@
 export type TaskEffort = '' | 'quick' | 'light' | 'normal' | 'deep';
 export type TaskRepeatFrequency = 'daily' | 'weekly' | 'monthly' | 'custom';
 export type TaskWindowState = 'upcoming' | 'current' | 'overdue';
+export type TaskStatus = 'idea' | 'maybe' | 'open' | 'waiting' | 'completed' | 'cancelled';
 
 export interface TaskData {
 	taskId: string;
 	content: string;
+	status: TaskStatus;
 	pinned: boolean;
 	windowStart: string;
 	windowEnd: string;
@@ -41,6 +43,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/u;
 export const EMPTY_TASK: TaskData = {
 	taskId: '',
 	content: '',
+	status: 'open',
 	pinned: false,
 	windowStart: '',
 	windowEnd: '',
@@ -84,6 +87,24 @@ function taskEffort(value: string | undefined): TaskEffort {
 	return ['quick', 'light', 'normal', 'deep'].includes(normalized)
 		? normalized as TaskEffort
 		: '';
+}
+
+export function taskStatusFromMarker(marker: string): TaskStatus {
+	if (marker.toLowerCase() === 'x') return 'completed';
+	if (marker === '-') return 'cancelled';
+	if (marker.toLowerCase() === 'i') return 'idea';
+	if (marker === '?') return 'maybe';
+	if (marker === '>') return 'waiting';
+	return 'open';
+}
+
+export function taskStatusMarker(status: TaskStatus): string {
+	if (status === 'completed') return 'x';
+	if (status === 'cancelled') return '-';
+	if (status === 'idea') return 'i';
+	if (status === 'maybe') return '?';
+	if (status === 'waiting') return '>';
+	return ' ';
 }
 
 function positiveInteger(value: string | undefined, fallback: number): number {
@@ -157,6 +178,7 @@ export function parseTaskLine(line: string): ParsedTaskLine | undefined {
 		data: {
 			taskId: inputTaskId(fields.get('task_id')),
 			content: body.replace(/\s+/gu, ' ').trim(),
+			status: taskStatusFromMarker(task[2] ?? ' '),
 			pinned: fields.get('thread_pin')?.trim().toLowerCase() === 'true',
 			windowStart: inputDate(fields.get('window_start')),
 			windowEnd: inputDate(fields.get('window_end')),
@@ -184,7 +206,7 @@ export function buildTaskLine(data: TaskData, original?: ParsedTaskLine): string
 	const body = [data.content.trim(), ...fields, original?.blockId]
 		.filter((part): part is string => Boolean(part))
 		.join(' ');
-	return `${original?.prefix ?? '- ['}${original?.marker ?? ' '}${original?.close ?? '] '}${body}`;
+	return `${original?.prefix ?? '- ['}${taskStatusMarker(data.status)}${original?.close ?? '] '}${body}`;
 }
 
 export function taskValidationError(
@@ -283,7 +305,7 @@ export function advanceTaskLine(line: string, minimumCurrent = ''): string | und
 	if (!parsed) return undefined;
 	const advanced = advanceTaskData(parsed.data, minimumCurrent);
 	if (!advanced) return undefined;
-	return buildTaskLine(advanced, { ...parsed, marker: ' ' });
+	return buildTaskLine({ ...advanced, status: 'open' }, parsed);
 }
 
 export function taskRepeatLabel(data: TaskData): string {

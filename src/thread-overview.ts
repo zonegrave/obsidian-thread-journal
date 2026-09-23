@@ -64,7 +64,8 @@ const TASK_DISPOSITION_LABELS: Record<TodoDisposition, TranslationKey> = {
 	ready: 'ready',
 	future: 'future',
 	waiting: 'waiting',
-	candidate: 'candidate',
+	idea: 'idea',
+	maybe: 'maybe',
 	unknown: 'other',
 };
 

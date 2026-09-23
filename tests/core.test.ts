@@ -103,6 +103,8 @@ import {
 	parseTaskLine,
 	taskCurrentLabel,
 	taskInsertionEdit,
+	taskStatusFromMarker,
+	taskStatusMarker,
 	taskValidationError,
 	taskWindowLabel,
 	taskWindowState,
@@ -1008,13 +1010,14 @@ void test('resolves current wikilinks and aliases', () => {
 	assert.equal(wikiLinkAlias('[[睡眠管理]]'), undefined);
 });
 
-void test('task readiness separates future, waiting, candidates, completion and deadlines', () => {
+void test('task readiness separates future, waiting, idea, maybe, completion and deadlines', () => {
  assert.equal(todoDisposition(' ', '2026-10-01 预约', '2026-09-09'), 'future');
  assert.equal(todoDisposition(' ', '预约 📅 2026-10-01', '2026-09-09'), 'ready');
  assert.equal(todoDisposition(' ', '预约 ⏳ 2026-10-01', '2026-09-09'), 'future');
  assert.equal(todoDisposition(' ', '预约 🛫 2026-09-09', '2026-09-09'), 'ready');
  assert.equal(todoDisposition('>', '等回复', '2026-09-09'), 'waiting');
- assert.equal(todoDisposition('?', '考虑一下', '2026-09-09'), 'candidate');
+ assert.equal(todoDisposition('i', '记录一个想法', '2026-09-09'), 'idea');
+ assert.equal(todoDisposition('?', '考虑一下', '2026-09-09'), 'maybe');
  assert.equal(todoDisposition('x', '完成', '2026-09-09'), undefined);
  assert.equal(todoDisposition('-', '取消', '2026-09-09'), undefined);
  assert.equal(todoDisposition(' ', '', '2026-09-09'), undefined);
@@ -1065,6 +1068,7 @@ void test('task form fields round-trip without losing markdown task state or oth
 	assert.deepEqual(parsed.data, {
 		taskId: 'task-123456789abc',
 		content: '记录恢复',
+		status: 'open',
 		pinned: true,
 		windowStart: '2026-09-18',
 		windowEnd: '2026-09-20',
@@ -1076,16 +1080,29 @@ void test('task form fields round-trip without losing markdown task state or oth
 		repeatMonthDay: 1,
 	});
 	const rebuilt = buildTaskLine(parsed.data, parsed);
-	assert.match(rebuilt, /^ {2}> - \[\/\] 记录恢复/u);
+	assert.match(rebuilt, /^ {2}> - \[ \] 记录恢复/u);
 	assert.match(rebuilt, /\[thread_pin:: true\]/u);
 	assert.match(rebuilt, /\^task-recovery$/u);
 	assert.deepEqual(parseTaskLine(rebuilt)?.data, parsed.data);
+});
+
+void test('stores the six task statuses in Markdown checkbox markers', () => {
+	assert.deepEqual(
+		['i', '?', ' ', '>', 'x', '-'].map(taskStatusFromMarker),
+		['idea', 'maybe', 'open', 'waiting', 'completed', 'cancelled'],
+	);
+	assert.deepEqual(
+		['idea', 'maybe', 'open', 'waiting', 'completed', 'cancelled'].map((status) =>
+			taskStatusMarker(status as TaskData['status'])),
+		['i', '?', ' ', '>', 'x', '-'],
+	);
 });
 
 void test('task validation keeps date bounds optional and validates repeat state', () => {
 	const base: TaskData = {
 		taskId: 'task-123456789abc',
 		content: '整理会议结论',
+		status: 'open',
 		pinned: false,
 		windowStart: '',
 		windowEnd: '',
@@ -1144,6 +1161,7 @@ void test('advances one repeating task in place and preserves its relative date 
 	const monthly: TaskData = {
 		taskId: 'task-123456789abc',
 		content: '月末复盘',
+		status: 'open',
 		pinned: false,
 		windowStart: '2026-01-30',
 		windowEnd: '2026-02-01',
@@ -1175,6 +1193,7 @@ void test('skips past repeat occurrences when advancing while preserving the win
 	const daily: TaskData = {
 		taskId: 'task-123456789abc',
 		content: '每日记录',
+		status: 'open',
 		pinned: false,
 		windowStart: '2026-09-17',
 		windowEnd: '2026-09-18',
@@ -1252,7 +1271,8 @@ void test('filters overview tasks to today active or all unfinished tasks', () =
 		{ id: 'ready', disposition: 'ready' as const },
 		{ id: 'future', disposition: 'future' as const },
 		{ id: 'waiting', disposition: 'waiting' as const },
-		{ id: 'candidate', disposition: 'candidate' as const },
+		{ id: 'idea', disposition: 'idea' as const },
+		{ id: 'maybe', disposition: 'maybe' as const },
 		{ id: 'unknown', disposition: 'unknown' as const },
 	];
 	assert.deepEqual(filterAttentionTasks(tasks, 'today').map((task) => task.id), ['ready']);
@@ -1260,7 +1280,8 @@ void test('filters overview tasks to today active or all unfinished tasks', () =
 		'ready',
 		'future',
 		'waiting',
-		'candidate',
+		'idea',
+		'maybe',
 		'unknown',
 	]);
 });
