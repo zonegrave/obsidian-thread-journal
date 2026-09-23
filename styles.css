@@ -2221,36 +2221,6 @@
 	color: var(--text-accent);
 }
 
-.thread-journal-source-task-chip.is-status-idea,
-.thread-journal-task-preview-chip.is-status-idea,
-.thread-journal-task-reference-detail.is-status-idea {
-	color: var(--text-muted);
-}
-
-.thread-journal-source-task-chip.is-status-maybe,
-.thread-journal-task-preview-chip.is-status-maybe,
-.thread-journal-task-reference-detail.is-status-maybe {
-	color: var(--color-purple);
-}
-
-.thread-journal-source-task-chip.is-status-waiting,
-.thread-journal-task-preview-chip.is-status-waiting,
-.thread-journal-task-reference-detail.is-status-waiting {
-	color: var(--text-warning);
-}
-
-.thread-journal-source-task-chip.is-status-completed,
-.thread-journal-task-preview-chip.is-status-completed,
-.thread-journal-task-reference-detail.is-status-completed {
-	color: var(--text-success);
-}
-
-.thread-journal-source-task-chip.is-status-cancelled,
-.thread-journal-task-preview-chip.is-status-cancelled,
-.thread-journal-task-reference-detail.is-status-cancelled {
-	color: var(--text-muted);
-}
-
 .thread-journal-source-task-actions button {
 	min-height: 1.65rem;
 	padding: 0.12rem 0.45rem;

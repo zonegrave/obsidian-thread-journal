@@ -9,8 +9,6 @@ import {
 import { t } from './i18n';
 import {
 	TASK_EFFORT_LABELS,
-	TASK_STATUS_ICONS,
-	TASK_STATUS_LABELS,
 	taskDeadlineDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
@@ -90,8 +88,13 @@ class TaskReferenceRenderer extends MarkdownRenderChild {
 		});
 		const checkbox = card.createEl('input', {
 			cls: 'task-list-item-checkbox thread-journal-task-reference-checkbox',
-			attr: { type: 'checkbox', 'aria-label': t('Toggle task completion') },
+			attr: {
+				type: 'checkbox',
+				'data-task': task.parsed.marker,
+				'aria-label': t('Toggle task completion'),
+			},
 		});
+		card.dataset.task = task.parsed.marker;
 		checkbox.checked = completed;
 		checkbox.addEventListener('change', () => {
 			checkbox.disabled = true;
@@ -148,13 +151,6 @@ class TaskReferenceRenderer extends MarkdownRenderChild {
 			detail.createSpan({ text });
 		};
 		const today = moment().format('YYYY-MM-DD');
-		if (data.status !== 'open') {
-			addDetail(
-				t(TASK_STATUS_LABELS[data.status]),
-				TASK_STATUS_ICONS[data.status],
-				`status-${data.status}`,
-			);
-		}
 		const deadline = taskDeadlineDisplay(data, today);
 		if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
 		if (data.effort) {

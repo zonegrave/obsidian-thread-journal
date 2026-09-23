@@ -35,8 +35,6 @@ import { t } from './i18n';
 import type { TaskManager } from './task';
 import {
 	TASK_EFFORT_LABELS,
-	TASK_STATUS_ICONS,
-	TASK_STATUS_LABELS,
 	taskDeadlineDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
@@ -224,13 +222,6 @@ export class ThreadRenderers {
 			chip.createSpan({ text });
 		};
 		const today = moment().format('YYYY-MM-DD');
-		if (data.status !== 'open') {
-			addChip(
-				t(TASK_STATUS_LABELS[data.status]),
-				TASK_STATUS_ICONS[data.status],
-				`status-${data.status}`,
-			);
-		}
 		const deadline = taskDeadlineDisplay(data, today);
 		if (deadline) addChip(deadline.label, 'calendar-clock', deadline.modifier);
 		if (data.effort) {
