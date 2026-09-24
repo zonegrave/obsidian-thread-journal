@@ -1,7 +1,12 @@
-import { App, PluginSettingTab, Setting, normalizePath } from 'obsidian';
+import {
+	App,
+	PluginSettingTab,
+	normalizePath,
+	type SettingDefinitionItem,
+} from 'obsidian';
 import { normalizeCommitFields } from './commit-model';
 import { renderCommitFieldSettings } from './commit-settings';
-import { t, type LanguageSetting } from './i18n';
+import { t } from './i18n';
 import type ThreadJournalPlugin from './main';
 import type { ThreadJournalSettings } from './types';
 
@@ -47,84 +52,106 @@ export class ThreadJournalSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				name: t('Language'),
+				desc: t('Choose the language used by Thread Journal. Command names update after reloading the plugin.'),
+				control: {
+					type: 'dropdown',
+					key: 'language',
+					options: {
+						auto: t('Follow Obsidian'),
+						zh: t('Chinese'),
+						en: t('English'),
+					},
+				},
+			},
+			{
+				name: t('Thread meta folder'),
+				desc: t('Each thread keeps its identity, status, parent relationship, and unique entry here.'),
+				control: {
+					type: 'text',
+					key: 'threadMetaFolder',
+					placeholder: DEFAULT_SETTINGS.threadMetaFolder,
+				},
+			},
+			{
+				name: t('Thread files folder'),
+				desc: t('Thread member files created from role templates are saved here.'),
+				control: {
+					type: 'text',
+					key: 'threadFilesFolder',
+					placeholder: DEFAULT_SETTINGS.threadFilesFolder,
+				},
+			},
+			{
+				name: t('Thread role templates folder'),
+				desc: t('Markdown templates in this folder become available when creating a thread file.'),
+				control: {
+					type: 'text',
+					key: 'threadRoleTemplatesFolder',
+					placeholder: DEFAULT_SETTINGS.threadRoleTemplatesFolder,
+				},
+			},
+			{
+				name: t('Default entry template'),
+				desc: t('The initially selected role template when creating a thread. Its thread_role may define any role.'),
+				control: {
+					type: 'text',
+					key: 'defaultThreadRoleTemplatePath',
+					placeholder: DEFAULT_SETTINGS.defaultThreadRoleTemplatePath,
+				},
+			},
+			{
+				name: t('Breadcrumb position'),
+				desc: t('Pin the breadcrumb above or below the thread document.'),
+				control: {
+					type: 'dropdown',
+					key: 'breadcrumbPosition',
+					options: {
+						top: t('Above document'),
+						bottom: t('Below document'),
+					},
+				},
+			},
+			{
+				name: t('Default commit template'),
+				desc: t('Threads without an independent template use these fields. Deprecated fields are hidden from new forms, retained for historical commits, and placed last.'),
+				aliases: [t('Custom template fields')],
+				render: (setting) => {
+					setting.settingEl.empty();
+					renderCommitFieldSettings(setting.settingEl, this.plugin, () => this.update());
+				},
+			},
+		];
+	}
 
-		new Setting(containerEl)
-			.setName(t('Language'))
-			.setDesc(t('Choose the language used by Thread Journal. Command names update after reloading the plugin.'))
-			.addDropdown((dropdown) => dropdown
-				.addOption('auto', t('Follow Obsidian'))
-				.addOption('zh', t('Chinese'))
-				.addOption('en', t('English'))
-				.setValue(this.plugin.settings.language)
-				.onChange(async (value) => {
-					this.plugin.settings.language = ['zh', 'en'].includes(value)
-						? value as LanguageSetting
-						: 'auto';
-					await this.plugin.saveSettings();
-				}));
+	getControlValue(key: string): unknown {
+		if (!(key in this.plugin.settings)) return undefined;
+		return this.plugin.settings[key as keyof ThreadJournalSettings];
+	}
 
-		new Setting(containerEl)
-			.setName(t('Thread meta folder'))
-			.setDesc(t('Each thread keeps its identity, status, parent relationship, and unique entry here.'))
-			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.threadMetaFolder)
-				.setValue(this.plugin.settings.threadMetaFolder)
-				.onChange(async (value) => {
-					this.plugin.settings.threadMetaFolder = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName(t('Thread files folder'))
-			.setDesc(t('Thread member files created from role templates are saved here.'))
-			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.threadFilesFolder)
-				.setValue(this.plugin.settings.threadFilesFolder)
-				.onChange(async (value) => {
-					this.plugin.settings.threadFilesFolder = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName(t('Thread role templates folder'))
-			.setDesc(t('Markdown templates in this folder become available when creating a thread file.'))
-			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.threadRoleTemplatesFolder)
-				.setValue(this.plugin.settings.threadRoleTemplatesFolder)
-				.onChange(async (value) => {
-					this.plugin.settings.threadRoleTemplatesFolder = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName(t('Default entry template'))
-			.setDesc(t('The initially selected role template when creating a thread. Its thread_role may define any role.'))
-			.addText((text) => text
-				.setPlaceholder(DEFAULT_SETTINGS.defaultThreadRoleTemplatePath)
-				.setValue(this.plugin.settings.defaultThreadRoleTemplatePath)
-				.onChange(async (value) => {
-					this.plugin.settings.defaultThreadRoleTemplatePath = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName(t('Breadcrumb position'))
-			.setDesc(t('Pin the breadcrumb above or below the thread document.'))
-			.addDropdown((dropdown) => dropdown
-				.addOption('top', t('Above document'))
-				.addOption('bottom', t('Below document'))
-				.setValue(this.plugin.settings.breadcrumbPosition)
-				.onChange(async (value) => {
-					this.plugin.settings.breadcrumbPosition = value === 'bottom' ? 'bottom' : 'top';
-					await this.plugin.saveSettings();
-					this.plugin.refreshBreadcrumbBars();
-				}));
-
-		renderCommitFieldSettings(containerEl, this.plugin, () => {
-			this.display();
-		});
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		switch (key) {
+			case 'language':
+				this.plugin.settings.language = value === 'zh' || value === 'en'
+					? value
+					: 'auto';
+				break;
+			case 'threadMetaFolder':
+			case 'threadFilesFolder':
+			case 'threadRoleTemplatesFolder':
+			case 'defaultThreadRoleTemplatePath':
+				this.plugin.settings[key] = typeof value === 'string' ? value : '';
+				break;
+			case 'breadcrumbPosition':
+				this.plugin.settings.breadcrumbPosition = value === 'bottom' ? 'bottom' : 'top';
+				break;
+			default:
+				return;
+		}
+		await this.plugin.saveSettings();
+		if (key === 'language') this.update();
 	}
 }
