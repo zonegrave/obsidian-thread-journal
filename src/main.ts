@@ -64,11 +64,11 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.index = new ThreadIndex(this.app);
 		this.tasks = new TaskManager(this.app, this.index);
 		new TaskHoldingService(this.app, () => this.tasks.invalidateTaskIndex()).register(this);
+		this.files = new ThreadFileManager(this.app, this.index, getSettings);
 		this.registerView(
 			THREAD_OVERVIEW_VIEW_TYPE,
-			(leaf) => new ThreadOverviewView(leaf, this.index, this.tasks),
+			(leaf) => new ThreadOverviewView(leaf, this.index, this.tasks, this.files),
 		);
-		this.files = new ThreadFileManager(this.app, this.index, getSettings);
 		this.switcher = new ThreadSwitcherManager(this.app, this.index, this.files);
 		this.parents = new ThreadParentManager(this.index);
 		this.commits = new CommitManager(
@@ -292,7 +292,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerRenderers(): void {
-		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.tasks, el, ctx));
+		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.tasks, this.files, el, ctx));
 		this.registerMarkdownCodeBlockProcessor('task-reference', (source, el, ctx) => {
 			renderTaskReference(source, el, ctx, this.app, this.tasks);
 		});

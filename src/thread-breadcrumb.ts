@@ -349,28 +349,29 @@ export class ThreadBreadcrumbManager {
 		status.addEventListener('click', () => {
 			this.meta.openMetaModal(threadFile);
 		});
-		const entry = this.index.getEntry(threadFile);
-		if (entry && entry.path !== currentFile.path) {
-			const entryButton = actions.createEl('button', {
-				cls: 'clickable-icon',
-			});
-			setIcon(entryButton, 'home');
-			this.setBarTooltip(bar, entryButton, t('Open thread entry'));
-			entryButton.addEventListener('click', () => {
-				void this.files.openEntry(threadFile);
-			});
-		}
-		const members = this.index.getMembersByThreadId(current.id);
+		const currentMember = this.index.getMember(currentFile);
+		const activeFiles = this.files.getActiveThreadFiles(threadFile);
 		const filesButton = actions.createEl('button', {
-			cls: 'clickable-icon thread-journal-fixed-breadcrumb-files',
+			cls: 'clickable-icon thread-journal-fixed-breadcrumb-current-file',
+			attr: { type: 'button', 'aria-haspopup': 'menu' },
 		});
-		setIcon(filesButton, 'files');
+		setIcon(filesButton.createSpan({ cls: 'thread-journal-fixed-breadcrumb-current-file-icon' }), 'file-text');
+		filesButton.createSpan({
+			cls: 'thread-journal-fixed-breadcrumb-current-file-name',
+			text: currentMember
+				? `${currentMember.role} · ${currentFile.basename}`
+				: t('Thread files'),
+		});
+		if (this.index.isEntry(currentFile)) {
+			filesButton.createSpan({ cls: 'thread-journal-fixed-breadcrumb-entry', text: t('Entry') });
+		}
+		filesButton.createSpan({ cls: 'thread-journal-fixed-breadcrumb-file-count', text: String(activeFiles.length) });
+		setIcon(filesButton.createSpan({ cls: 'thread-journal-fixed-breadcrumb-current-file-chevron' }), 'chevron-down');
 		this.setBarTooltip(bar, filesButton, t('Manage thread files ({count})', {
-			count: members.length,
+			count: activeFiles.length,
 		}));
-		filesButton.createSpan({ text: String(members.length) });
-		filesButton.addEventListener('click', () => {
-			this.files.openThreadFilesModal(currentFile);
+		filesButton.addEventListener('click', (event) => {
+			this.files.openActiveThreadFilesMenu(currentFile, event);
 		});
 
 		const openThreadCount = this.switcher.getOpenThreadCount();

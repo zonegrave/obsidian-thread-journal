@@ -24,6 +24,7 @@ import {
 	type TodoDisposition,
 } from './thread-attention-model';
 import type { ThreadIndex } from './thread-index';
+import type { ThreadFileManager } from './thread-files';
 import {
 	buildThreadOverviewTree,
 	countThreadOverviewDescendants,
@@ -129,6 +130,7 @@ class OverviewContent extends MarkdownRenderChild {
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 		private readonly taskManager: TaskManager,
+		private readonly files: ThreadFileManager,
 	) {
 		super(el);
 	}
@@ -764,6 +766,22 @@ class OverviewContent extends MarkdownRenderChild {
 			text: node.item.status || 'unset',
 			attr: { title: threadStatusLabel(node.item.status) },
 		});
+		const activeFiles = this.files.getActiveThreadFiles(row.thread.file);
+		const filesButton = summary.createEl('button', {
+			cls: 'clickable-icon thread-journal-overview-node-files',
+			attr: {
+				type: 'button',
+				'aria-haspopup': 'menu',
+				'aria-label': t('Manage thread files ({count})', { count: activeFiles.length }),
+			},
+		});
+		setIcon(filesButton.createSpan(), 'files');
+		filesButton.createSpan({ text: String(activeFiles.length) });
+		filesButton.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.files.openActiveThreadFilesMenu(row.thread.file, event);
+		});
 		const visibleTasks = this.tasksForRow(row);
 		const attentionCount = visibleTasks.length + row.fallbacks.length;
 		if (attentionCount > 0) {
@@ -790,6 +808,7 @@ class OverviewContent extends MarkdownRenderChild {
 			});
 			return;
 		}
+		this.renderThreadFiles(content, row);
 		const hint = row.fallbacks.length > 0
 			&& row.thread.status === 'active'
 			&& row.summary.open === 0
@@ -802,6 +821,35 @@ class OverviewContent extends MarkdownRenderChild {
 			});
 		}
 		this.renderTasks(content, row);
+	}
+
+	private renderThreadFiles(parent: HTMLElement, row: AttentionRow): void {
+		const candidates = this.files.getActiveThreadFiles(row.thread.file);
+		const section = parent.createDiv({ cls: 'thread-journal-overview-files' });
+		section.createDiv({
+			cls: 'thread-journal-overview-files-title',
+			text: `${t('Thread files')} · ${candidates.length}`,
+		});
+		const list = section.createDiv({ cls: 'thread-journal-overview-files-list' });
+		for (const candidate of candidates) {
+			const button = list.createEl('button', {
+				cls: `thread-journal-overview-file${candidate.entry ? ' is-entry' : ''}`,
+				attr: {
+					type: 'button',
+					title: candidate.member.file.path,
+				},
+			});
+			setIcon(button.createSpan(), candidate.entry ? 'home' : 'file-text');
+			button.createSpan({ cls: 'thread-journal-overview-file-role', text: candidate.member.role });
+			button.createSpan({ cls: 'thread-journal-overview-file-name', text: candidate.member.file.basename });
+			button.addEventListener('click', (event) => {
+				void this.app.workspace.openLinkText(
+					candidate.member.file.path,
+					row.thread.file.path,
+					event.metaKey || event.ctrlKey,
+				);
+			});
+		}
 	}
 
 	private renderTasks(parent: HTMLElement, row: AttentionRow): void {
@@ -1097,6 +1145,7 @@ export class ThreadOverviewView extends ItemView {
 		leaf: WorkspaceLeaf,
 		private readonly index: ThreadIndex,
 		private readonly taskManager: TaskManager,
+		private readonly files: ThreadFileManager,
 	) {
 		super(leaf);
 	}
@@ -1115,7 +1164,7 @@ export class ThreadOverviewView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.contentEl.addClass('thread-journal-overview-view');
-		this.content = new OverviewContent(this.contentEl, this.app, this.index, this.taskManager);
+		this.content = new OverviewContent(this.contentEl, this.app, this.index, this.taskManager, this.files);
 		this.content.load();
 	}
 
@@ -1149,8 +1198,9 @@ export function renderThreadOverview(
 	app: App,
 	index: ThreadIndex,
 	taskManager: TaskManager,
+	files: ThreadFileManager,
 	el: HTMLElement,
 	ctx: MarkdownPostProcessorContext,
 ): void {
-	ctx.addChild(new OverviewContent(el, app, index, taskManager));
+	ctx.addChild(new OverviewContent(el, app, index, taskManager, files));
 }

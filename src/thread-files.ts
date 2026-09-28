@@ -1,6 +1,7 @@
 import {
 	App,
 	FuzzySuggestModal,
+	Menu,
 	Modal,
 	Notice,
 	Setting,
@@ -155,7 +156,7 @@ class NewThreadFileModal extends Modal {
 	}
 }
 
-interface ThreadMemberCandidate {
+export interface ThreadMemberCandidate {
 	member: ThreadMemberInfo;
 	entry: boolean;
 }
@@ -261,6 +262,60 @@ export class ThreadFileManager {
 			const rightDefault = right.file.path === settings.defaultThreadRoleTemplatePath ? 0 : 1;
 			return leftDefault - rightDefault || left.label.localeCompare(right.label);
 		});
+	}
+
+	getActiveThreadFiles(file: TFile): ThreadMemberCandidate[] {
+		const threadFile = this.index.getThreadFile(file);
+		const thread = threadFile ? this.index.getThread(threadFile) : undefined;
+		if (!thread || !threadFile) return [];
+		const entry = this.index.getEntry(threadFile);
+		return this.index.getMembersByThreadId(thread.id)
+			.filter((member) => member.roleStatus === 'active')
+			.map((member) => ({
+				member,
+				entry: member.file.path === entry?.path,
+			}))
+			.sort((left, right) => {
+				const entryOrder = Number(right.entry) - Number(left.entry);
+				return entryOrder
+					|| left.member.role.localeCompare(right.member.role)
+					|| left.member.file.basename.localeCompare(right.member.file.basename);
+			});
+	}
+
+	openActiveThreadFilesMenu(file: TFile, event: MouseEvent): void {
+		const threadFile = this.index.getThreadFile(file);
+		const thread = threadFile ? this.index.getThread(threadFile) : undefined;
+		if (!thread || !threadFile) {
+			new Notice(t('The current file does not belong to a thread.'));
+			return;
+		}
+		const activeFiles = this.getActiveThreadFiles(threadFile);
+		const menu = new Menu();
+		menu.addItem((item) => item
+			.setTitle(`${t('Thread files')} · ${thread.title}`)
+			.setIsLabel(true));
+		for (const candidate of activeFiles) {
+			menu.addItem((item) => item
+				.setTitle(`${candidate.member.role} · ${candidate.member.file.basename}${candidate.entry ? ` · ${t('Entry')}` : ''}`)
+				.setIcon(candidate.entry ? 'home' : 'file-text')
+				.setChecked(candidate.member.file.path === file.path)
+				.onClick((clickEvent) => this.app.workspace.openLinkText(
+					candidate.member.file.path,
+					threadFile.path,
+					clickEvent.metaKey || clickEvent.ctrlKey,
+				)));
+		}
+		menu.addSeparator();
+		menu.addItem((item) => item
+			.setTitle(t('New thread file'))
+			.setIcon('file-plus-2')
+			.onClick(() => this.openNewThreadFileModal(threadFile)));
+		menu.addItem((item) => item
+			.setTitle(t('Manage files'))
+			.setIcon('settings-2')
+			.onClick(() => this.openThreadFilesModal(threadFile)));
+		menu.showAtMouseEvent(event);
 	}
 
 	async createThreadFile(
