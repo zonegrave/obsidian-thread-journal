@@ -27,7 +27,7 @@ import { t } from './i18n';
 import {
 	TASK_EFFORT_LABELS,
 	taskDeadlineDisplay,
-	taskStateDisplay,
+	taskHoldingDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
 } from './task-display';
@@ -124,8 +124,8 @@ class TaskSummaryWidget extends WidgetType {
 			chip.createSpan({ text });
 		};
 		const today = moment().format('YYYY-MM-DD');
-		const state = taskStateDisplay(this.data, today);
-		if (state) addChip(state, this.data.holding ? 'pause-circle' : 'circle-dot');
+		const holding = taskHoldingDisplay(this.data, today);
+		if (holding) addChip(holding, 'pause-circle');
 		const deadline = taskDeadlineDisplay(this.data, today);
 		if (deadline) addChip(deadline.label, 'calendar-clock', deadline.modifier);
 		if (this.data.effort) {

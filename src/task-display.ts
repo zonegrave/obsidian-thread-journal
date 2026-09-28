@@ -55,13 +55,10 @@ export function taskDeadlineDisplay(
 	};
 }
 
-export function taskStateDisplay(data: TaskData, today: string): string {
-	const labels = { idea: 'Idea', committed: 'Committed', open: 'Open', completed: 'Completed', cancelled: 'Cancelled' } as const;
-	const parts = data.status === 'open' ? [] : [t(labels[data.status])];
-	if (data.holding && !['completed', 'cancelled'].includes(data.status)) {
-		parts.push(t('Holding'));
-		if (data.holdingReview) parts.push(`${t(data.holdingReview <= today ? 'Review due' : 'Next review')}: ${data.holdingReview}`);
-		if (data.holdingFor.length) parts.push(t('Waiting for dependencies'));
-	}
+export function taskHoldingDisplay(data: TaskData, today: string): string {
+	if (!data.holding || ['completed', 'cancelled'].includes(data.status)) return '';
+	const parts = [t('Holding')];
+	if (data.holdingReview) parts.push(`${t(data.holdingReview <= today ? 'Review due' : 'Next review')}: ${data.holdingReview}`);
+	if (data.holdingFor.length) parts.push(t('Waiting for dependencies'));
 	return parts.join(' · ');
 }

@@ -10,7 +10,7 @@ import { t } from './i18n';
 import {
 	TASK_EFFORT_LABELS,
 	taskDeadlineDisplay,
-	taskStateDisplay,
+	taskHoldingDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
 } from './task-display';
@@ -152,8 +152,8 @@ class TaskReferenceRenderer extends MarkdownRenderChild {
 			detail.createSpan({ text });
 		};
 		const today = moment().format('YYYY-MM-DD');
-		const state = taskStateDisplay(data, today);
-		if (state) addDetail(state, data.holding ? 'pause-circle' : 'circle-dot');
+		const holding = taskHoldingDisplay(data, today);
+		if (holding) addDetail(holding, 'pause-circle');
 		const deadline = taskDeadlineDisplay(data, today);
 		if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
 		if (data.effort) {
