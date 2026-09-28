@@ -328,6 +328,10 @@ const ZH_TRANSLATIONS = {
 
 	'Select a thread file template': '选择 thread 文件模板',
 	'New thread file': '新建 thread 文件',
+	'Choose a thread file icon': '选择 thread 文件图标',
+	'Change thread file icon': '更改 thread 文件图标',
+	'Choose a valid icon.': '请选择有效图标。',
+	'Failed to update thread file icon: {error}': '无法更新 thread 文件图标：{error}',
 	'Template': '模板',
 	'File name': '文件名',
 	'Enter a file name.': '请填写文件名。',

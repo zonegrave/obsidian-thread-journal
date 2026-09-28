@@ -63,6 +63,7 @@ export class ThreadIndex {
 			file,
 			threadId,
 			role: textValue(frontmatter.thread_role) || 'workspace',
+			icon: textValue(frontmatter.thread_icon),
 			roleStatus: threadRoleStatus(frontmatter.thread_role_status),
 			attentionFallback: frontmatter.attention_fallback === true,
 		};

@@ -1,6 +1,7 @@
 export const DEFAULT_THREAD_ROLE_TEMPLATE = [
 	'---',
 	'thread_role: workspace',
+	'thread_icon: layout-dashboard',
 	'thread_role_status: active',
 	'attention_fallback: true',
 	'---',

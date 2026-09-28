@@ -447,6 +447,7 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 			type: 'source',
 			thread_id: 'thread-1',
 			thread_role: 'research',
+			thread_icon: 'search',
 			thread_role_status: 'terminated',
 		}],
 		[other, { thread_id: 'another-thread', thread_role: 'workspace' }],
@@ -471,6 +472,7 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 	assert.equal(index.getMember(entry as never)?.roleStatus, 'active');
 	assert.equal(index.getMember(entry as never)?.attentionFallback, true);
 	assert.equal(index.getMember(research as never)?.role, 'research');
+	assert.equal(index.getMember(research as never)?.icon, 'search');
 	assert.equal(index.getMember(research as never)?.roleStatus, 'terminated');
 	assert.equal(index.getMember(research as never)?.attentionFallback, false);
 	assert.deepEqual(index.getMembersByThreadId('thread-1').map((item) => item.file), [research, entry]);
@@ -516,7 +518,7 @@ void test('updates only the primary thread display alias', () => {
 void test('uses a minimal default role template', () => {
 	assert.equal(
 		DEFAULT_THREAD_ROLE_TEMPLATE,
-		'---\nthread_role: workspace\nthread_role_status: active\nattention_fallback: true\n---\n',
+		'---\nthread_role: workspace\nthread_icon: layout-dashboard\nthread_role_status: active\nattention_fallback: true\n---\n',
 	);
 });
 

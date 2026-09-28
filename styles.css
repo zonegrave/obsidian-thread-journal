@@ -196,43 +196,8 @@
 	gap: 3px;
 }
 
-.thread-journal-fixed-breadcrumb-current-file {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.3rem;
-	width: auto;
-	max-width: 20rem;
-	padding: 2px 5px;
-	color: var(--text-normal);
-}
-
-.thread-journal-fixed-breadcrumb-current-file-icon,
-.thread-journal-fixed-breadcrumb-current-file-chevron {
-	display: inline-flex;
-	flex: 0 0 auto;
-}
-
-.thread-journal-fixed-breadcrumb-current-file-icon svg,
-.thread-journal-fixed-breadcrumb-current-file-chevron svg {
-	width: 14px;
-	height: 14px;
-}
-
-.thread-journal-fixed-breadcrumb-current-file-name {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.thread-journal-fixed-breadcrumb-entry,
-.thread-journal-fixed-breadcrumb-file-count {
-	flex: 0 0 auto;
-	padding: 0.05rem 0.3rem;
-	border-radius: 999px;
-	background: var(--background-secondary);
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
+.thread-journal-fixed-breadcrumb-files {
+	gap: 3px;
 }
 
 .thread-journal-open-thread-suggestion {
@@ -272,6 +237,33 @@
 .thread-journal-thread-file-copy {
 	min-width: 0;
 	flex: 1 1 auto;
+}
+
+.thread-journal-thread-file-icon {
+	flex: 0 0 auto;
+}
+
+.thread-journal-thread-file-title {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.thread-journal-thread-file-entry-marker {
+	display: inline-flex;
+	color: var(--text-accent);
+}
+
+.thread-journal-thread-file-entry-marker svg,
+.thread-journal-thread-file-icon-suggestion svg {
+	width: 14px;
+	height: 14px;
+}
+
+.thread-journal-thread-file-icon-suggestion {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
 }
 
 .thread-journal-thread-file-entry,
@@ -1743,67 +1735,6 @@
 .thread-journal-overview-hint {
 	margin: 0 0 0.5rem;
 	color: var(--text-normal);
-}
-
-.thread-journal-overview-files {
-	margin-bottom: 0.65rem;
-	padding: 0.5rem 0.6rem;
-	border-radius: var(--radius-s);
-	background: var(--background-secondary);
-}
-
-.thread-journal-overview-files-title {
-	margin-bottom: 0.35rem;
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-	font-weight: var(--font-semibold);
-}
-
-.thread-journal-overview-files-list {
-	display: flex;
-	flex-direction: column;
-	gap: 0.25rem;
-}
-
-.thread-journal-overview-file {
-	display: grid;
-	grid-template-columns: auto minmax(4.5rem, auto) minmax(0, 1fr);
-	align-items: center;
-	gap: 0.35rem;
-	width: 100%;
-	padding: 0.25rem 0.4rem;
-	border: 0;
-	border-radius: var(--radius-s);
-	background: transparent;
-	color: var(--text-normal);
-	font: inherit;
-	text-align: left;
-	cursor: pointer;
-}
-
-.thread-journal-overview-file:hover,
-.thread-journal-overview-file:focus-visible {
-	background: var(--background-modifier-hover);
-}
-
-.thread-journal-overview-file.is-entry {
-	color: var(--text-accent);
-}
-
-.thread-journal-overview-file svg {
-	width: 14px;
-	height: 14px;
-}
-
-.thread-journal-overview-file-role {
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-}
-
-.thread-journal-overview-file-name {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .thread-journal-overview-tasks {

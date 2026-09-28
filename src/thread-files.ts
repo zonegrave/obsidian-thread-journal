@@ -1,6 +1,7 @@
 import {
 	App,
 	FuzzySuggestModal,
+	getIconIds,
 	Menu,
 	Modal,
 	Notice,
@@ -9,6 +10,7 @@ import {
 	moment,
 	normalizePath,
 	parseYaml,
+	setIcon,
 	type Editor,
 	type FuzzyMatch,
 	type WorkspaceLeaf,
@@ -66,6 +68,43 @@ function templateRole(source: string): string {
 		return scalarText((parsed as Record<string, unknown>).thread_role) || 'workspace';
 	} catch {
 		return 'workspace';
+	}
+}
+
+function defaultThreadFileIcon(role: string): string {
+	if (role === 'workspace') return 'layout-dashboard';
+	if (role === 'context') return 'book-open';
+	if (role === 'research') return 'search';
+	return 'file-text';
+}
+
+class ThreadFileIconModal extends FuzzySuggestModal<string> {
+	constructor(
+		app: App,
+		private readonly currentIcon: string,
+		private readonly onChoose: (icon: string) => void,
+	) {
+		super(app);
+		this.setPlaceholder(t('Choose a thread file icon'));
+	}
+
+	getItems(): string[] {
+		return getIconIds();
+	}
+
+	getItemText(icon: string): string {
+		return icon;
+	}
+
+	renderSuggestion(match: FuzzyMatch<string>, el: HTMLElement): void {
+		el.addClass('thread-journal-thread-file-icon-suggestion');
+		setIcon(el.createSpan(), match.item);
+		el.createSpan({ text: match.item });
+		if (match.item === this.currentIcon) el.addClass('is-active');
+	}
+
+	onChooseItem(icon: string): void {
+		this.onChoose(icon);
 	}
 }
 
@@ -167,6 +206,7 @@ class ThreadFilesModal extends FuzzySuggestModal<ThreadMemberCandidate> {
 		title: string,
 		private readonly candidates: ThreadMemberCandidate[],
 		private readonly onOpenFile: (file: TFile) => void,
+		private readonly onSetIcon: (file: TFile) => void,
 		private readonly onSetEntry: (file: TFile) => void,
 		private readonly onSetStatus: (file: TFile, status: ThreadRoleStatus) => void,
 	) {
@@ -190,8 +230,32 @@ class ThreadFilesModal extends FuzzySuggestModal<ThreadMemberCandidate> {
 	renderSuggestion(match: FuzzyMatch<ThreadMemberCandidate>, el: HTMLElement): void {
 		const candidate = match.item;
 		el.addClass('thread-journal-thread-file-suggestion');
+		const icon = el.createEl('button', {
+			cls: 'clickable-icon thread-journal-thread-file-icon',
+			attr: {
+				type: 'button',
+				tabindex: '-1',
+				'aria-label': t('Change thread file icon'),
+				title: t('Change thread file icon'),
+			},
+		});
+		setIcon(icon, candidate.member.icon || defaultThreadFileIcon(candidate.member.role));
+		icon.addEventListener('mousedown', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+		});
+		icon.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.close();
+			this.onSetIcon(candidate.member.file);
+		});
 		const copy = el.createDiv({ cls: 'thread-journal-thread-file-copy' });
-		copy.createDiv({ text: `${candidate.member.file.basename}${candidate.entry ? ` · ${t('Entry')}` : ''}` });
+		const title = copy.createDiv({ cls: 'thread-journal-thread-file-title' });
+		title.createSpan({ text: candidate.member.file.basename });
+		if (candidate.entry) {
+			setIcon(title.createSpan({ cls: 'thread-journal-thread-file-entry-marker' }), 'home');
+		}
 		copy.createDiv({
 			cls: 'suggestion-note',
 			text: `${candidate.member.role} · ${candidate.member.roleStatus}`,
@@ -283,6 +347,10 @@ export class ThreadFileManager {
 			});
 	}
 
+	iconForMember(member: ThreadMemberInfo): string {
+		return member.icon || defaultThreadFileIcon(member.role);
+	}
+
 	openActiveThreadFilesMenu(file: TFile, event: MouseEvent): void {
 		const threadFile = this.index.getThreadFile(file);
 		const thread = threadFile ? this.index.getThread(threadFile) : undefined;
@@ -296,10 +364,13 @@ export class ThreadFileManager {
 			.setTitle(`${t('Thread files')} · ${thread.title}`)
 			.setIsLabel(true));
 		for (const candidate of activeFiles) {
+			const markers = [
+				candidate.entry ? '⌂' : '',
+				candidate.member.file.path === file.path ? '✓' : '',
+			].filter(Boolean).join(' ');
 			menu.addItem((item) => item
-				.setTitle(`${candidate.member.role} · ${candidate.member.file.basename}${candidate.entry ? ` · ${t('Entry')}` : ''}`)
-				.setIcon(candidate.entry ? 'home' : 'file-text')
-				.setChecked(candidate.member.file.path === file.path)
+				.setTitle(`${candidate.member.file.basename}${markers ? `  ${markers}` : ''}`)
+				.setIcon(this.iconForMember(candidate.member))
 				.onClick((clickEvent) => this.app.workspace.openLinkText(
 					candidate.member.file.path,
 					threadFile.path,
@@ -348,6 +419,7 @@ export class ThreadFileManager {
 			if (metadata.type === 'thread') delete metadata.type;
 			metadata.thread_id = thread.id;
 			metadata.thread_role = template.role;
+			metadata.thread_icon = scalarText(metadata.thread_icon) || defaultThreadFileIcon(template.role);
 			metadata.thread_role_status = 'active';
 			metadata.created = scalarText(metadata.created) || created;
 			delete metadata.status;
@@ -406,6 +478,30 @@ export class ThreadFileManager {
 			(frontmatter as Record<string, unknown>).thread_role_status = status;
 		});
 		new Notice(t('Set {file} to {status}.', { file: memberFile.basename, status }));
+	}
+
+	private openThreadFileIconModal(threadFile: TFile, memberFile: TFile): void {
+		const member = this.index.getMember(memberFile);
+		if (!member) return;
+		new ThreadFileIconModal(
+			this.app,
+			this.iconForMember(member),
+			(icon) => {
+				void this.setThreadFileIcon(memberFile, icon)
+					.then(() => this.openThreadFilesModal(threadFile))
+					.catch((error: unknown) => {
+						console.error('Thread Journal failed to update thread file icon', error);
+						new Notice(t('Failed to update thread file icon: {error}', { error: String(error) }));
+					});
+			},
+		).open();
+	}
+
+	private async setThreadFileIcon(file: TFile, icon: string): Promise<void> {
+		if (!getIconIds().includes(icon)) throw new Error(t('Choose a valid icon.'));
+		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+			(frontmatter as Record<string, unknown>).thread_icon = icon;
+		});
 	}
 
 	async switchActiveThreadRole(file: TFile): Promise<void> {
@@ -527,6 +623,7 @@ export class ThreadFileManager {
 			thread.title,
 			candidates,
 			(member) => void this.openFile(member),
+			(member) => this.openThreadFileIconModal(threadFile, member),
 			(member) => void this.setEntry(threadFile, member).catch((error: unknown) => {
 				console.error('Thread Journal failed to set entry', error);
 				new Notice(t('Failed to set thread entry: {error}', { error: String(error) }));

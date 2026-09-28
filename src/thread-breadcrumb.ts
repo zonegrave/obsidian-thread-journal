@@ -349,24 +349,13 @@ export class ThreadBreadcrumbManager {
 		status.addEventListener('click', () => {
 			this.meta.openMetaModal(threadFile);
 		});
-		const currentMember = this.index.getMember(currentFile);
 		const activeFiles = this.files.getActiveThreadFiles(threadFile);
 		const filesButton = actions.createEl('button', {
-			cls: 'clickable-icon thread-journal-fixed-breadcrumb-current-file',
+			cls: 'clickable-icon thread-journal-fixed-breadcrumb-files',
 			attr: { type: 'button', 'aria-haspopup': 'menu' },
 		});
-		setIcon(filesButton.createSpan({ cls: 'thread-journal-fixed-breadcrumb-current-file-icon' }), 'file-text');
-		filesButton.createSpan({
-			cls: 'thread-journal-fixed-breadcrumb-current-file-name',
-			text: currentMember
-				? `${currentMember.role} · ${currentFile.basename}`
-				: t('Thread files'),
-		});
-		if (this.index.isEntry(currentFile)) {
-			filesButton.createSpan({ cls: 'thread-journal-fixed-breadcrumb-entry', text: t('Entry') });
-		}
-		filesButton.createSpan({ cls: 'thread-journal-fixed-breadcrumb-file-count', text: String(activeFiles.length) });
-		setIcon(filesButton.createSpan({ cls: 'thread-journal-fixed-breadcrumb-current-file-chevron' }), 'chevron-down');
+		setIcon(filesButton, 'files');
+		filesButton.createSpan({ text: String(activeFiles.length) });
 		this.setBarTooltip(bar, filesButton, t('Manage thread files ({count})', {
 			count: activeFiles.length,
 		}));

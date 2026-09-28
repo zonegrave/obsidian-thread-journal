@@ -81,6 +81,7 @@ created: 2026-09-13
 ---
 thread_id: 3e9b3f36-7f7d-4205-97b0-82c533155eb0
 thread_role: research
+thread_icon: search
 thread_role_status: active
 attention_fallback: false
 created: 2026-09-13
@@ -88,6 +89,7 @@ created: 2026-09-13
 ```
 
 - `thread_role` 是任意字符串；省略时按 `workspace` 显示。
+- `thread_icon` 是 Obsidian/Lucide 图标 ID，可在 **Manage thread files** 中为每个成员选择。
 - `thread_role_status` 只有 `active` 和 `terminated`；省略时视为 `active`。终止只结束这个工作切片，不删除文件或整个 thread。
 - `attention_fallback: true` 表示 active thread 中的 active 成员在自身没有未完成任务时，仍作为可继续工作的文件入口出现在 Thread Overview。省略、设为 `false`，或 thread 处于 dormant 等其他状态时不产生兜底项。
 - 成员可以保留模板自己的普通 `type`，但不能使用 `type: thread`，因为只有 meta 是 thread 身份来源。
@@ -101,6 +103,7 @@ created: 2026-09-13
 ```markdown
 ---
 thread_role: context
+thread_icon: book-open
 thread_role_status: active
 ---
 
@@ -132,14 +135,14 @@ attention_fallback: true
 - `{{parent}}`、`{{parent_title}}`
 - `{{created}}`、`{{date}}`、`{{date:YYMMDD}}` 等日期格式
 
-创建成员后，插件会强制写入正确的 `thread_id`、`thread_role`、`thread_role_status: active` 和 `created`，并移除模板中的 thread 级字段，例如 `status`、`parent`、`entry` 与 `commit_fields`。
+创建成员后，插件会强制写入正确的 `thread_id`、`thread_role`、`thread_icon`、`thread_role_status: active` 和 `created`，并移除模板中的 thread 级字段，例如 `status`、`parent`、`entry` 与 `commit_fields`。
 
 ## Pack 内导航
 
 每个 meta 和成员文件都会显示固定 Breadcrumb：
 
 - 最左侧线程树图标打开 **Open thread overview**；其后的 breadcrumb 展示 thread 层级，根节点、祖先和子 thread 都打开各自的入口文件。当前 thread 的状态显示在右侧操作区，点击会打开 **Manage thread**。
-- 右侧文件选择器显示当前文件的角色与文件名。展开后只显示 active 成员，Entry 排在最前并带有首页标记；也可从菜单新建成员或进入 **Manage thread files**。
+- 右侧保留紧凑的文件图标与 active 成员数量。展开后只显示“自定义图标 + 文件名”，Entry 排在最前并带有简洁的首页标记；也可从菜单新建成员或进入 **Manage thread files**。
 - **Manage thread files** 保留完整的管理职责，可设置入口、终止非入口成员或重新激活成员；terminated 成员不会出现在日常文件选择器中。
 - 右侧分叉图标打开 **Manage open threads**。它按 `thread_id` 合并当前窗口的所有已打开标签，显示角色组成，可打开入口、管理文件或关闭该 thread 的全部标签。
 - thread 树和层级菜单固定只显示 `active` 与 `dormant` thread。
@@ -237,7 +240,7 @@ order: asc
 
 只有 `active` 和 `dormant` thread 可以成为新子 thread 的父节点。父节点之后改变状态不会破坏已有层级。
 
-**Open thread overview** 会打开或聚焦一个可常驻的 Overview tab；`thread-overview` 代码块仍可在笔记中嵌入同一视图。每个节点都提供 active Thread Files 菜单；展开节点后，文件作为同一 pack 内的并列工作界面显示在 Attention 上方，可直接打开。独立 Tab 的思维导图画布铺满整个视图，筛选与操作控件悬浮在右上角；画布四周保留足够空白，让边缘内容也能滚动到视图中央，并提供放大、缩小和适应视图控件。Mac 触控板可在画布上双指捏合缩放，缩放中心保持在手势位置；普通双指滚动仍用于平移，切换标签回来会保留地图视角。嵌入笔记时仍按文档宽度展示。视图把 thread 层级渲染成横向思维导图：从虚拟 Threads 根节点向右分叉，以曲线连接父子节点，画布可横纵滚动。紧凑的 Status 菜单默认选择 `active` 与 `dormant`，展开后可任意勾选六种状态；筛选结果所依赖的未选中祖先会作为淡色结构节点保留，避免层级断裂。View 可在“全部 thread”和“今日关注”之间切换；“今日关注”只保留今天有 ready task 或 active fallback 的 thread，并以淡色节点保留必要祖先。Tasks 可独立在“今日活跃”和“全部未完成”之间切换；“今日活跃”只保留状态为 open、未 holding 且没有被未来开始或计划日期推迟的任务。Overview 的任务摘要只展示决策信息：开始日期尚未到时显示灰色“未开始”；开始后若没有结束日期则隐藏窗口；截止日在 30 天内显示剩余天数，超过 30 天显示弱化的 `30d+`，逾期显示逾期天数；循环只显示 current，当天显示“今天”、同年省略年份，周期规则收进悬浮提示，只有循环图标可点击并直接推进到下一期，旁边的 current 文字仅用于显示；预计消耗以绿、黄、红、紫的 gauge 图标表示 quick、light、normal、deep。仅当 thread 状态为 `active` 时，带有 `attention_fallback: true` 的 active 成员才可能作为文件入口与任务并列显示；它自身存在任何未完成任务时都不生成入口，Today 筛掉未来任务也不会造成误判。dormant 和其他状态不显示兜底入口。任务标题最前方的 pin 按钮会在原任务写入 `[thread_pin:: true]`，并把它汇总到 Overview 左侧的固定任务区；再次点击即可取消，任务链接仍定位原文。固定区排除 holding 任务，其他任务不受 Thread 状态、View 与 Tasks 筛选影响，会随任务数量增长到当前视图可用高度，超出后在区内滚动，标题栏可整体收起或展开。**Expand all items** 会展开当前筛选结果中所有包含关注项目的节点及其分支；切换到 **Collapse all items** 后会关闭当前视图中全部 thread 的详情区，包括没有任务但曾被手动展开的节点。节点右侧的 `+/−` 继续独立控制下级分支。点击单个节点会展开状态提示和该节点自己的关注项目；任务链接定位原文，文件入口直接打开对应成员。它只提示，不自动改变状态。外部笔记中的任务只有在同一行明确链接某个 meta 或成员时才归属该 thread。
+**Open thread overview** 会打开或聚焦一个可常驻的 Overview tab；`thread-overview` 代码块仍可在笔记中嵌入同一视图。每个节点左上方提供紧凑的 active Thread Files 入口，展开菜单后可按自定义图标和文件名直接切换。独立 Tab 的思维导图画布铺满整个视图，筛选与操作控件悬浮在右上角；画布四周保留足够空白，让边缘内容也能滚动到视图中央，并提供放大、缩小和适应视图控件。Mac 触控板可在画布上双指捏合缩放，缩放中心保持在手势位置；普通双指滚动仍用于平移，切换标签回来会保留地图视角。嵌入笔记时仍按文档宽度展示。视图把 thread 层级渲染成横向思维导图：从虚拟 Threads 根节点向右分叉，以曲线连接父子节点，画布可横纵滚动。紧凑的 Status 菜单默认选择 `active` 与 `dormant`，展开后可任意勾选六种状态；筛选结果所依赖的未选中祖先会作为淡色结构节点保留，避免层级断裂。View 可在“全部 thread”和“今日关注”之间切换；“今日关注”只保留今天有 ready task 或 active fallback 的 thread，并以淡色节点保留必要祖先。Tasks 可独立在“今日活跃”和“全部未完成”之间切换；“今日活跃”只保留状态为 open、未 holding 且没有被未来开始或计划日期推迟的任务。Overview 的任务摘要只展示决策信息：开始日期尚未到时显示灰色“未开始”；开始后若没有结束日期则隐藏窗口；截止日在 30 天内显示剩余天数，超过 30 天显示弱化的 `30d+`，逾期显示逾期天数；循环只显示 current，当天显示“今天”、同年省略年份，周期规则收进悬浮提示，只有循环图标可点击并直接推进到下一期，旁边的 current 文字仅用于显示；预计消耗以绿、黄、红、紫的 gauge 图标表示 quick、light、normal、deep。仅当 thread 状态为 `active` 时，带有 `attention_fallback: true` 的 active 成员才可能作为文件入口与任务并列显示；它自身存在任何未完成任务时都不生成入口，Today 筛掉未来任务也不会造成误判。dormant 和其他状态不显示兜底入口。任务标题最前方的 pin 按钮会在原任务写入 `[thread_pin:: true]`，并把它汇总到 Overview 左侧的固定任务区；再次点击即可取消，任务链接仍定位原文。固定区排除 holding 任务，其他任务不受 Thread 状态、View 与 Tasks 筛选影响，会随任务数量增长到当前视图可用高度，超出后在区内滚动，标题栏可整体收起或展开。**Expand all items** 会展开当前筛选结果中所有包含关注项目的节点及其分支；切换到 **Collapse all items** 后会关闭当前视图中全部 thread 的详情区，包括没有任务但曾被手动展开的节点。节点右侧的 `+/−` 继续独立控制下级分支。点击单个节点会展开状态提示和该节点自己的关注项目；任务链接定位原文，文件入口直接打开对应成员。它只提示，不自动改变状态。外部笔记中的任务只有在同一行明确链接某个 meta 或成员时才归属该 thread。
 
 Active 成员的编辑视图提供统一的 **Create or edit task**。光标在 task 行时直接编辑；在普通文本行时先将该行原地转换为 Markdown task，再打开编辑表单；空行则打开空白新建表单。任务内容本身表达要达成的结果；表单保存只读的 `task_id`、任务状态、独立 holding 条件、可选固定、可选的日期窗口、`quick`/`light`/`normal`/`deep` 模糊消耗，以及可选循环。日期窗口通过独立浮层编辑，不改变任务表单尺寸；浮层并排展示两个日历，左侧选择开始、右侧选择结束，各自可翻月，也可清除单侧或整体清空；主表单不再重复提供 Clear 按钮。`task_id` 在创建时自动生成，用于任务移动行号后继续准确定位；表单顶部以小号只读文字展示，左侧 Pin 图标可直接切换固定状态，阅读视图、Live Preview 摘要和 Overview 不显示 ID。表单中预计消耗、状态与 Window 位于选择区域；Repeat 单独占下一行，开启后在同行展开 Frequency 与 Current，选择每 N 天时将间隔输入合并在 Frequency 控件内。Task 没有 fixed/flexible 分类：所有任务都可在窗口内安排，精确占用时段的事项由独立 Event 模型承担。
 

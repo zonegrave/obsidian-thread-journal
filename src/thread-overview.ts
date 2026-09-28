@@ -746,6 +746,22 @@ class OverviewContent extends MarkdownRenderChild {
 			cls: 'thread-journal-overview-node-header',
 		});
 		summary.createSpan({ cls: 'thread-journal-overview-node-status-dot' });
+		const activeFiles = this.files.getActiveThreadFiles(row.thread.file);
+		const filesButton = summary.createEl('button', {
+			cls: 'clickable-icon thread-journal-overview-node-files',
+			attr: {
+				type: 'button',
+				'aria-haspopup': 'menu',
+				'aria-label': t('Manage thread files ({count})', { count: activeFiles.length }),
+			},
+		});
+		setIcon(filesButton.createSpan(), 'files');
+		filesButton.createSpan({ text: String(activeFiles.length) });
+		filesButton.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.files.openActiveThreadFilesMenu(row.thread.file, event);
+		});
 		const entry = this.index.getEntry(row.thread.file) ?? row.thread.file;
 		const link = summary.createEl('a', {
 			cls: 'thread-journal-overview-node-title',
@@ -765,22 +781,6 @@ class OverviewContent extends MarkdownRenderChild {
 			cls: 'thread-journal-overview-node-status',
 			text: node.item.status || 'unset',
 			attr: { title: threadStatusLabel(node.item.status) },
-		});
-		const activeFiles = this.files.getActiveThreadFiles(row.thread.file);
-		const filesButton = summary.createEl('button', {
-			cls: 'clickable-icon thread-journal-overview-node-files',
-			attr: {
-				type: 'button',
-				'aria-haspopup': 'menu',
-				'aria-label': t('Manage thread files ({count})', { count: activeFiles.length }),
-			},
-		});
-		setIcon(filesButton.createSpan(), 'files');
-		filesButton.createSpan({ text: String(activeFiles.length) });
-		filesButton.addEventListener('click', (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			this.files.openActiveThreadFilesMenu(row.thread.file, event);
 		});
 		const visibleTasks = this.tasksForRow(row);
 		const attentionCount = visibleTasks.length + row.fallbacks.length;
@@ -808,7 +808,6 @@ class OverviewContent extends MarkdownRenderChild {
 			});
 			return;
 		}
-		this.renderThreadFiles(content, row);
 		const hint = row.fallbacks.length > 0
 			&& row.thread.status === 'active'
 			&& row.summary.open === 0
@@ -821,35 +820,6 @@ class OverviewContent extends MarkdownRenderChild {
 			});
 		}
 		this.renderTasks(content, row);
-	}
-
-	private renderThreadFiles(parent: HTMLElement, row: AttentionRow): void {
-		const candidates = this.files.getActiveThreadFiles(row.thread.file);
-		const section = parent.createDiv({ cls: 'thread-journal-overview-files' });
-		section.createDiv({
-			cls: 'thread-journal-overview-files-title',
-			text: `${t('Thread files')} · ${candidates.length}`,
-		});
-		const list = section.createDiv({ cls: 'thread-journal-overview-files-list' });
-		for (const candidate of candidates) {
-			const button = list.createEl('button', {
-				cls: `thread-journal-overview-file${candidate.entry ? ' is-entry' : ''}`,
-				attr: {
-					type: 'button',
-					title: candidate.member.file.path,
-				},
-			});
-			setIcon(button.createSpan(), candidate.entry ? 'home' : 'file-text');
-			button.createSpan({ cls: 'thread-journal-overview-file-role', text: candidate.member.role });
-			button.createSpan({ cls: 'thread-journal-overview-file-name', text: candidate.member.file.basename });
-			button.addEventListener('click', (event) => {
-				void this.app.workspace.openLinkText(
-					candidate.member.file.path,
-					row.thread.file.path,
-					event.metaKey || event.ctrlKey,
-				);
-			});
-		}
 	}
 
 	private renderTasks(parent: HTMLElement, row: AttentionRow): void {
