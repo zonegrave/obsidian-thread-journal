@@ -2123,30 +2123,30 @@
 }
 
 /* Obsidian treats every non-space task marker as checked. Keep [:] visually distinct. */
-input.task-list-item-checkbox[data-task=":"] {
+input.task-list-item-checkbox[data-task=":"],
+[data-task=":"] input.task-list-item-checkbox {
 	appearance: none;
 	-webkit-appearance: none;
-	display: inline-grid;
-	place-content: center;
+	width: var(--checkbox-size, 18px);
+	height: var(--checkbox-size, 18px);
+	min-width: var(--checkbox-size, 18px);
+	border: var(--checkbox-border-width, 2px) solid var(--color-purple) !important;
+	border-radius: var(--checkbox-radius, 4px);
 	border-color: var(--color-purple) !important;
-	background: transparent !important;
+	background-color: transparent !important;
+	background-image:
+		radial-gradient(circle at 50% 34%, var(--color-purple) 0 1.5px, transparent 1.75px),
+		radial-gradient(circle at 50% 66%, var(--color-purple) 0 1.5px, transparent 1.75px) !important;
+	background-repeat: no-repeat !important;
 	box-shadow: none !important;
 }
 
-input.task-list-item-checkbox[data-task=":"]::after {
-	content: ":" !important;
-	display: block;
-	width: auto !important;
-	height: auto !important;
-	background: transparent !important;
-	color: var(--color-purple);
-	font-family: var(--font-monospace);
-	font-size: 0.82em;
-	font-weight: var(--font-bold);
-	line-height: 0.7;
+input.task-list-item-checkbox[data-task=":"]::after,
+[data-task=":"] input.task-list-item-checkbox::after {
+	content: none !important;
+	display: none !important;
 	-webkit-mask-image: none !important;
 	mask-image: none !important;
-	transform: none !important;
 }
 
 .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task=":"] {
