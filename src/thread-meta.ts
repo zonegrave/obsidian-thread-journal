@@ -54,7 +54,7 @@ class ThreadMetaModal extends Modal {
 	) {
 		super(app);
 		this.title = context.thread.title;
-		this.status = isThreadStatus(context.thread.status) ? context.thread.status : 'idea';
+		this.status = isThreadStatus(context.thread.status) ? context.thread.status : 'dormant';
 		this.parentId = context.parent?.id ?? '';
 		this.entryPath = context.entry?.path ?? '';
 	}

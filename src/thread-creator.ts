@@ -10,13 +10,11 @@ import {
 	type FuzzyMatch,
 } from 'obsidian';
 import {
-	THREAD_STATUS_CHOICES,
+	THREAD_CREATION_STATUS_CHOICES,
 	isOperationalThreadStatus,
-	isThreadStatus,
-	threadStatusUsesMembers,
 	threadStatusLabel,
 	threadStatusOptionLabel,
-	type ThreadStatus,
+	type OperationalThreadStatus,
 } from './thread-status-model';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager, ThreadRoleTemplate } from './thread-files';
@@ -49,7 +47,7 @@ function stringList(value: unknown): string[] {
 
 class NewThreadModal extends Modal {
 	private title = '';
-	private status: ThreadStatus = 'idea';
+	private status: OperationalThreadStatus = 'active';
 	private creating = false;
 
 	constructor(
@@ -58,8 +56,8 @@ class NewThreadModal extends Modal {
 		private readonly templates: ThreadRoleTemplate[],
 		private readonly onSubmit: (
 			title: string,
-			status: ThreadStatus,
-			template?: ThreadRoleTemplate,
+			status: OperationalThreadStatus,
+			template: ThreadRoleTemplate,
 		) => Promise<void>,
 	) {
 		super(app);
@@ -70,11 +68,6 @@ class NewThreadModal extends Modal {
 
 	onOpen(): void {
 		this.setTitle(t('New thread'));
-		let entrySetting: Setting | undefined;
-		const needsEntry = (): boolean => threadStatusUsesMembers(this.status);
-		const updateEntryVisibility = (): void => {
-			entrySetting?.settingEl.toggleClass('is-hidden', !needsEntry());
-		};
 		new Setting(this.contentEl)
 			.setName(t('Title'))
 			.addText((text) => {
@@ -90,20 +83,19 @@ class NewThreadModal extends Modal {
 
 		new Setting(this.contentEl)
 			.setName(t('Initial status'))
-			.setDesc(t('Status values remain in English; the localized meaning follows. idea does not require a goal or todo.'))
+			.setDesc(t('New threads start as active or dormant.'))
 			.addDropdown((dropdown) => {
-				for (const choice of THREAD_STATUS_CHOICES) {
+				for (const choice of THREAD_CREATION_STATUS_CHOICES) {
 					dropdown.addOption(choice.value, threadStatusOptionLabel(choice));
 				}
 				dropdown.setValue(this.status).onChange((value) => {
-					if (isThreadStatus(value)) {
+					if (isOperationalThreadStatus(value)) {
 						this.status = value;
-						updateEntryVisibility();
 					}
 				});
 			});
 
-		entrySetting = new Setting(this.contentEl)
+		new Setting(this.contentEl)
 			.setName(t('Entry template'))
 			.setDesc(t('The template thread_role determines the role of the entry file.'))
 			.addDropdown((dropdown) => {
@@ -114,8 +106,6 @@ class NewThreadModal extends Modal {
 					this.templatePath = value;
 				});
 			});
-		updateEntryVisibility();
-
 		new Setting(this.contentEl)
 			.addButton((button) => button
 				.setButtonText(t('Create'))
@@ -128,7 +118,7 @@ class NewThreadModal extends Modal {
 						return;
 					}
 					const template = this.templates.find((item) => item.file.path === this.templatePath);
-					if (needsEntry() && !template) {
+					if (!template) {
 						new Notice(t('Select a valid entry template.'));
 						return;
 					}
@@ -138,7 +128,7 @@ class NewThreadModal extends Modal {
 						await this.onSubmit(
 							title,
 							this.status,
-							needsEntry() ? template : undefined,
+							template,
 						);
 						this.close();
 					} catch (error) {
@@ -256,7 +246,7 @@ export class ThreadCreator {
 
 	async createThread(
 		title: string,
-		status: ThreadStatus,
+		status: OperationalThreadStatus,
 		parent?: TFile,
 		template?: ThreadRoleTemplate,
 	): Promise<TFile> {
@@ -299,11 +289,6 @@ export class ThreadCreator {
 			if (parentLink) metadata.parent = parentLink;
 			else delete metadata.parent;
 		});
-		if (!threadStatusUsesMembers(status)) {
-			await this.files.openFile(file);
-			new Notice(t('Created {title}', { title }));
-			return file;
-		}
 		const selectedTemplate = template ?? (await this.files.getRoleTemplates())[0];
 		if (!selectedTemplate) throw new Error(t('No thread file template is available.'));
 		const entry = await this.files.createThreadFile(

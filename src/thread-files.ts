@@ -21,7 +21,6 @@ import {
 	renderThreadFileTemplate,
 } from './thread-template';
 import { nextActiveThreadRolePath } from './thread-switcher-model';
-import { threadStatusUsesMembers } from './thread-status-model';
 import type {
 	ThreadJournalSettings,
 	ThreadMemberInfo,
@@ -423,10 +422,6 @@ export class ThreadFileManager {
 		const thread = threadFile ? this.index.getThread(threadFile) : undefined;
 		if (!thread || !threadFile) {
 			new Notice(t('The current file does not belong to a thread.'));
-			return;
-		}
-		if (!threadStatusUsesMembers(thread.status)) {
-			new Notice(t('Idea or committed threads keep only their meta. Change to an execution status first.'));
 			return;
 		}
 		void this.getRoleTemplates().then((templates) => {

@@ -65,8 +65,9 @@ import {
 } from '../src/entry-query';
 import {
 	THREAD_STATUS_CHOICES,
+	THREAD_CREATION_STATUS_CHOICES,
+	isThreadStatus,
 	isOperationalThreadStatus,
-	threadStatusUsesMembers,
 	threadStatusLabel,
 	threadStatusOptionLabel,
 } from '../src/thread-status-model';
@@ -547,13 +548,13 @@ void test('renders thread member template placeholders', () => {
 		threadId: 'stable-id',
 		role: 'research',
 		roleStatus: 'active',
-		status: 'idea',
+		status: 'dormant',
 		parentTitle: '健康管理',
 		parentLink: '[[健康管理|健康管理]]',
 		created: '2026-08-31',
 	}, (format: string) => format === 'YYMMDD' ? '260831' : '2026-08-31');
 	assert.match(rendered, /^# 睡眠管理/m);
-	assert.match(rendered, /idea · 睡眠管理 · stable-id · research · active/);
+	assert.match(rendered, /dormant · 睡眠管理 · stable-id · research · active/);
 	assert.match(rendered, /2026-08-31 \/ 260831/);
 });
 
@@ -876,11 +877,17 @@ void test('deletes one commit in place by block id', () => {
 	assert.equal(parseCommitEntries(result).length, 1);
 });
 
-void test('supports only the eight current status values', () => {
+void test('supports only the six thread lifecycle status values', () => {
 	assert.deepEqual(
 		THREAD_STATUS_CHOICES.map((choice) => choice.value),
-		['idea', 'committed', 'active', 'dormant', 'paused', 'review', 'completed', 'closed'],
+		['active', 'dormant', 'paused', 'review', 'completed', 'closed'],
 	);
+	assert.deepEqual(
+		THREAD_CREATION_STATUS_CHOICES.map((choice) => choice.value),
+		['active', 'dormant'],
+	);
+	assert.equal(isThreadStatus('idea'), false);
+	assert.equal(isThreadStatus('committed'), false);
 	assert.equal(threadStatusLabel('active'), '持续关注');
 	const dormant = THREAD_STATUS_CHOICES.find((choice) => choice.value === 'dormant');
 	assert.ok(dormant);
@@ -889,9 +896,6 @@ void test('supports only the eight current status values', () => {
 	assert.equal(isOperationalThreadStatus('dormant'), true);
 	assert.equal(isOperationalThreadStatus('committed'), false);
 	assert.equal(isOperationalThreadStatus('paused'), false);
-	assert.equal(threadStatusUsesMembers('idea'), false);
-	assert.equal(threadStatusUsesMembers('committed'), false);
-	assert.equal(threadStatusUsesMembers('active'), true);
 });
 
 void test('allows only operational non-descendants as a new thread parent', () => {
@@ -1325,7 +1329,7 @@ void test('breadcrumb switcher exposes only operational threads without changing
 	const threads = [
 		{ title: '睡眠', status: 'dormant' },
 		{ title: '插件', status: 'active' },
-		{ title: '旅行', status: 'idea' },
+		{ title: '旅行', status: 'paused' },
 	] as never[];
 	assert.deepEqual(
 		filterBreadcrumbThreads(threads).map((thread) => thread.title),

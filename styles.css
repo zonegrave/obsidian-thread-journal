@@ -2708,8 +2708,7 @@
 	--thread-journal-overview-status-color: var(--text-success);
 }
 
-.thread-journal-overview-node[data-status="dormant"],
-.thread-journal-overview-node[data-status="committed"] {
+.thread-journal-overview-node[data-status="dormant"] {
 	--thread-journal-overview-status-color: var(--text-accent);
 }
 
@@ -2723,8 +2722,7 @@
 	stroke: var(--text-success);
 }
 
-.thread-journal-overview-connector[data-status="dormant"],
-.thread-journal-overview-connector[data-status="committed"] {
+.thread-journal-overview-connector[data-status="dormant"] {
 	stroke: var(--text-accent);
 }
 

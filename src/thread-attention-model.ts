@@ -111,7 +111,7 @@ export function summarizeAttention(root: string, nodes: AttentionNode[], tasks: 
   if (visited.has(id)) { result.cycle = true; return; }
   visited.add(id);
   const state = byId.get(id)?.status;
-  const suspended = inherited || ['idea', 'paused', 'completed', 'closed'].includes(state ?? '');
+  const suspended = inherited || ['paused', 'completed', 'closed'].includes(state ?? '');
   blocked.set(id, suspended);
   for (const child of children.get(id) ?? []) walk(child.id, suspended);
  };
@@ -123,7 +123,7 @@ export function summarizeAttention(root: string, nodes: AttentionNode[], tasks: 
   if (ancestors.has(ancestor)) { result.cycle = true; break; }
   ancestors.add(ancestor);
   const node = byId.get(ancestor);
-  inherited ||= ['idea', 'paused', 'completed', 'closed'].includes(node?.status ?? '');
+  inherited ||= ['paused', 'completed', 'closed'].includes(node?.status ?? '');
   ancestor = node?.parent;
  }
  walk(root, inherited);
@@ -142,10 +142,6 @@ export function summarizeAttention(root: string, nodes: AttentionNode[], tasks: 
 
 export function attentionHint(status: string, summary: AttentionSummary): string {
  if (summary.cycle) return t('The parent relationship contains a cycle; check it');
- if (status === 'idea') return t('Keep the idea; set it to committed when you decide to invest');
- if (status === 'committed') return summary.open
-  ? t('Committed and waiting to begin')
-  : t('Committed; define the commitment or next action');
  if (status === 'active' && summary.open === 0) return t('The subtree has no unfinished todo; add the next action or consider making it dormant');
  if (status === 'dormant') return summary.ready
   ? t('Ready todo needs attention')
