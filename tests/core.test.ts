@@ -1017,11 +1017,11 @@ void test('task readiness separates future, holding, ideas, completion and deadl
  assert.equal(todoDisposition(' ', '预约 ⏳ 2026-10-01', '2026-09-09'), 'future');
  assert.equal(todoDisposition(' ', '预约 🛫 2026-09-09', '2026-09-09'), 'ready');
  assert.equal(todoDisposition(' ', '等回复 [holding:: true]', '2026-09-09'), 'holding');
- assert.equal(todoDisposition('i', '考虑一下', '2026-09-09'), 'idea');
+ assert.equal(todoDisposition('!', '考虑一下', '2026-09-09'), 'idea');
  assert.equal(todoDisposition('x', '完成', '2026-09-09'), undefined);
  assert.equal(todoDisposition('-', '取消', '2026-09-09'), undefined);
  assert.equal(todoDisposition(' ', '', '2026-09-09'), undefined);
- assert.equal(todoDisposition('!', '自定义', '2026-09-09'), 'unknown');
+ assert.equal(todoDisposition('?', '自定义', '2026-09-09'), 'unknown');
 });
 
 void test('task readiness respects date windows and the current repeat occurrence', () => {
@@ -1059,7 +1059,7 @@ void test('parses task references only through the distinct reference_task_id fi
 });
 
 void test('task form fields round-trip without losing markdown task state or other metadata', () => {
-	const source = '  > - [:] 记录恢复 [task_id:: task-123456789abc] '
+	const source = '  > - [+] 记录恢复 [task_id:: task-123456789abc] '
 		+ '[window_start:: 2026-09-18] [window_end:: 2026-09-20] '
 		+ '[effort:: quick] [current:: 2026-09-18] [repeat:: FREQ=WEEKLY] '
 		+ '[thread_pin:: true] ^task-recovery';
@@ -1081,7 +1081,7 @@ void test('task form fields round-trip without losing markdown task state or oth
 		repeatMonthDay: 1,
 	});
 	const rebuilt = buildTaskLine(parsed.data, parsed);
-	assert.match(rebuilt, /^ {2}> - \[:\] 记录恢复/u);
+	assert.match(rebuilt, /^ {2}> - \[\+\] 记录恢复/u);
 	assert.match(rebuilt, /\[thread_pin:: true\]/u);
 	assert.match(rebuilt, /\^task-recovery$/u);
 	assert.deepEqual(parseTaskLine(rebuilt)?.data, parsed.data);
@@ -1397,9 +1397,9 @@ void test('task states round trip independently of holding and retain other fiel
 });
 
 void test('committed and idea never become ready merely because their date has arrived', () => {
-	assert.equal(todoDisposition(':', 'Committed [window_start:: 2020-01-01]', '2026-09-23'), 'committed');
-	assert.equal(todoDisposition('i', 'Idea [window_end:: 2020-01-01]', '2026-09-23'), 'idea');
-	for (const marker of ['i', ':', ' ']) {
+	assert.equal(todoDisposition('+', 'Committed [window_start:: 2020-01-01]', '2026-09-23'), 'committed');
+	assert.equal(todoDisposition('!', 'Idea [window_end:: 2020-01-01]', '2026-09-23'), 'idea');
+	for (const marker of ['!', '+', ' ']) {
 		assert.equal(todoDisposition(marker, 'Held [holding:: true] [holding_review:: 2020-01-01]', '2026-09-23'), 'holding');
 	}
 });
@@ -1457,7 +1457,7 @@ void test('recurring dependency requires completion of the selected occurrence, 
 void test('task scanner excludes YAML and fenced/indented samples, preserving real nested tasks', () => {
 	const content = ['---', 'example:', '- [ ] YAML', '---', '# Notes', '```md', '- [ ] fenced', '```',
 		'~~~md', '- [ ] tilde fenced', '~~~', '', '    - [ ] indented code', '',
-		'- [ ] real', '    - [:] real nested', '> - [i] quoted task'].join('\n');
+		'- [ ] real', '    - [+] real nested', '> - [!] quoted task'].join('\n');
 	assert.deepEqual(scanTaskLines(content).map(task => task.parsed.data.content), ['real', 'real nested', 'quoted task']);
 });
 
@@ -1471,10 +1471,13 @@ void test('state queues exclude holding and separate idea, committed and open', 
 void test('one-time state migration preserves note content, ignores examples and is idempotent', () => {
 	const source = ['---', 'example:', '- [?] YAML', '---', '```md', '- [>] example', '```',
 		'- [i] Idea', '- [?] Committed [task_id:: task-aaaaaaaaaaaa] ^anchor',
+		'- [:] Already committed [task_id:: task-cccccccccccc]',
 		'- [>] Waiting [task_id:: task-bbbbbbbbbbbb] ^waiting', '- [x] Done'].join('\n');
 	const migrated = migrateTaskStates(source);
-	assert.deepEqual(migrated.changedLines, [9, 10]);
-	assert.ok(migrated.content.includes('- [:] Committed [task_id:: task-aaaaaaaaaaaa] ^anchor'));
+	assert.deepEqual(migrated.changedLines, [8, 9, 10, 11]);
+	assert.ok(migrated.content.includes('- [!] Idea'));
+	assert.ok(migrated.content.includes('- [+] Committed [task_id:: task-aaaaaaaaaaaa] ^anchor'));
+	assert.ok(migrated.content.includes('- [+] Already committed [task_id:: task-cccccccccccc]'));
 	assert.ok(migrated.content.includes('- [ ] Waiting [task_id:: task-bbbbbbbbbbbb] [holding:: true] ^waiting'));
 	assert.ok(migrated.content.includes('- [?] YAML'));
 	assert.ok(migrated.content.includes('- [>] example'));

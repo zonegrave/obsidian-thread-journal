@@ -97,13 +97,13 @@ export function createTaskId(): string {
 export function taskStatusFromMarker(marker: string): TaskStatus {
 	if (marker.toLowerCase() === 'x') return 'completed';
 	if (marker === '-') return 'cancelled';
-	if (marker.toLowerCase() === 'i') return 'idea';
-	if (marker === ':') return 'committed';
+	if (marker === '!') return 'idea';
+	if (marker === '+') return 'committed';
 	return 'open';
 }
 
 export function taskStatusMarker(status: TaskStatus): string {
-	return { idea: 'i', committed: ':', open: ' ', completed: 'x', cancelled: '-' }[status];
+	return { idea: '!', committed: '+', open: ' ', completed: 'x', cancelled: '-' }[status];
 }
 
 export function releaseTaskHolding(data: TaskData): TaskData {

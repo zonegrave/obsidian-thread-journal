@@ -82,8 +82,8 @@ export function todoDisposition(marker: string, text: string, now: string): Todo
  if (marker.toLowerCase() === 'x' || marker === '-') return undefined;
  if (!text.trim()) return undefined;
  if (/\[holding::\s*true\]/i.test(text)) return 'holding';
- if (marker.toLowerCase() === 'i') return 'idea';
- if (marker === ':') return 'committed';
+ if (marker === '!') return 'idea';
+ if (marker === '+') return 'committed';
  if (marker !== ' ' && marker !== '/') return 'unknown';
 	const today = now.slice(0, 10);
 	const leadingDate = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s|$)/)?.[1];

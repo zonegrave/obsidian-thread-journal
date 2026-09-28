@@ -5,10 +5,15 @@ export function migrateTaskStates(content: string): { content: string; changedLi
 	const lines = content.split('\n');
 	const changedLines: number[] = [];
 	for (const task of scanTaskLines(content)) {
-		if (task.parsed.marker !== '?' && task.parsed.marker !== '>') continue;
+		if (!['i', ':', '?', '>'].includes(task.parsed.marker)) continue;
 		let line = task.sourceLine;
 		const offset = task.parsed.prefix.length;
-		line = line.slice(0, offset) + (task.parsed.marker === '?' ? ':' : ' ') + line.slice(offset + 1);
+		const marker = task.parsed.marker === 'i'
+			? '!'
+			: task.parsed.marker === ':' || task.parsed.marker === '?'
+				? '+'
+				: ' ';
+		line = line.slice(0, offset) + marker + line.slice(offset + 1);
 		if (task.parsed.marker === '>') {
 			line = line.replace(/\s*\[holding::\s*[^\]]*\]/gu, '');
 			const block = /\s+(\^[\p{Letter}\p{Number}_-]+)\s*$/u.exec(line);

@@ -39,7 +39,7 @@ function fixture(initial: Record<string, string>) {
 
 void test('startup releases all satisfied dependencies, preserving original state and task identity', async () => {
 	const f = fixture({
-		'a.md': '- [:] A [task_id:: task-aaaaaaaaaaaa] [holding:: true] [holding_review:: 2099-12-31] [holding_for:: task-bbbbbbbbbbbb]',
+		'a.md': '- [+] A [task_id:: task-aaaaaaaaaaaa] [holding:: true] [holding_review:: 2099-12-31] [holding_for:: task-bbbbbbbbbbbb]',
 		'b.md': '- [x] B [task_id:: task-bbbbbbbbbbbb]',
 	});
 	await f.service.reconcile();
@@ -62,7 +62,7 @@ void test('startup releases all satisfied dependencies, preserving original stat
 
 void test('external task completion releases a dependency; manual date alone never does', async () => {
 	const f = fixture({
-		'a.md': '- [i] A [task_id:: task-aaaaaaaaaaaa] [holding:: true] [holding_for:: task-bbbbbbbbbbbb]',
+		'a.md': '- [!] A [task_id:: task-aaaaaaaaaaaa] [holding:: true] [holding_for:: task-bbbbbbbbbbbb]',
 		'b.md': '- [ ] B [task_id:: task-bbbbbbbbbbbb]',
 		'c.md': '- [ ] C [task_id:: task-cccccccccccc] [holding:: true] [holding_review:: 2000-01-01]',
 	});
@@ -104,7 +104,7 @@ void test('an external completed recurring occurrence is recorded before advanci
 
 void test('a concurrent change during scanning prevents a stale automatic release', async () => {
 	const f = fixture({
-		'a.md': '- [:] A [task_id:: task-aaaaaaaaaaaa] [holding:: true] [holding_for:: task-bbbbbbbbbbbb]',
+		'a.md': '- [+] A [task_id:: task-aaaaaaaaaaaa] [holding:: true] [holding_for:: task-bbbbbbbbbbbb]',
 		'b.md': '- [x] B [task_id:: task-bbbbbbbbbbbb]',
 	});
 	const read = f.app.vault.cachedRead.bind(f.app.vault);

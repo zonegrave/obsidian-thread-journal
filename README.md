@@ -315,7 +315,7 @@ npm run lint
 
 ### Task 状态与 Holding（0.48.0 开发分支）
 
-Task 状态由 Markdown marker 保存：`[i] idea` → `[:] committed` → `[ ] open` → `[x] completed`；`[-] cancelled` 保留取消语义。状态可以人工直接选择，填写日期不会自动升级状态。Open 表示当前执行池，而非“此刻正在做”。Overview 的 Tasks 筛选提供 Idea、Committed、Open、Active today 和 All；All 包含所有非 holding 的未完成任务。
+Task 状态由 Markdown marker 保存：`[!] idea` → `[+] committed` → `[ ] open` → `[x] completed`；`[-] cancelled` 保留取消语义。Idea 与 Committed 直接使用 Obsidian 原生 marker 图标，不覆盖 checkbox 渲染。状态可以人工直接选择，填写日期不会自动升级状态。Open 表示当前执行池，而非“此刻正在做”。Overview 的 Tasks 筛选提供 Idea、Committed、Open、Active today 和 All；All 包含所有非 holding 的未完成任务。
 
 Holding 与状态独立。创建/编辑表单开启 **Holding** 后，任务退出原状态队列及固定区，进入 **Holding queue**（命令面板或 Overview 工具栏）。待确认队列按确认日期排序，显示原状态、依赖和异常；到期显示 **Review due**，不会自动释放或发送系统通知。
 
@@ -327,9 +327,9 @@ Holding 与状态独立。创建/编辑表单开启 **Holding** 后，任务退�
 - 自动释放会写回原任务，且不会在依赖以后重新打开时自动再次挂起。插件关闭时停止检查。
 
 ```md
-- [:] 整理结论 [task_id:: task-aaaaaaaaaaaa] [holding:: true] [holding_review:: 2026-10-01] [holding_for:: task-bbbbbbbbbbbb, task-cccccccccccc@2026-09-23]
+- [+] 整理结论 [task_id:: task-aaaaaaaaaaaa] [holding:: true] [holding_review:: 2026-10-01] [holding_for:: task-bbbbbbbbbbbb, task-cccccccccccc@2026-09-23]
 ```
 
-本次开发基于 GitHub main 0.46.1 的独立分支 `codex/task-state-holding`。Vault 已安装的 0.47.1 尚有未推送源码，因此本分支不自动覆盖现有安装，也不修改真实笔记。部署前应核对 0.47.1 的其他改动，并执行一次性迁移：原 `[?] maybe` → `[:] committed`；原 `[>] waiting` → `[ ] open` 加 `[holding:: true]`，在待确认队列人工复核原本无法恢复的状态。
+本次开发基于 GitHub main 0.46.1 的独立分支 `codex/task-state-holding`。一次性迁移把原 `[i] idea` 改为 `[!] idea`，原 `[?] maybe` 与 `[:] committed` 改为 `[+] committed`；原 `[>] waiting` 改为 `[ ] open` 加 `[holding:: true]`，在待确认队列人工复核原本无法恢复的状态。
 
 `scripts/migrate-task-states.ts` 只接受标准输入中的笔记内容、向标准输出生成迁移结果，并向标准错误输出变更行号；不读写 Vault。代码块和 YAML 示例不迁移，正文、任务 ID、其他字段和锚点保留。可用 esbuild 打包后处理经 Obsidian CLI 导出的笔记，再经 CLI/MCP 写回。迁移器不打包进插件，运行时不保留旧状态兼容分支。
