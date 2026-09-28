@@ -89,8 +89,13 @@ class TaskReferenceRenderer extends MarkdownRenderChild {
 		});
 		const checkbox = card.createEl('input', {
 			cls: 'task-list-item-checkbox thread-journal-task-reference-checkbox',
-			attr: { type: 'checkbox', 'aria-label': t('Toggle task completion') },
+			attr: {
+				type: 'checkbox',
+				'data-task': task.parsed.marker,
+				'aria-label': t('Toggle task completion'),
+			},
 		});
+		card.dataset.task = task.parsed.marker;
 		checkbox.checked = completed;
 		checkbox.addEventListener('change', () => {
 			checkbox.disabled = true;

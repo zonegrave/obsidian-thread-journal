@@ -1729,9 +1729,9 @@
 
 .thread-journal-task-meta-pin {
 	flex: 0 0 auto;
-	width: 1.55rem;
-	height: 1.55rem;
-	padding: 0.2rem;
+	width: 1.65rem;
+	height: 1.65rem;
+	padding: 0.08rem;
 	color: var(--text-faint);
 }
 
@@ -1741,8 +1741,8 @@
 }
 
 .thread-journal-task-meta-pin svg {
-	width: 17px;
-	height: 17px;
+	width: 20px;
+	height: 20px;
 }
 
 .thread-journal-task-meta-id {
@@ -1824,7 +1824,7 @@
 }
 
 .thread-journal-task-choice-fields {
-	grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.7fr);
+	grid-template-columns: minmax(0, 0.8fr) minmax(0, 0.9fr) minmax(0, 1.7fr);
 }
 
 .thread-journal-task-date-fields {
@@ -2147,11 +2147,11 @@
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 auto;
-	width: 1.4rem;
-	height: 1.4rem;
-	min-width: 1.4rem;
-	min-height: 1.4rem;
-	padding: 0.08rem;
+	width: 1.55rem;
+	height: 1.55rem;
+	min-width: 1.55rem;
+	min-height: 1.55rem;
+	padding: 0.04rem;
 	color: var(--text-faint);
 	opacity: 0.65;
 }
@@ -2168,8 +2168,8 @@
 
 .thread-journal-source-task-pin svg,
 .thread-journal-task-preview-pin svg {
-	width: 18px;
-	height: 18px;
+	width: 21px;
+	height: 21px;
 }
 
 .thread-journal-source-task-details,
@@ -2239,10 +2239,22 @@
 }
 
 .thread-journal-source-task-edit svg,
-.thread-journal-overview-task-edit svg,
-.thread-journal-task-commit svg {
+.thread-journal-overview-task-edit svg {
 	width: 19px;
 	height: 19px;
+}
+
+.thread-journal-task-commit {
+	width: 1.6rem;
+	height: 1.6rem;
+	min-width: 1.6rem;
+	min-height: 1.6rem;
+	padding: 0.02rem;
+}
+
+.thread-journal-task-commit svg {
+	width: 22px;
+	height: 22px;
 }
 
 .thread-journal-task-preview {
@@ -2319,11 +2331,11 @@
 
 .thread-journal-task-reference-pin {
 	grid-column: 2;
-	width: 1.4rem;
-	height: 1.4rem;
-	min-width: 1.4rem;
-	min-height: 1.4rem;
-	padding: 0.08rem;
+	width: 1.55rem;
+	height: 1.55rem;
+	min-width: 1.55rem;
+	min-height: 1.55rem;
+	padding: 0.04rem;
 	color: var(--text-faint);
 	opacity: 0.65;
 }
@@ -2336,8 +2348,8 @@
 }
 
 .thread-journal-task-reference-pin svg {
-	width: 18px;
-	height: 18px;
+	width: 21px;
+	height: 21px;
 }
 
 .thread-journal-task-reference-body {
@@ -2482,8 +2494,16 @@
 }
 
 .thread-journal-overview-task-detail.is-disposition-future,
-.thread-journal-overview-task-detail.is-disposition-waiting {
+.thread-journal-overview-task-detail.is-disposition-holding {
 	color: var(--text-warning);
+}
+
+.thread-journal-overview-task-detail.is-disposition-idea {
+	color: var(--text-muted);
+}
+
+.thread-journal-overview-task-detail.is-disposition-committed {
+	color: var(--color-purple);
 }
 
 .thread-journal-overview-pinned-task > .thread-journal-overview-task-details {
@@ -2593,11 +2613,12 @@
 .thread-journal-overview-task-pin {
 	grid-column: 1;
 	grid-row: 1;
-	width: 1.4rem;
-	height: 1.4rem;
-	min-width: 1.4rem;
+	width: 1.55rem;
+	height: 1.55rem;
+	min-width: 1.55rem;
+	min-height: 1.55rem;
 	margin-left: 0;
-	padding: 0.08rem;
+	padding: 0.04rem;
 	color: var(--text-faint);
 	opacity: 0.55;
 }
@@ -2611,8 +2632,8 @@
 }
 
 .thread-journal-overview-task-pin svg {
-	width: 18px;
-	height: 18px;
+	width: 21px;
+	height: 21px;
 }
 
 .thread-journal-overview-task-kind {
@@ -2630,9 +2651,17 @@
 	color: var(--text-success);
 }
 
-.thread-journal-overview-task-kind[data-disposition="waiting"],
+.thread-journal-overview-task-kind[data-disposition="holding"],
 .thread-journal-overview-task-kind[data-disposition="future"] {
 	color: var(--text-warning);
+}
+
+.thread-journal-overview-task-kind[data-disposition="idea"] {
+	color: var(--text-muted);
+}
+
+.thread-journal-overview-task-kind[data-disposition="committed"] {
+	color: var(--color-purple);
 }
 
 .thread-journal-overview-task > a {
