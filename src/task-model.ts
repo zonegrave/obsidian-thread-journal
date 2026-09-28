@@ -374,30 +374,24 @@ export function taskWindowState(
 	return 'current';
 }
 
-export interface TaskInsertionEdit {
-	from: { line: number; ch: number };
-	to: { line: number; ch: number };
-	replacement: string;
-	cursor: { line: number; ch: number };
-}
-
-export function taskInsertionEdit(lines: readonly string[], line: number, taskLine: string): TaskInsertionEdit {
-	const index = Math.max(0, Math.min(Math.trunc(line), Math.max(0, lines.length - 1)));
-	const current = lines[index] ?? '';
-	if (!current.trim()) {
-		return {
-			from: { line: index, ch: 0 },
-			to: { line: index, ch: current.length },
-			replacement: taskLine,
-			cursor: { line: index, ch: taskLine.length },
-		};
-	}
-	const indent = /^\s*/u.exec(current)?.[0] ?? '';
-	const replacement = `\n${indent}${taskLine}`;
+export function taskDraftFromTextLine(line: string): ParsedTaskLine {
+	const source = /^(\s*(?:>\s*)*)(?:([-*+]|\d+[.)])\s+)?(.*)$/u.exec(line);
+	const lead = source?.[1] ?? '';
+	const listMarker = source?.[2] ?? '-';
+	let content = source?.[3] ?? line.trim();
+	const block = /\s+(\^[\p{Letter}\p{Number}_-]+)\s*$/u.exec(content);
+	if (block) content = content.slice(0, block.index);
 	return {
-		from: { line: index, ch: current.length },
-		to: { line: index, ch: current.length },
-		replacement,
-		cursor: { line: index + 1, ch: indent.length + taskLine.length },
+		prefix: `${lead}${listMarker} [`,
+		marker: ' ',
+		close: '] ',
+		data: {
+			...EMPTY_TASK,
+			holdingFor: [],
+			completedOccurrences: [],
+			content: content.trim(),
+		},
+		preservedFields: [],
+		blockId: block?.[1],
 	};
 }

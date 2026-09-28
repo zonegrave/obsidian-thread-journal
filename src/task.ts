@@ -23,7 +23,7 @@ import {
 	createTaskId,
 	EMPTY_TASK,
 	parseTaskLine,
-	taskInsertionEdit,
+	taskDraftFromTextLine,
 	taskValidationError,
 	taskWindowLabel,
 	type ParsedTaskLine,
@@ -408,35 +408,41 @@ export class TaskManager {
 		return index;
 	}
 
-	canCreateTask(editor: Editor, file: TFile | null): boolean {
+	canOpenTaskEditor(editor: Editor, file: TFile | null): boolean {
 		if (!file || this.index.getMember(file)?.roleStatus !== 'active') return false;
 		const lines = Array.from({ length: editor.lineCount() }, (_, index) => editor.getLine(index));
 		return !cursorLineIsFrontmatter(lines, editor.getCursor().line);
 	}
 
-	canEditTask(editor: Editor, file: TFile | null): boolean {
-		return this.canCreateTask(editor, file)
-			&& Boolean(parseTaskLine(editor.getLine(editor.getCursor().line)));
-	}
-
-	openCreateTask(editor: Editor): void {
+	private openCreateTask(editor: Editor): void {
 		new TaskModal(this.app, 'create', { ...EMPTY_TASK }, (data) => {
 			const cursor = editor.getCursor();
-			const lines = Array.from({ length: editor.lineCount() }, (_, index) => editor.getLine(index));
-			const edit = taskInsertionEdit(lines, cursor.line, buildTaskLine(data));
-			editor.replaceRange(edit.replacement, edit.from, edit.to);
-			editor.setCursor(edit.cursor);
+			const current = editor.getLine(cursor.line);
+			if (current.trim()) throw new Error(t('The task changed; reopen the form and try again.'));
+			const replacement = buildTaskLine(data, taskDraftFromTextLine(current));
+			editor.replaceRange(replacement, { line: cursor.line, ch: 0 }, { line: cursor.line, ch: current.length });
+			editor.setCursor({ line: cursor.line, ch: replacement.length });
 		}).open();
 	}
 
-	openEditTask(editor: Editor): void {
+	openTaskEditor(editor: Editor): void {
 		const line = editor.getCursor().line;
-		const parsed = parseTaskLine(editor.getLine(line));
-		if (!parsed) {
-			new Notice(t('Move the cursor onto a Markdown task first.'));
+		const sourceLine = editor.getLine(line);
+		const parsed = parseTaskLine(sourceLine);
+		if (parsed) {
+			this.openEditorTaskModal(editor, line, parsed);
 			return;
 		}
-		this.openEditorTaskModal(editor, line, parsed);
+		if (!sourceLine.trim()) {
+			this.openCreateTask(editor);
+			return;
+		}
+		const draft = taskDraftFromTextLine(sourceLine);
+		const replacement = buildTaskLine({ ...draft.data, taskId: createTaskId() }, draft);
+		editor.replaceRange(replacement, { line, ch: 0 }, { line, ch: sourceLine.length });
+		editor.setCursor({ line, ch: Math.min(replacement.length, draft.prefix.length + 2 + draft.data.content.length) });
+		const converted = parseTaskLine(replacement);
+		if (converted) this.openEditorTaskModal(editor, line, converted);
 	}
 
 	openFileTaskEdit(

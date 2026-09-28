@@ -252,20 +252,10 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'create-task',
-			name: t('Create task'),
+			name: t('Create or edit task'),
 			editorCheckCallback: (checking, editor, view) => {
-				if (!this.tasks.canCreateTask(editor, view.file)) return false;
-				if (!checking) this.tasks.openCreateTask(editor);
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: 'edit-task',
-			name: t('Edit task'),
-			editorCheckCallback: (checking, editor, view) => {
-				if (!this.tasks.canEditTask(editor, view.file)) return false;
-				if (!checking) this.tasks.openEditTask(editor);
+				if (!this.tasks.canOpenTaskEditor(editor, view.file)) return false;
+				if (!checking) this.tasks.openTaskEditor(editor);
 				return true;
 			},
 		});

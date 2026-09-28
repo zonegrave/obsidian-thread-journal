@@ -105,7 +105,7 @@ import {
 	createTaskId,
 	parseTaskLine,
 	taskCurrentLabel,
-	taskInsertionEdit,
+	taskDraftFromTextLine,
 	taskValidationError,
 	taskWindowLabel,
 	taskWindowState,
@@ -1213,20 +1213,19 @@ void test('skips past repeat occurrences when advancing while preserving the win
 	}, '2026-03-01')?.current, '2026-03-31');
 });
 
-void test('task creation replaces an empty line or inserts below the current line', () => {
-	const task = '- [ ] 新任务';
-	assert.deepEqual(taskInsertionEdit(['', 'next'], 0, task), {
-		from: { line: 0, ch: 0 },
-		to: { line: 0, ch: 0 },
-		replacement: task,
-		cursor: { line: 0, ch: task.length },
-	});
-	assert.deepEqual(taskInsertionEdit(['  正文'], 0, task), {
-		from: { line: 0, ch: 4 },
-		to: { line: 0, ch: 4 },
-		replacement: `\n  ${task}`,
-		cursor: { line: 1, ch: 2 + task.length },
-	});
+void test('converts the current text line into an editable task draft', () => {
+	const plain = taskDraftFromTextLine('  正文');
+	assert.equal(plain.prefix, '  - [');
+	assert.equal(plain.data.content, '正文');
+	assert.equal(buildTaskLine({ ...plain.data, taskId: 'task-123456789abc' }, plain),
+		'  - [ ] 正文 [task_id:: task-123456789abc]');
+
+	const list = taskDraftFromTextLine('> 1. 列表正文 ^keep');
+	assert.equal(list.prefix, '> 1. [');
+	assert.equal(list.data.content, '列表正文');
+	assert.equal(list.blockId, '^keep');
+	assert.equal(buildTaskLine({ ...list.data, taskId: 'task-123456789abc' }, list),
+		'> 1. [ ] 列表正文 [task_id:: task-123456789abc] ^keep');
 });
 
 void test('task commits are inserted after the complete task block', () => {
