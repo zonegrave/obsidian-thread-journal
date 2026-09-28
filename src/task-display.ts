@@ -29,9 +29,10 @@ export function taskNextActionLabel(data: TaskData, today: string): string {
 }
 
 export function taskDeadlineDisplay(
-	data: Pick<TaskData, 'windowStart' | 'windowEnd'>,
+	data: Pick<TaskData, 'status' | 'windowStart' | 'windowEnd'>,
 	today: string,
 ): { label: string; modifier: string } | undefined {
+	if (data.status === 'completed' || data.status === 'cancelled') return undefined;
 	const current = moment(today, 'YYYY-MM-DD', true).startOf('day');
 	if (!current.isValid()) return undefined;
 	if (data.windowStart) {
