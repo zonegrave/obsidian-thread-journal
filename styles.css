@@ -2122,6 +2122,38 @@
 	margin-top: 0.25rem;
 }
 
+/* Obsidian treats every non-space task marker as checked. Keep [:] visually distinct. */
+input.task-list-item-checkbox[data-task=":"] {
+	appearance: none;
+	-webkit-appearance: none;
+	display: inline-grid;
+	place-content: center;
+	border-color: var(--color-purple) !important;
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
+input.task-list-item-checkbox[data-task=":"]::after {
+	content: ":" !important;
+	display: block;
+	width: auto !important;
+	height: auto !important;
+	background: transparent !important;
+	color: var(--color-purple);
+	font-family: var(--font-monospace);
+	font-size: 0.82em;
+	font-weight: var(--font-bold);
+	line-height: 0.7;
+	-webkit-mask-image: none !important;
+	mask-image: none !important;
+	transform: none !important;
+}
+
+.markdown-source-view.mod-cm6 .HyperMD-task-line[data-task=":"] {
+	color: var(--text-normal);
+	text-decoration: none;
+}
+
 .thread-journal-source-task-card {
 	display: flex;
 	grid-column: 2;
