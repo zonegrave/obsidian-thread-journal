@@ -46,7 +46,6 @@ const ZH_TRANSLATIONS = {
 	'Manage thread': '管理 thread',
 	'Create commit': '创建 commit',
 	'Switch active thread role': '切换 active thread role',
-	'Manage open threads': '管理已打开的 thread',
 	'Manage thread files': '管理 thread 文件',
 	'Create thread file': '新建 thread 文件',
 	'Insert inline log': '插入 inline log',
@@ -305,26 +304,9 @@ const ZH_TRANSLATIONS = {
 	'Entry must be an active member of this thread.': '入口必须是当前 thread 的 active 成员。',
 	'Updated thread meta for {title}.': '已更新 {title} 的 thread meta。',
 
-	'Select action': '选择操作',
 	'Close': '关闭',
 	'Current': '当前',
-	'Entry file': '入口',
-	'Files': '文件',
-	'Close tabs': '关闭标签',
-	'Close every open tab for {title}': '关闭 {title} 的所有已打开标签',
-	'{action}: {title}': '{action}：{title}',
-	'Manage {title}': '管理 {title}',
-	'No threads are currently open.': '当前没有已打开的 thread。',
-	'Open entry': '打开入口',
-	'Open the unique entry file specified by the meta': '打开 meta 指定的唯一入口文件',
 	'Manage files': '管理文件',
-	'{count} member files': '{count} 个成员文件',
-	'Close all tabs': '关闭全部标签',
-	'{count} open tabs; does not change thread status': '{count} 个已打开标签；不修改 thread 状态',
-	'Failed to manage open thread: {error}': '管理已打开的 thread 失败：{error}',
-	'Cannot find thread_id: {id}': '找不到 thread_id: {id}',
-	'This thread is no longer open in a tab.': '这个 thread 已经不在打开的标签页中。',
-	'Closed {count} tabs; thread status was not changed.': '已关闭 {count} 个标签；thread 状态未改变。',
 
 	'Select a thread file template': '选择 thread 文件模板',
 	'New thread file': '新建 thread 文件',
@@ -442,7 +424,6 @@ const ZH_TRANSLATIONS = {
 	'Manage thread (status: {status})': '管理 thread（状态：{status}）',
 	'Open thread entry': '打开 thread 入口',
 	'Manage thread files ({count})': '管理 thread 文件（{count}）',
-	'Manage open threads ({count})': '管理已打开的 thread（{count}）',
 } as const;
 
 export type TranslationKey = keyof typeof ZH_TRANSLATIONS;

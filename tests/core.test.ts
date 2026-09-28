@@ -93,11 +93,7 @@ import {
 	wheelMapZoomFactor,
 } from '../src/thread-overview-layout';
 import {
-	describeOpenThreadRoles,
-	groupOpenThreadViews,
 	nextActiveThreadRolePath,
-	openThreadViewsForFile,
-	orderOpenThreadGroups,
 } from '../src/thread-switcher-model';
 import {
 	advanceTaskData,
@@ -961,39 +957,6 @@ void test('filters the overview to matching attention nodes while retaining ance
 		contextOnly: true,
 		children: [{ id: 'ready-child', contextOnly: false }],
 	}]);
-});
-
-void test('groups and orders open thread views without duplicating logical threads', () => {
-	const views = [
-		{ threadId: 'thread-a', role: 'workspace', roleStatus: 'active' as const, filePath: 'a.md', target: 'a-entry', order: 0 },
-		{ threadId: 'thread-b', role: 'meta', filePath: 'b-meta.md', target: 'b-meta', order: 1 },
-		{ threadId: 'thread-a', role: 'research', roleStatus: 'terminated' as const, filePath: 'a-research.md', target: 'a-research', order: 2 },
-		{ threadId: 'thread-c', role: 'workspace', roleStatus: 'active' as const, filePath: 'c.md', target: 'c-entry', order: 3 },
-		{ threadId: 'thread-a', role: 'workspace', roleStatus: 'active' as const, filePath: 'a.md', target: 'a-entry-copy', order: 4 },
-	];
-	const groups = groupOpenThreadViews(views);
-	assert.equal(groups.length, 3);
-	assert.deepEqual(groups.find((group) => group.threadId === 'thread-a')?.views, [
-		views[0], views[2], views[4],
-	]);
-	assert.deepEqual(
-		orderOpenThreadGroups(groups, ['thread-c', 'thread-a']).map((group) => group.threadId),
-		['thread-c', 'thread-a', 'thread-b'],
-	);
-	const threadA = groups.find((group) => group.threadId === 'thread-a');
-	assert.ok(threadA);
-	assert.deepEqual(
-		openThreadViewsForFile(threadA, 'a.md').map((view) => view.target),
-		['a-entry', 'a-entry-copy'],
-	);
-	assert.deepEqual(
-		openThreadViewsForFile(threadA, 'a-research.md').map((view) => view.target),
-		['a-research'],
-	);
-	assert.equal(
-		describeOpenThreadRoles(threadA),
-		'workspace · active ×2 + research · terminated',
-	);
 });
 
 void test('cycles only through active thread roles and enters the first active role from outside', () => {

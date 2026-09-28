@@ -9,7 +9,6 @@ import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager } from './thread-files';
 import type { ThreadMetaManager } from './thread-meta';
 import { openThreadOverview } from './thread-overview';
-import type { ThreadSwitcherManager } from './thread-switcher';
 import {
 	breadcrumbMenuSide,
 	breadcrumbRightClearance,
@@ -36,7 +35,6 @@ export class ThreadBreadcrumbManager {
 		private readonly index: ThreadIndex,
 		private readonly files: ThreadFileManager,
 		private readonly meta: ThreadMetaManager,
-		private readonly switcher: ThreadSwitcherManager,
 		private readonly getSettings: () => ThreadJournalSettings,
 	) {
 		window.addEventListener('resize', this.updateClearances);
@@ -361,19 +359,6 @@ export class ThreadBreadcrumbManager {
 		}));
 		filesButton.addEventListener('click', (event) => {
 			this.files.openActiveThreadFilesMenu(currentFile, event);
-		});
-
-		const openThreadCount = this.switcher.getOpenThreadCount();
-		const pickerButton = actions.createEl('button', {
-			cls: 'clickable-icon thread-journal-fixed-breadcrumb-picker',
-		});
-		setIcon(pickerButton, 'git-fork');
-		this.setBarTooltip(bar, pickerButton, t('Manage open threads ({count})', {
-			count: openThreadCount,
-		}));
-		pickerButton.createSpan({ text: String(openThreadCount) });
-		pickerButton.addEventListener('click', () => {
-			this.switcher.open();
 		});
 
 		window.requestAnimationFrame(() => {

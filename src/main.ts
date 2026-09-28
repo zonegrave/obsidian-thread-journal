@@ -30,7 +30,6 @@ import { ThreadFileManager } from './thread-files';
 import { ThreadIndex } from './thread-index';
 import { ThreadMetaManager } from './thread-meta';
 import { ThreadParentManager } from './thread-parent';
-import { ThreadSwitcherManager } from './thread-switcher';
 import { TaskManager } from './task';
 import { renderTaskReference } from './task-reference';
 import {
@@ -50,7 +49,6 @@ export default class ThreadJournalPlugin extends Plugin {
 	private meta!: ThreadMetaManager;
 	private parents!: ThreadParentManager;
 	private commits!: CommitManager;
-	private switcher!: ThreadSwitcherManager;
 	private breadcrumbs!: ThreadBreadcrumbManager;
 	private tasks!: TaskManager;
 
@@ -69,7 +67,6 @@ export default class ThreadJournalPlugin extends Plugin {
 			THREAD_OVERVIEW_VIEW_TYPE,
 			(leaf) => new ThreadOverviewView(leaf, this.index, this.tasks, this.files),
 		);
-		this.switcher = new ThreadSwitcherManager(this.app, this.index, this.files);
 		this.parents = new ThreadParentManager(this.index);
 		this.commits = new CommitManager(
 			this.app,
@@ -94,7 +91,6 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.index,
 			this.files,
 			this.meta,
-			this.switcher,
 			getSettings,
 		);
 		this.creator = new ThreadCreator(this.app, this.index, this.files, getSettings);
@@ -127,7 +123,6 @@ export default class ThreadJournalPlugin extends Plugin {
 				this.tasks.openFileTaskCommit(file, line, sourceLine, data),
 		));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
-			this.switcher.rememberActiveLeaf(leaf);
 			this.breadcrumbs.refresh();
 		}));
 		this.registerEvent(this.app.workspace.on('layout-change', () => this.breadcrumbs.refresh()));
@@ -136,10 +131,6 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.tasks.invalidateTaskIndex();
 			this.breadcrumbs.refresh();
 		}));
-		this.switcher.rememberActiveLeaf(
-			this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null,
-		);
-
 		this.registerCommands();
 		this.registerRenderers();
 		this.addSettingTab(new ThreadJournalSettingTab(this.app, this));
@@ -217,14 +208,6 @@ export default class ThreadJournalPlugin extends Plugin {
 					});
 				}
 				return true;
-			},
-		});
-
-		this.addCommand({
-			id: 'switch-open-thread',
-			name: t('Manage open threads'),
-			callback: () => {
-				this.switcher.open();
 			},
 		});
 

@@ -192,40 +192,8 @@
 	flex: 0 0 auto;
 }
 
-.thread-journal-fixed-breadcrumb-picker {
-	gap: 3px;
-}
-
 .thread-journal-fixed-breadcrumb-files {
 	gap: 3px;
-}
-
-.thread-journal-open-thread-suggestion {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-}
-
-.thread-journal-open-thread-copy {
-	min-width: 0;
-	flex: 1 1 auto;
-}
-
-.thread-journal-open-thread-actions {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	flex: 0 0 auto;
-}
-
-.thread-journal-open-thread-action {
-	padding: 3px 7px;
-	font-size: var(--font-ui-smaller);
-}
-
-.thread-journal-open-thread-action.is-close,
-.thread-journal-open-thread-close-choice > :first-child {
-	color: var(--text-error);
 }
 
 .thread-journal-thread-file-suggestion {
@@ -319,7 +287,6 @@
 }
 
 @media (max-width: 520px) {
-	.thread-journal-open-thread-suggestion,
 	.thread-journal-thread-file-suggestion {
 		align-items: stretch;
 		flex-direction: column;

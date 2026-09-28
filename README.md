@@ -144,7 +144,6 @@ attention_fallback: true
 - 最左侧线程树图标打开 **Open thread overview**；其后的 breadcrumb 展示 thread 层级，根节点、祖先和子 thread 都打开各自的入口文件。当前 thread 的状态显示在右侧操作区，点击会打开 **Manage thread**。
 - 右侧保留紧凑的文件图标与 active 成员数量。展开后只显示“自定义图标 + 文件名”，Entry 排在最前并带有简洁的首页标记；也可从菜单新建成员或进入 **Manage thread files**。
 - **Manage thread files** 保留完整的管理职责，可设置入口、终止非入口成员或重新激活成员；terminated 成员不会出现在日常文件选择器中。
-- 右侧分叉图标打开 **Manage open threads**。它按 `thread_id` 合并当前窗口的所有已打开标签，显示角色组成，可打开入口、管理文件或关闭该 thread 的全部标签。
 - thread 树和层级菜单固定只显示 `active` 与 `dormant` thread。
 
 目标文件已经打开时，插件直接聚焦已有标签；否则创建普通标签。插件不绑定、移动或自动关闭分栏，也不依赖 Vertical Tabs 等布局插件。
@@ -281,7 +280,6 @@ reference_task_id: task-4f8a0d92c3e1
 | **Edit commit template** | meta 或成员 | 直接编辑当前 thread 的 commit 字段模板 |
 | **Manage thread files** | meta 或成员 | 打开成员、设置入口、终止或重新激活成员 |
 | **Switch active thread role** | meta 或成员 | 在当前 pack 的 active 成员间循环切换；从 meta 或 terminated 成员进入入口 |
-| **Manage open threads** | 任意位置 | 按 thread 管理当前窗口里的标签 |
 | **Open thread overview** | 任意位置 | 打开可筛选、可展开的 thread 思维导图，查看直属 tasks，并定位原任务 |
 | **Create or edit task** | active 成员编辑视图 | 编辑光标所在 task；普通文本行原地转为 task 后编辑；空行创建新 task |
 | **Insert inline log** | active 成员编辑视图 | 在光标处插入 log |
