@@ -1,3 +1,6 @@
+import { migrateTaskStates } from '../scripts/task-state-migration';
+import { EMPTY_TASK, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
+import { dependencyReference, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
 	attentionHint,
 	filterAttentionTasks,
@@ -62,8 +65,9 @@ import {
 } from '../src/entry-query';
 import {
 	THREAD_STATUS_CHOICES,
+	THREAD_CREATION_STATUS_CHOICES,
+	isThreadStatus,
 	isOperationalThreadStatus,
-	threadStatusUsesMembers,
 	threadStatusLabel,
 	threadStatusOptionLabel,
 } from '../src/thread-status-model';
@@ -89,11 +93,7 @@ import {
 	wheelMapZoomFactor,
 } from '../src/thread-overview-layout';
 import {
-	describeOpenThreadRoles,
-	groupOpenThreadViews,
 	nextActiveThreadRolePath,
-	openThreadViewsForFile,
-	orderOpenThreadGroups,
 } from '../src/thread-switcher-model';
 import {
 	advanceTaskData,
@@ -102,9 +102,7 @@ import {
 	createTaskId,
 	parseTaskLine,
 	taskCurrentLabel,
-	taskInsertionEdit,
-	taskStatusFromMarker,
-	taskStatusMarker,
+	taskDraftFromTextLine,
 	taskValidationError,
 	taskWindowLabel,
 	taskWindowState,
@@ -445,6 +443,7 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 			type: 'source',
 			thread_id: 'thread-1',
 			thread_role: 'research',
+			thread_icon: 'search',
 			thread_role_status: 'terminated',
 		}],
 		[other, { thread_id: 'another-thread', thread_role: 'workspace' }],
@@ -469,6 +468,7 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 	assert.equal(index.getMember(entry as never)?.roleStatus, 'active');
 	assert.equal(index.getMember(entry as never)?.attentionFallback, true);
 	assert.equal(index.getMember(research as never)?.role, 'research');
+	assert.equal(index.getMember(research as never)?.icon, 'search');
 	assert.equal(index.getMember(research as never)?.roleStatus, 'terminated');
 	assert.equal(index.getMember(research as never)?.attentionFallback, false);
 	assert.deepEqual(index.getMembersByThreadId('thread-1').map((item) => item.file), [research, entry]);
@@ -514,7 +514,7 @@ void test('updates only the primary thread display alias', () => {
 void test('uses a minimal default role template', () => {
 	assert.equal(
 		DEFAULT_THREAD_ROLE_TEMPLATE,
-		'---\nthread_role: workspace\nthread_role_status: active\nattention_fallback: true\n---\n',
+		'---\nthread_role: workspace\nthread_icon: layout-dashboard\nthread_role_status: active\nattention_fallback: true\n---\n',
 	);
 });
 
@@ -546,13 +546,13 @@ void test('renders thread member template placeholders', () => {
 		threadId: 'stable-id',
 		role: 'research',
 		roleStatus: 'active',
-		status: 'idea',
+		status: 'dormant',
 		parentTitle: '健康管理',
 		parentLink: '[[健康管理|健康管理]]',
 		created: '2026-08-31',
 	}, (format: string) => format === 'YYMMDD' ? '260831' : '2026-08-31');
 	assert.match(rendered, /^# 睡眠管理/m);
-	assert.match(rendered, /idea · 睡眠管理 · stable-id · research · active/);
+	assert.match(rendered, /dormant · 睡眠管理 · stable-id · research · active/);
 	assert.match(rendered, /2026-08-31 \/ 260831/);
 });
 
@@ -875,11 +875,17 @@ void test('deletes one commit in place by block id', () => {
 	assert.equal(parseCommitEntries(result).length, 1);
 });
 
-void test('supports only the eight current status values', () => {
+void test('supports only the six thread lifecycle status values', () => {
 	assert.deepEqual(
 		THREAD_STATUS_CHOICES.map((choice) => choice.value),
-		['idea', 'committed', 'active', 'dormant', 'paused', 'review', 'completed', 'closed'],
+		['active', 'dormant', 'paused', 'review', 'completed', 'closed'],
 	);
+	assert.deepEqual(
+		THREAD_CREATION_STATUS_CHOICES.map((choice) => choice.value),
+		['active', 'dormant'],
+	);
+	assert.equal(isThreadStatus('idea'), false);
+	assert.equal(isThreadStatus('committed'), false);
 	assert.equal(threadStatusLabel('active'), '持续关注');
 	const dormant = THREAD_STATUS_CHOICES.find((choice) => choice.value === 'dormant');
 	assert.ok(dormant);
@@ -888,9 +894,6 @@ void test('supports only the eight current status values', () => {
 	assert.equal(isOperationalThreadStatus('dormant'), true);
 	assert.equal(isOperationalThreadStatus('committed'), false);
 	assert.equal(isOperationalThreadStatus('paused'), false);
-	assert.equal(threadStatusUsesMembers('idea'), false);
-	assert.equal(threadStatusUsesMembers('committed'), false);
-	assert.equal(threadStatusUsesMembers('active'), true);
 });
 
 void test('allows only operational non-descendants as a new thread parent', () => {
@@ -956,39 +959,6 @@ void test('filters the overview to matching attention nodes while retaining ance
 	}]);
 });
 
-void test('groups and orders open thread views without duplicating logical threads', () => {
-	const views = [
-		{ threadId: 'thread-a', role: 'workspace', roleStatus: 'active' as const, filePath: 'a.md', target: 'a-entry', order: 0 },
-		{ threadId: 'thread-b', role: 'meta', filePath: 'b-meta.md', target: 'b-meta', order: 1 },
-		{ threadId: 'thread-a', role: 'research', roleStatus: 'terminated' as const, filePath: 'a-research.md', target: 'a-research', order: 2 },
-		{ threadId: 'thread-c', role: 'workspace', roleStatus: 'active' as const, filePath: 'c.md', target: 'c-entry', order: 3 },
-		{ threadId: 'thread-a', role: 'workspace', roleStatus: 'active' as const, filePath: 'a.md', target: 'a-entry-copy', order: 4 },
-	];
-	const groups = groupOpenThreadViews(views);
-	assert.equal(groups.length, 3);
-	assert.deepEqual(groups.find((group) => group.threadId === 'thread-a')?.views, [
-		views[0], views[2], views[4],
-	]);
-	assert.deepEqual(
-		orderOpenThreadGroups(groups, ['thread-c', 'thread-a']).map((group) => group.threadId),
-		['thread-c', 'thread-a', 'thread-b'],
-	);
-	const threadA = groups.find((group) => group.threadId === 'thread-a');
-	assert.ok(threadA);
-	assert.deepEqual(
-		openThreadViewsForFile(threadA, 'a.md').map((view) => view.target),
-		['a-entry', 'a-entry-copy'],
-	);
-	assert.deepEqual(
-		openThreadViewsForFile(threadA, 'a-research.md').map((view) => view.target),
-		['a-research'],
-	);
-	assert.equal(
-		describeOpenThreadRoles(threadA),
-		'workspace · active ×2 + research · terminated',
-	);
-});
-
 void test('cycles only through active thread roles and enters the first active role from outside', () => {
 	const roles = [
 		{ path: 'entry.md', status: 'active' as const },
@@ -1010,18 +980,17 @@ void test('resolves current wikilinks and aliases', () => {
 	assert.equal(wikiLinkAlias('[[睡眠管理]]'), undefined);
 });
 
-void test('task readiness separates future, waiting, idea, maybe, completion and deadlines', () => {
+void test('task readiness separates future, holding, ideas, completion and deadlines', () => {
  assert.equal(todoDisposition(' ', '2026-10-01 预约', '2026-09-09'), 'future');
  assert.equal(todoDisposition(' ', '预约 📅 2026-10-01', '2026-09-09'), 'ready');
  assert.equal(todoDisposition(' ', '预约 ⏳ 2026-10-01', '2026-09-09'), 'future');
  assert.equal(todoDisposition(' ', '预约 🛫 2026-09-09', '2026-09-09'), 'ready');
- assert.equal(todoDisposition('>', '等回复', '2026-09-09'), 'waiting');
- assert.equal(todoDisposition('i', '记录一个想法', '2026-09-09'), 'idea');
- assert.equal(todoDisposition('?', '考虑一下', '2026-09-09'), 'maybe');
+ assert.equal(todoDisposition(' ', '等回复 [holding:: true]', '2026-09-09'), 'holding');
+ assert.equal(todoDisposition('!', '考虑一下', '2026-09-09'), 'idea');
  assert.equal(todoDisposition('x', '完成', '2026-09-09'), undefined);
  assert.equal(todoDisposition('-', '取消', '2026-09-09'), undefined);
  assert.equal(todoDisposition(' ', '', '2026-09-09'), undefined);
- assert.equal(todoDisposition('!', '自定义', '2026-09-09'), 'unknown');
+ assert.equal(todoDisposition('?', '自定义', '2026-09-09'), 'unknown');
 });
 
 void test('task readiness respects date windows and the current repeat occurrence', () => {
@@ -1059,16 +1028,17 @@ void test('parses task references only through the distinct reference_task_id fi
 });
 
 void test('task form fields round-trip without losing markdown task state or other metadata', () => {
-	const source = '  > - [/] 记录恢复 [task_id:: task-123456789abc] '
+	const source = '  > - [+] 记录恢复 [task_id:: task-123456789abc] '
 		+ '[window_start:: 2026-09-18] [window_end:: 2026-09-20] '
 		+ '[effort:: quick] [current:: 2026-09-18] [repeat:: FREQ=WEEKLY] '
 		+ '[thread_pin:: true] ^task-recovery';
 	const parsed = parseTaskLine(source);
 	assert.ok(parsed);
 	assert.deepEqual(parsed.data, {
+		...EMPTY_TASK,
+		status: 'committed',
 		taskId: 'task-123456789abc',
 		content: '记录恢复',
-		status: 'open',
 		pinned: true,
 		windowStart: '2026-09-18',
 		windowEnd: '2026-09-20',
@@ -1080,29 +1050,17 @@ void test('task form fields round-trip without losing markdown task state or oth
 		repeatMonthDay: 1,
 	});
 	const rebuilt = buildTaskLine(parsed.data, parsed);
-	assert.match(rebuilt, /^ {2}> - \[ \] 记录恢复/u);
+	assert.match(rebuilt, /^ {2}> - \[\+\] 记录恢复/u);
 	assert.match(rebuilt, /\[thread_pin:: true\]/u);
 	assert.match(rebuilt, /\^task-recovery$/u);
 	assert.deepEqual(parseTaskLine(rebuilt)?.data, parsed.data);
 });
 
-void test('stores the six task statuses in Markdown checkbox markers', () => {
-	assert.deepEqual(
-		['i', '?', ' ', '>', 'x', '-'].map(taskStatusFromMarker),
-		['idea', 'maybe', 'open', 'waiting', 'completed', 'cancelled'],
-	);
-	assert.deepEqual(
-		['idea', 'maybe', 'open', 'waiting', 'completed', 'cancelled'].map((status) =>
-			taskStatusMarker(status as TaskData['status'])),
-		['i', '?', ' ', '>', 'x', '-'],
-	);
-});
-
 void test('task validation keeps date bounds optional and validates repeat state', () => {
 	const base: TaskData = {
+		...EMPTY_TASK,
 		taskId: 'task-123456789abc',
 		content: '整理会议结论',
-		status: 'open',
 		pinned: false,
 		windowStart: '',
 		windowEnd: '',
@@ -1159,9 +1117,9 @@ void test('classifies task windows before, during and after their date range', (
 
 void test('advances one repeating task in place and preserves its relative date window', () => {
 	const monthly: TaskData = {
+			...EMPTY_TASK,
 		taskId: 'task-123456789abc',
 		content: '月末复盘',
-		status: 'open',
 		pinned: false,
 		windowStart: '2026-01-30',
 		windowEnd: '2026-02-01',
@@ -1185,15 +1143,15 @@ void test('advances one repeating task in place and preserves its relative date 
 		advanceTaskLine('- [x] 每日记录 [task_id:: task-123456789abc] '
 			+ '[current:: 2026-09-18] [repeat:: FREQ=DAILY]'),
 		'- [ ] 每日记录 [task_id:: task-123456789abc] '
-			+ '[current:: 2026-09-19] [repeat:: FREQ=DAILY]',
+			+ '[completed_occurrences:: 2026-09-18] [current:: 2026-09-19] [repeat:: FREQ=DAILY]',
 	);
 });
 
 void test('skips past repeat occurrences when advancing while preserving the window offset', () => {
 	const daily: TaskData = {
+		...EMPTY_TASK,
 		taskId: 'task-123456789abc',
 		content: '每日记录',
-		status: 'open',
 		pinned: false,
 		windowStart: '2026-09-17',
 		windowEnd: '2026-09-18',
@@ -1224,20 +1182,19 @@ void test('skips past repeat occurrences when advancing while preserving the win
 	}, '2026-03-01')?.current, '2026-03-31');
 });
 
-void test('task creation replaces an empty line or inserts below the current line', () => {
-	const task = '- [ ] 新任务';
-	assert.deepEqual(taskInsertionEdit(['', 'next'], 0, task), {
-		from: { line: 0, ch: 0 },
-		to: { line: 0, ch: 0 },
-		replacement: task,
-		cursor: { line: 0, ch: task.length },
-	});
-	assert.deepEqual(taskInsertionEdit(['  正文'], 0, task), {
-		from: { line: 0, ch: 4 },
-		to: { line: 0, ch: 4 },
-		replacement: `\n  ${task}`,
-		cursor: { line: 1, ch: 2 + task.length },
-	});
+void test('converts the current text line into an editable task draft', () => {
+	const plain = taskDraftFromTextLine('  正文');
+	assert.equal(plain.prefix, '  - [');
+	assert.equal(plain.data.content, '正文');
+	assert.equal(buildTaskLine({ ...plain.data, taskId: 'task-123456789abc' }, plain),
+		'  - [ ] 正文 [task_id:: task-123456789abc]');
+
+	const list = taskDraftFromTextLine('> 1. 列表正文 ^keep');
+	assert.equal(list.prefix, '> 1. [');
+	assert.equal(list.data.content, '列表正文');
+	assert.equal(list.blockId, '^keep');
+	assert.equal(buildTaskLine({ ...list.data, taskId: 'task-123456789abc' }, list),
+		'> 1. [ ] 列表正文 [task_id:: task-123456789abc] ^keep');
 });
 
 void test('task commits are inserted after the complete task block', () => {
@@ -1270,18 +1227,17 @@ void test('filters overview tasks to today active or all unfinished tasks', () =
 	const tasks = [
 		{ id: 'ready', disposition: 'ready' as const },
 		{ id: 'future', disposition: 'future' as const },
-		{ id: 'waiting', disposition: 'waiting' as const },
+		{ id: 'holding', disposition: 'holding' as const },
 		{ id: 'idea', disposition: 'idea' as const },
-		{ id: 'maybe', disposition: 'maybe' as const },
+		{ id: 'committed', disposition: 'committed' as const },
 		{ id: 'unknown', disposition: 'unknown' as const },
 	];
 	assert.deepEqual(filterAttentionTasks(tasks, 'today').map((task) => task.id), ['ready']);
 	assert.deepEqual(filterAttentionTasks(tasks, 'all').map((task) => task.id), [
 		'ready',
 		'future',
-		'waiting',
 		'idea',
-		'maybe',
+		'committed',
 		'unknown',
 	]);
 });
@@ -1338,7 +1294,7 @@ void test('breadcrumb switcher exposes only operational threads without changing
 	const threads = [
 		{ title: '睡眠', status: 'dormant' },
 		{ title: '插件', status: 'active' },
-		{ title: '旅行', status: 'idea' },
+		{ title: '旅行', status: 'paused' },
 	] as never[];
 	assert.deepEqual(
 		filterBreadcrumbThreads(threads).map((thread) => thread.title),
@@ -1388,4 +1344,116 @@ void test('localizes model-provided labels without changing stored values', () =
 void test('breadcrumb tooltips face the document area', () => {
 	assert.equal(breadcrumbTooltipPlacement('top'), 'bottom');
 	assert.equal(breadcrumbTooltipPlacement('bottom'), 'top');
+});
+
+function holdingTask(id: string, changes: Partial<TaskData> = {}): TaskData {
+	return { ...EMPTY_TASK, taskId: `task-${id.repeat(12)}`, content: id, ...changes };
+}
+
+void test('task states round trip independently of holding and retain other fields', () => {
+	for (const status of ['idea', 'committed', 'open', 'completed', 'cancelled'] as const) {
+		const data = holdingTask('a', { status, holding: true, holdingReview: '2026-10-01', holdingFor: ['task-bbbbbbbbbbbb'] });
+		const line = buildTaskLine(data);
+		assert.ok(line.startsWith(`- [${taskStatusMarker(status)}]`));
+		assert.deepEqual(parseTaskLine(line)?.data, data);
+		const released = releaseTaskHolding(data);
+		assert.equal(released.status, status);
+		assert.equal(released.holding, false);
+		assert.deepEqual(released.holdingFor, []);
+		assert.equal(released.holdingReview, '');
+		assert.doesNotMatch(buildTaskLine(released), /holding/u);
+	}
+});
+
+void test('committed and idea never become ready merely because their date has arrived', () => {
+	assert.equal(todoDisposition('+', 'Committed [window_start:: 2020-01-01]', '2026-09-23'), 'committed');
+	assert.equal(todoDisposition('!', 'Idea [window_end:: 2020-01-01]', '2026-09-23'), 'idea');
+	for (const marker of ['!', '+', ' ']) {
+		assert.equal(todoDisposition(marker, 'Held [holding:: true] [holding_review:: 2020-01-01]', '2026-09-23'), 'holding');
+	}
+});
+
+void test('manual holding remains held before and after the review date', () => {
+	for (const date of ['', '2020-01-01', '2099-12-31']) {
+		assert.equal(holdingResult(holdingTask('a', { holding: true, holdingReview: date }), new Map()), 'manual');
+	}
+	assert.equal(taskValidationError(holdingTask('a', { holding: true, holdingReview: '2026-02-30' })), 'holding-date');
+});
+
+void test('all dependencies must complete; cancelled missing and duplicate tasks require attention', () => {
+	const data = holdingTask('a', { status: 'committed', holding: true, holdingFor: ['task-bbbbbbbbbbbb', 'task-cccccccccccc'] });
+	const b = holdingTask('b', { status: 'completed' });
+	const c = holdingTask('c');
+	const lookup = new Map([[b.taskId, [b]], [c.taskId, [c]]]);
+	assert.equal(holdingResult(data, lookup), 'pending');
+	lookup.set(c.taskId, [{ ...c, status: 'completed' }]);
+	assert.equal(holdingResult(data, lookup), 'ready');
+	assert.equal(holdingResult({ ...data, holdingReview: '2099-12-31' }, lookup), 'ready');
+	lookup.set(c.taskId, [{ ...c, status: 'cancelled' }]);
+	assert.equal(holdingResult(data, lookup), 'invalid');
+	lookup.set(c.taskId, [c, c]);
+	assert.equal(holdingResult(data, lookup), 'invalid');
+	lookup.delete(c.taskId);
+	assert.equal(holdingResult(data, lookup), 'invalid');
+	assert.equal(holdingResult(releaseTaskHolding(data), lookup), 'manual');
+});
+
+void test('holding prevents self dependency, indirect cycles and malformed references', () => {
+	const a = holdingTask('a', { holding: true, holdingFor: ['task-bbbbbbbbbbbb'] });
+	const b = holdingTask('b', { holding: true, holdingFor: [a.taskId] });
+	assert.equal(holdingGraphError(a, new Map([[b.taskId, [b]], [a.taskId, [a]]])), true);
+	assert.equal(holdingGraphError({ ...a, holdingFor: [a.taskId] }, new Map()), true);
+	assert.equal(holdingResult({ ...a, holdingFor: ['bad-id'] }, new Map()), 'invalid');
+	const leaf = holdingTask('c');
+	assert.equal(holdingGraphError({ ...a, holdingFor: [leaf.taskId] }, new Map([[leaf.taskId, [leaf]]])), false);
+});
+
+void test('recurring dependency requires completion of the selected occurrence, not skipping it', () => {
+	const recurring = holdingTask('b', { repeat: true, current: '2026-09-20' });
+	const data = holdingTask('a', { holding: true, holdingFor: [dependencyReference(recurring)] });
+	const skipped = advanceTaskData(recurring, '2026-09-23')!;
+	assert.equal(holdingResult(data, new Map([[recurring.taskId, [skipped]]])), 'pending');
+	const completed = advanceTaskData(completeTaskData(recurring), '2026-09-23')!;
+	assert.equal(completed.status, 'open');
+	assert.deepEqual(completed.completedOccurrences, ['2026-09-20']);
+	assert.equal(holdingResult(data, new Map([[recurring.taskId, [completed]]])), 'ready');
+	assert.equal(holdingResult({ ...data, holdingFor: [`${recurring.taskId}@2026-09-21`] }, new Map([[recurring.taskId, [completed]]])), 'pending');
+	assert.equal(holdingResult({ ...data, holdingFor: [recurring.taskId] }, new Map([[recurring.taskId, [recurring]]])), 'invalid');
+	const line = advanceTaskLine(buildTaskLine({ ...recurring, status: 'completed' }), '2026-09-23')!;
+	assert.deepEqual(parseTaskLine(line)?.data.completedOccurrences, ['2026-09-20']);
+});
+
+void test('task scanner excludes YAML and fenced/indented samples, preserving real nested tasks', () => {
+	const content = ['---', 'example:', '- [ ] YAML', '---', '# Notes', '```md', '- [ ] fenced', '```',
+		'~~~md', '- [ ] tilde fenced', '~~~', '', '    - [ ] indented code', '',
+		'- [ ] real', '    - [+] real nested', '> - [!] quoted task'].join('\n');
+	assert.deepEqual(scanTaskLines(content).map(task => task.parsed.data.content), ['real', 'real nested', 'quoted task']);
+});
+
+void test('state queues exclude holding and separate idea, committed and open', () => {
+	const tasks = ['idea', 'committed', 'ready', 'future', 'holding', 'unknown'].map(disposition => ({ disposition })) as { disposition: import('../src/thread-attention-model').TodoDisposition }[];
+	assert.deepEqual(filterAttentionTasks(tasks, 'idea').map(task => task.disposition), ['idea']);
+	assert.deepEqual(filterAttentionTasks(tasks, 'committed').map(task => task.disposition), ['committed']);
+	assert.deepEqual(filterAttentionTasks(tasks, 'open').map(task => task.disposition), ['ready', 'future']);
+});
+
+void test('one-time state migration preserves note content, ignores examples and is idempotent', () => {
+	const source = ['---', 'example:', '- [?] YAML', '---', '```md', '- [>] example', '```',
+		'- [i] Idea', '- [?] Committed [task_id:: task-aaaaaaaaaaaa] ^anchor',
+		'- [:] Already committed [task_id:: task-cccccccccccc]',
+		'- [>] Waiting [task_id:: task-bbbbbbbbbbbb] ^waiting', '- [x] Done'].join('\n');
+	const migrated = migrateTaskStates(source);
+	assert.deepEqual(migrated.changedLines, [8, 9, 10, 11]);
+	assert.ok(migrated.content.includes('- [!] Idea'));
+	assert.ok(migrated.content.includes('- [+] Committed [task_id:: task-aaaaaaaaaaaa] ^anchor'));
+	assert.ok(migrated.content.includes('- [+] Already committed [task_id:: task-cccccccccccc]'));
+	assert.ok(migrated.content.includes('- [ ] Waiting [task_id:: task-bbbbbbbbbbbb] [holding:: true] ^waiting'));
+	assert.ok(migrated.content.includes('- [?] YAML'));
+	assert.ok(migrated.content.includes('- [>] example'));
+	assert.deepEqual(migrateTaskStates(migrated.content), { content: migrated.content, changedLines: [] });
+});
+
+void test('indented examples inside lists are excluded from the dependency graph', () => {
+	const source = ['- Parent', '', '        - [x] Code example', '', '    - [ ] Nested task', '        - [ ] Deep task'].join('\n');
+	assert.deepEqual(scanTaskLines(source).map(task => task.parsed.data.content), ['Nested task', 'Deep task']);
 });

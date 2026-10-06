@@ -1,3 +1,6 @@
+import { HoldingQueueModal, renderHoldingFields, TASK_STATUS_LABELS } from './task-holding-ui';
+import { holdingGraphError, scanTaskLines } from './task-holding-model';
+import { readTaskLocations, taskLookup } from './task-holding';
 import {
 	App,
 	type Editor,
@@ -13,23 +16,25 @@ import { cursorLineIsFrontmatter } from './commit-core';
 import { taskLineWithPin } from './thread-attention-model';
 import {
 	advanceTaskLine,
+	completeTaskData,
+	releaseTaskHolding,
+	type TaskStatus,
 	buildTaskLine,
 	createTaskId,
 	EMPTY_TASK,
 	parseTaskLine,
-	taskInsertionEdit,
+	taskDraftFromTextLine,
 	taskValidationError,
 	taskWindowLabel,
 	type ParsedTaskLine,
 	type TaskData,
 	type TaskEffort,
 	type TaskRepeatFrequency,
-	type TaskStatus,
 } from './task-model';
 import { openTaskDatePicker, openTaskWindowPicker } from './task-window-picker';
 import type { ThreadIndex } from './thread-index';
 
-type TaskSubmit = (data: TaskData) => void;
+type TaskSubmit = (data: TaskData) => void | Promise<void>;
 
 export interface FileTaskLocation {
 	file: TFile;
@@ -61,6 +66,7 @@ function dayOfMonth(value: string): number {
 class TaskModal extends Modal {
 	private data: TaskData;
 	private saving = false;
+	private closed = false;
 	private closeWindowPicker?: () => void;
 
 	constructor(
@@ -77,6 +83,7 @@ class TaskModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.closed = false;
 		this.modalEl.addClass('thread-journal-task-modal');
 		this.render(true);
 	}
@@ -126,20 +133,6 @@ class TaskModal extends Modal {
 		const choiceFields = this.contentEl.createDiv({ cls: 'thread-journal-task-choice-fields' });
 		new Setting(choiceFields)
 			.setClass('thread-journal-task-form-field')
-			.setName(t('Task status'))
-			.addDropdown((dropdown) => dropdown
-				.addOption('idea', t('Idea'))
-				.addOption('maybe', t('Maybe'))
-				.addOption('open', t('Open'))
-				.addOption('waiting', t('Waiting'))
-				.addOption('completed', t('Completed'))
-				.addOption('cancelled', t('Cancelled'))
-				.setValue(this.data.status)
-				.onChange((value) => {
-					this.data.status = value as TaskStatus;
-				}));
-		new Setting(choiceFields)
-			.setClass('thread-journal-task-form-field')
 			.setName(t('Estimated effort'))
 			.addDropdown((dropdown) => dropdown
 				.addOption('', t('Not selected'))
@@ -151,8 +144,14 @@ class TaskModal extends Modal {
 				.onChange((value) => {
 					this.data.effort = value as TaskEffort;
 				}));
+		new Setting(choiceFields).setClass('thread-journal-task-form-field').setName(t('Task status'))
+			.addDropdown(dropdown => {
+				for (const [value, label] of Object.entries(TASK_STATUS_LABELS)) dropdown.addOption(value, t(label));
+				dropdown.setValue(this.data.status).onChange(value => { this.data.status = value as TaskStatus; });
+			});
 		this.addWindowField(choiceFields);
 		this.renderRepeatFields();
+		renderHoldingFields(this.app, this.contentEl, this.data, () => this.render());
 
 		const actions = new Setting(this.contentEl).setClass('thread-journal-task-actions');
 		actions.addButton((button) => button
@@ -161,7 +160,7 @@ class TaskModal extends Modal {
 		actions.addButton((button) => button
 			.setButtonText(this.mode === 'create' ? t('Create task') : t('Save changes'))
 			.setCta()
-			.onClick(() => {
+			.onClick(async () => {
 				if (this.saving) return;
 				if (!this.data.taskId) this.data.taskId = createTaskId();
 				const error = taskValidationError(this.data);
@@ -169,10 +168,20 @@ class TaskModal extends Modal {
 				else if (error === 'window-order') new Notice(t('The window end must be on or after its start.'));
 				else if (error === 'repeat-current') new Notice(t('Choose the current repeat date.'));
 				else if (error === 'repeat-interval') new Notice(t('Enter a repeat interval of at least 2 days.'));
+				else if (error === 'holding-date') new Notice(t('Choose a valid review date.'));
 				if (error) return;
 				this.saving = true;
-				this.onSubmit({ ...this.data });
-				this.close();
+				const snapshot = { ...this.data, holdingFor: [...this.data.holdingFor], completedOccurrences: [...this.data.completedOccurrences] };
+				try {
+					const locations = snapshot.holding && snapshot.holdingFor.length ? await readTaskLocations(this.app) : [];
+					if (this.closed) return;
+					if (snapshot.holding && holdingGraphError(snapshot, taskLookup(locations))) {
+						throw new Error(t('Dependencies must exist and must not form a cycle.'));
+					}
+					await this.onSubmit(snapshot);
+					this.close();
+				} catch (error) { new Notice(String(error)); }
+				finally { this.saving = false; }
 			}));
 
 		if (focusContent) window.setTimeout(() => focusTarget?.focus(), 0);
@@ -300,6 +309,7 @@ class TaskModal extends Modal {
 	}
 
 	onClose(): void {
+		this.closed = true;
 		this.closeWindowPicker?.();
 		this.closeWindowPicker = undefined;
 		this.contentEl.empty();
@@ -314,6 +324,20 @@ export class TaskManager {
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 	) {}
+
+	openHoldingQueue(): void { new HoldingQueueModal(this.app, this).open(); }
+
+	async releaseHolding(task: FileTaskLocation): Promise<void> {
+		await this.app.vault.process(task.file, content => {
+			const lines = content.split('\n');
+			const line = resolveSourceLine(lines, task.line, task.sourceLine, task.parsed.data.taskId);
+			const parsed = parseTaskLine(lines[line] ?? '');
+			if (!parsed || lines[line] !== task.sourceLine) throw new Error(t('The task changed; reopen the form and try again.'));
+			lines[line] = buildTaskLine(releaseTaskHolding(parsed.data), parsed);
+			return lines.join('\n');
+		});
+		this.invalidateTaskIndex();
+	}
 
 	invalidateTaskIndex(): void {
 		this.taskLocationIndex = undefined;
@@ -354,11 +378,11 @@ export class TaskManager {
 			const parsed = parseTaskLine(current);
 			if (!parsed) throw new Error(t('The task changed; reopen the form and try again.'));
 			if (parsed.data.repeat) {
-				const replacement = advanceTaskLine(current, currentDate());
+				const replacement = advanceTaskLine(buildTaskLine(completeTaskData(parsed.data), parsed), currentDate());
 				if (!replacement) throw new Error(t('The task is not a valid repeating task.'));
 				lines[resolved] = replacement;
 			} else {
-				lines[resolved] = buildTaskLine({ ...parsed.data, status: 'completed' }, parsed);
+				lines[resolved] = buildTaskLine(completeTaskData(parsed.data), parsed);
 			}
 			return lines.join('\n');
 		});
@@ -374,11 +398,8 @@ export class TaskManager {
 	private async buildTaskLocationIndex(): Promise<Map<string, FileTaskLocation[]>> {
 		const index = new Map<string, FileTaskLocation[]>();
 		const entries = await Promise.all(this.app.vault.getMarkdownFiles().map(async (file) => {
-			const lines = (await this.app.vault.cachedRead(file)).split('\n');
-			return lines.flatMap((sourceLine, line) => {
-				const parsed = parseTaskLine(sourceLine);
-				return parsed?.data.taskId ? [{ file, line, sourceLine, parsed }] : [];
-			});
+			return scanTaskLines(await this.app.vault.cachedRead(file))
+				.filter(task => task.parsed.data.taskId).map(task => ({ ...task, file }));
 		}));
 		for (const location of entries.flat()) {
 			const taskId = location.parsed.data.taskId;
@@ -387,35 +408,41 @@ export class TaskManager {
 		return index;
 	}
 
-	canCreateTask(editor: Editor, file: TFile | null): boolean {
+	canOpenTaskEditor(editor: Editor, file: TFile | null): boolean {
 		if (!file || this.index.getMember(file)?.roleStatus !== 'active') return false;
 		const lines = Array.from({ length: editor.lineCount() }, (_, index) => editor.getLine(index));
 		return !cursorLineIsFrontmatter(lines, editor.getCursor().line);
 	}
 
-	canEditTask(editor: Editor, file: TFile | null): boolean {
-		return this.canCreateTask(editor, file)
-			&& Boolean(parseTaskLine(editor.getLine(editor.getCursor().line)));
-	}
-
-	openCreateTask(editor: Editor): void {
+	private openCreateTask(editor: Editor): void {
 		new TaskModal(this.app, 'create', { ...EMPTY_TASK }, (data) => {
 			const cursor = editor.getCursor();
-			const lines = Array.from({ length: editor.lineCount() }, (_, index) => editor.getLine(index));
-			const edit = taskInsertionEdit(lines, cursor.line, buildTaskLine(data));
-			editor.replaceRange(edit.replacement, edit.from, edit.to);
-			editor.setCursor(edit.cursor);
+			const current = editor.getLine(cursor.line);
+			if (current.trim()) throw new Error(t('The task changed; reopen the form and try again.'));
+			const replacement = buildTaskLine(data, taskDraftFromTextLine(current));
+			editor.replaceRange(replacement, { line: cursor.line, ch: 0 }, { line: cursor.line, ch: current.length });
+			editor.setCursor({ line: cursor.line, ch: replacement.length });
 		}).open();
 	}
 
-	openEditTask(editor: Editor): void {
+	openTaskEditor(editor: Editor): void {
 		const line = editor.getCursor().line;
-		const parsed = parseTaskLine(editor.getLine(line));
-		if (!parsed) {
-			new Notice(t('Move the cursor onto a Markdown task first.'));
+		const sourceLine = editor.getLine(line);
+		const parsed = parseTaskLine(sourceLine);
+		if (parsed) {
+			this.openEditorTaskModal(editor, line, parsed);
 			return;
 		}
-		this.openEditorTaskModal(editor, line, parsed);
+		if (!sourceLine.trim()) {
+			this.openCreateTask(editor);
+			return;
+		}
+		const draft = taskDraftFromTextLine(sourceLine);
+		const replacement = buildTaskLine({ ...draft.data, taskId: createTaskId() }, draft);
+		editor.replaceRange(replacement, { line, ch: 0 }, { line, ch: sourceLine.length });
+		editor.setCursor({ line, ch: Math.min(replacement.length, draft.prefix.length + 2 + draft.data.content.length) });
+		const converted = parseTaskLine(replacement);
+		if (converted) this.openEditorTaskModal(editor, line, converted);
 	}
 
 	openFileTaskEdit(
@@ -425,21 +452,22 @@ export class TaskManager {
 		initial: TaskData,
 		onSaved?: () => void,
 	): void {
-		new TaskModal(this.app, 'edit', initial, (data) => {
-			void this.app.vault.process(file, (content) => {
+		new TaskModal(this.app, 'edit', initial, async (data) => {
+			await this.app.vault.process(file, (content) => {
 				const lines = content.split('\n');
 				const resolved = resolveSourceLine(lines, line, sourceLine, initial.taskId);
 				const current = lines[resolved];
 				const parsed = current === undefined ? undefined : parseTaskLine(current);
 				if (!parsed) throw new Error(t('The task changed; reopen the form and try again.'));
-				lines[resolved] = buildTaskLine(data, parsed);
+				if (current !== sourceLine) throw new Error(t('The task changed; reopen the form and try again.'));
+				lines[resolved] = buildTaskLine(data.status === 'completed' ? completeTaskData(data) : data, parsed);
 				return lines.join('\n');
 			}).then(() => {
 				this.invalidateTaskIndex();
 				onSaved?.();
 			}).catch((error: unknown) => {
 				console.error('Thread Journal failed to edit task', error);
-				new Notice(t('Failed to update task: {error}', { error: String(error) }));
+				throw error;
 			});
 		}).open();
 	}
@@ -484,10 +512,7 @@ export class TaskManager {
 				const current = lines[resolved];
 				const parsed = current === undefined ? undefined : parseTaskLine(current);
 				if (!parsed) throw new Error(t('The task changed; reopen the form and try again.'));
-				lines[resolved] = buildTaskLine({
-					...parsed.data,
-					status: completed ? 'completed' : 'open',
-				}, parsed);
+				lines[resolved] = buildTaskLine(completed ? completeTaskData(parsed.data) : { ...parsed.data, status: 'open' }, parsed);
 				return lines.join('\n');
 			});
 			this.invalidateTaskIndex();
@@ -525,14 +550,18 @@ export class TaskManager {
 	}
 
 	private openEditorTaskModal(editor: Editor, line: number, parsed: ParsedTaskLine): void {
+		const sourceLine = editor.getLine(line);
 		new TaskModal(this.app, 'edit', parsed.data, (data) => {
+			const lines = Array.from({ length: editor.lineCount() }, (_, index) => editor.getLine(index));
+			line = resolveSourceLine(lines, line, sourceLine, parsed.data.taskId);
 			const current = editor.getLine(line);
+			if (current !== sourceLine) throw new Error(t('The task changed; reopen the form and try again.'));
 			const currentTask = parseTaskLine(current);
 			if (!currentTask) {
 				new Notice(t('The task changed; reopen the form and try again.'));
 				return;
 			}
-			const replacement = buildTaskLine(data, currentTask);
+			const replacement = buildTaskLine(data.status === 'completed' ? completeTaskData(data) : data, currentTask);
 			editor.replaceRange(replacement, { line, ch: 0 }, { line, ch: current.length });
 			editor.setCursor({
 				line,

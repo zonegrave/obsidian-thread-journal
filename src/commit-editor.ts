@@ -27,6 +27,7 @@ import { t } from './i18n';
 import {
 	TASK_EFFORT_LABELS,
 	taskDeadlineDisplay,
+	taskHoldingDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
 } from './task-display';
@@ -38,7 +39,7 @@ import {
 
 const COMMIT_CALLOUT_SELECTOR = '.callout[data-callout="thread-commit"]';
 const LOG_CALLOUT_SELECTOR = '.callout[data-callout="thread-log"]';
-const TASK_RENDER_FIELD = /\s*\[(?:task_id|window_start|window_end|effort|current|repeat|thread_pin)::\s*[^\]]*\]/gu;
+const TASK_RENDER_FIELD = /\s*\[(?:task_id|window_start|window_end|effort|current|repeat|thread_pin|holding|holding_review|holding_for|completed_occurrences)::\s*[^\]]*\]/gu;
 
 class TaskSummaryWidget extends WidgetType {
 	private readonly signature: string;
@@ -123,6 +124,8 @@ class TaskSummaryWidget extends WidgetType {
 			chip.createSpan({ text });
 		};
 		const today = moment().format('YYYY-MM-DD');
+		const holding = taskHoldingDisplay(this.data, today);
+		if (holding) addChip(holding, 'pause-circle');
 		const deadline = taskDeadlineDisplay(this.data, today);
 		if (deadline) addChip(deadline.label, 'calendar-clock', deadline.modifier);
 		if (this.data.effort) {

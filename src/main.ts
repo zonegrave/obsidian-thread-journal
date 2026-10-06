@@ -1,3 +1,4 @@
+import { TaskHoldingService } from './task-holding';
 import {
 	openThreadOverview,
 	renderThreadOverview,
@@ -29,7 +30,6 @@ import { ThreadFileManager } from './thread-files';
 import { ThreadIndex } from './thread-index';
 import { ThreadMetaManager } from './thread-meta';
 import { ThreadParentManager } from './thread-parent';
-import { ThreadSwitcherManager } from './thread-switcher';
 import { TaskManager } from './task';
 import { renderTaskReference } from './task-reference';
 import {
@@ -49,7 +49,6 @@ export default class ThreadJournalPlugin extends Plugin {
 	private meta!: ThreadMetaManager;
 	private parents!: ThreadParentManager;
 	private commits!: CommitManager;
-	private switcher!: ThreadSwitcherManager;
 	private breadcrumbs!: ThreadBreadcrumbManager;
 	private tasks!: TaskManager;
 
@@ -62,12 +61,12 @@ export default class ThreadJournalPlugin extends Plugin {
 		const getSettings = () => this.settings;
 		this.index = new ThreadIndex(this.app);
 		this.tasks = new TaskManager(this.app, this.index);
+		new TaskHoldingService(this.app, () => this.tasks.invalidateTaskIndex()).register(this);
+		this.files = new ThreadFileManager(this.app, this.index, getSettings);
 		this.registerView(
 			THREAD_OVERVIEW_VIEW_TYPE,
-			(leaf) => new ThreadOverviewView(leaf, this.index, this.tasks),
+			(leaf) => new ThreadOverviewView(leaf, this.index, this.tasks, this.files),
 		);
-		this.files = new ThreadFileManager(this.app, this.index, getSettings);
-		this.switcher = new ThreadSwitcherManager(this.app, this.index, this.files);
 		this.parents = new ThreadParentManager(this.index);
 		this.commits = new CommitManager(
 			this.app,
@@ -92,7 +91,6 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.index,
 			this.files,
 			this.meta,
-			this.switcher,
 			getSettings,
 		);
 		this.creator = new ThreadCreator(this.app, this.index, this.files, getSettings);
@@ -125,7 +123,6 @@ export default class ThreadJournalPlugin extends Plugin {
 				this.tasks.openFileTaskCommit(file, line, sourceLine, data),
 		));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
-			this.switcher.rememberActiveLeaf(leaf);
 			this.breadcrumbs.refresh();
 		}));
 		this.registerEvent(this.app.workspace.on('layout-change', () => this.breadcrumbs.refresh()));
@@ -134,10 +131,6 @@ export default class ThreadJournalPlugin extends Plugin {
 			this.tasks.invalidateTaskIndex();
 			this.breadcrumbs.refresh();
 		}));
-		this.switcher.rememberActiveLeaf(
-			this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf ?? null,
-		);
-
 		this.registerCommands();
 		this.registerRenderers();
 		this.addSettingTab(new ThreadJournalSettingTab(this.app, this));
@@ -170,6 +163,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerCommands(): void {
+		this.addCommand({ id: 'holding-queue', name: t('Holding queue'), callback: () => this.tasks.openHoldingQueue() });
 		this.addCommand({ id: 'thread-overview', name: t('Open thread overview'), callback: () => void openThreadOverview(this.app) });
 		this.addCommand({
 			id: 'edit-current-thread-commit-template',
@@ -218,14 +212,6 @@ export default class ThreadJournalPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: 'switch-open-thread',
-			name: t('Manage open threads'),
-			callback: () => {
-				this.switcher.open();
-			},
-		});
-
-		this.addCommand({
 			id: 'manage-thread-files',
 			name: t('Manage thread files'),
 			checkCallback: (checking) => {
@@ -249,20 +235,10 @@ export default class ThreadJournalPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'create-task',
-			name: t('Create task'),
+			name: t('Create or edit task'),
 			editorCheckCallback: (checking, editor, view) => {
-				if (!this.tasks.canCreateTask(editor, view.file)) return false;
-				if (!checking) this.tasks.openCreateTask(editor);
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: 'edit-task',
-			name: t('Edit task'),
-			editorCheckCallback: (checking, editor, view) => {
-				if (!this.tasks.canEditTask(editor, view.file)) return false;
-				if (!checking) this.tasks.openEditTask(editor);
+				if (!this.tasks.canOpenTaskEditor(editor, view.file)) return false;
+				if (!checking) this.tasks.openTaskEditor(editor);
 				return true;
 			},
 		});
@@ -299,7 +275,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerRenderers(): void {
-		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.tasks, el, ctx));
+		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.tasks, this.files, el, ctx));
 		this.registerMarkdownCodeBlockProcessor('task-reference', (source, el, ctx) => {
 			renderTaskReference(source, el, ctx, this.app, this.tasks);
 		});

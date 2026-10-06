@@ -1,7 +1,7 @@
 import { t } from './i18n';
 
-export type TodoDisposition = 'ready' | 'future' | 'waiting' | 'idea' | 'maybe' | 'unknown';
-export type TaskScope = 'today' | 'all';
+export type TodoDisposition = 'ready' | 'future' | 'holding' | 'idea' | 'committed' | 'unknown';
+export type TaskScope = 'today' | 'all' | 'idea' | 'committed' | 'open';
 export interface AttentionTask {
  key: string;
  owner: string;
@@ -57,9 +57,9 @@ export interface AttentionSummary {
  open: number;
  ready: number;
  future: number;
- waiting: number;
+ holding: number;
  idea: number;
- maybe: number;
+ committed: number;
  unknown: number;
  suspended: number;
  cycle: boolean;
@@ -69,18 +69,21 @@ export function filterAttentionTasks<T extends { disposition: TodoDisposition }>
  tasks: readonly T[],
  scope: TaskScope,
 ): T[] {
- return scope === 'today'
-  ? tasks.filter(task => task.disposition === 'ready')
-  : [...tasks];
+ return tasks.filter(task => {
+  if (task.disposition === 'holding') return false;
+  if (scope === 'today') return task.disposition === 'ready';
+  if (scope === 'open') return task.disposition === 'ready' || task.disposition === 'future';
+  return scope === 'all' || task.disposition === scope;
+ });
 }
 
 // Uses Obsidian's parsed task marker; code fences and ordinary lists are excluded by the caller.
 export function todoDisposition(marker: string, text: string, now: string): TodoDisposition | undefined {
  if (marker.toLowerCase() === 'x' || marker === '-') return undefined;
  if (!text.trim()) return undefined;
- if (marker.toLowerCase() === 'i') return 'idea';
- if (marker === '?') return 'maybe';
- if (marker === '>') return 'waiting';
+ if (/\[holding::\s*true\]/i.test(text)) return 'holding';
+ if (marker === '!') return 'idea';
+ if (marker === '+') return 'committed';
  if (marker !== ' ' && marker !== '/') return 'unknown';
 	const today = now.slice(0, 10);
 	const leadingDate = text.match(/^(\d{4}-\d{2}-\d{2})(?:\s|$)/)?.[1];
@@ -101,14 +104,14 @@ export function summarizeAttention(root: string, nodes: AttentionNode[], tasks: 
  for (const node of nodes) {
   if (node.parent) children.set(node.parent, [...(children.get(node.parent) ?? []), node]);
  }
- const result: AttentionSummary = { open: 0, ready: 0, future: 0, waiting: 0, idea: 0, maybe: 0, unknown: 0, suspended: 0, cycle: false };
+ const result: AttentionSummary = { open: 0, ready: 0, future: 0, holding: 0, idea: 0, committed: 0, unknown: 0, suspended: 0, cycle: false };
  const visited = new Set<string>();
  const blocked = new Map<string, boolean>();
  const walk = (id: string, inherited: boolean): void => {
   if (visited.has(id)) { result.cycle = true; return; }
   visited.add(id);
   const state = byId.get(id)?.status;
-  const suspended = inherited || ['idea', 'paused', 'completed', 'closed'].includes(state ?? '');
+  const suspended = inherited || ['paused', 'completed', 'closed'].includes(state ?? '');
   blocked.set(id, suspended);
   for (const child of children.get(id) ?? []) walk(child.id, suspended);
  };
@@ -120,7 +123,7 @@ export function summarizeAttention(root: string, nodes: AttentionNode[], tasks: 
   if (ancestors.has(ancestor)) { result.cycle = true; break; }
   ancestors.add(ancestor);
   const node = byId.get(ancestor);
-  inherited ||= ['idea', 'paused', 'completed', 'closed'].includes(node?.status ?? '');
+  inherited ||= ['paused', 'completed', 'closed'].includes(node?.status ?? '');
   ancestor = node?.parent;
  }
  walk(root, inherited);
@@ -139,10 +142,6 @@ export function summarizeAttention(root: string, nodes: AttentionNode[], tasks: 
 
 export function attentionHint(status: string, summary: AttentionSummary): string {
  if (summary.cycle) return t('The parent relationship contains a cycle; check it');
- if (status === 'idea') return t('Keep the idea; set it to committed when you decide to invest');
- if (status === 'committed') return summary.open
-  ? t('Committed and waiting to begin')
-  : t('Committed; define the commitment or next action');
  if (status === 'active' && summary.open === 0) return t('The subtree has no unfinished todo; add the next action or consider making it dormant');
  if (status === 'dormant') return summary.ready
   ? t('Ready todo needs attention')

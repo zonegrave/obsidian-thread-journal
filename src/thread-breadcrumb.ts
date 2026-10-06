@@ -9,7 +9,6 @@ import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager } from './thread-files';
 import type { ThreadMetaManager } from './thread-meta';
 import { openThreadOverview } from './thread-overview';
-import type { ThreadSwitcherManager } from './thread-switcher';
 import {
 	breadcrumbMenuSide,
 	breadcrumbRightClearance,
@@ -36,7 +35,6 @@ export class ThreadBreadcrumbManager {
 		private readonly index: ThreadIndex,
 		private readonly files: ThreadFileManager,
 		private readonly meta: ThreadMetaManager,
-		private readonly switcher: ThreadSwitcherManager,
 		private readonly getSettings: () => ThreadJournalSettings,
 	) {
 		window.addEventListener('resize', this.updateClearances);
@@ -349,41 +347,18 @@ export class ThreadBreadcrumbManager {
 		status.addEventListener('click', () => {
 			this.meta.openMetaModal(threadFile);
 		});
-		const entry = this.index.getEntry(threadFile);
-		if (entry && entry.path !== currentFile.path) {
-			const entryButton = actions.createEl('button', {
-				cls: 'clickable-icon',
-			});
-			setIcon(entryButton, 'home');
-			this.setBarTooltip(bar, entryButton, t('Open thread entry'));
-			entryButton.addEventListener('click', () => {
-				void this.files.openEntry(threadFile);
-			});
-		}
-		const members = this.index.getMembersByThreadId(current.id);
+		const activeFiles = this.files.getActiveThreadFiles(threadFile);
 		const filesButton = actions.createEl('button', {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-files',
+			attr: { type: 'button', 'aria-haspopup': 'menu' },
 		});
 		setIcon(filesButton, 'files');
+		filesButton.createSpan({ text: String(activeFiles.length) });
 		this.setBarTooltip(bar, filesButton, t('Manage thread files ({count})', {
-			count: members.length,
+			count: activeFiles.length,
 		}));
-		filesButton.createSpan({ text: String(members.length) });
-		filesButton.addEventListener('click', () => {
-			this.files.openThreadFilesModal(currentFile);
-		});
-
-		const openThreadCount = this.switcher.getOpenThreadCount();
-		const pickerButton = actions.createEl('button', {
-			cls: 'clickable-icon thread-journal-fixed-breadcrumb-picker',
-		});
-		setIcon(pickerButton, 'git-fork');
-		this.setBarTooltip(bar, pickerButton, t('Manage open threads ({count})', {
-			count: openThreadCount,
-		}));
-		pickerButton.createSpan({ text: String(openThreadCount) });
-		pickerButton.addEventListener('click', () => {
-			this.switcher.open();
+		filesButton.addEventListener('click', (event) => {
+			this.files.openActiveThreadFilesMenu(currentFile, event);
 		});
 
 		window.requestAnimationFrame(() => {

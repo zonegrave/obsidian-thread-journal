@@ -36,12 +36,14 @@ import type { TaskManager } from './task';
 import {
 	TASK_EFFORT_LABELS,
 	taskDeadlineDisplay,
+	taskHoldingDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
 } from './task-display';
 import {
 	parseTaskLine,
 	taskCurrentLabel,
+	taskStatusMarker,
 	type TaskData,
 } from './task-model';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
@@ -179,6 +181,11 @@ export class ThreadRenderers {
 			.filter((child) => child.tagName === 'UL' || child.tagName === 'OL') as HTMLElement[];
 		item.empty();
 		item.addClass('thread-journal-source-task');
+		const marker = taskStatusMarker(data.status);
+		item.dataset.task = marker;
+		checkbox.dataset.task = marker;
+		checkbox.checked = data.status === 'completed' || data.status === 'cancelled';
+		item.toggleClass('is-checked', checkbox.checked);
 		item.appendChild(checkbox);
 		const card = item.createDiv({ cls: 'thread-journal-source-task-card' });
 		let pinned = data.pinned;
@@ -222,6 +229,8 @@ export class ThreadRenderers {
 			chip.createSpan({ text });
 		};
 		const today = moment().format('YYYY-MM-DD');
+		const holding = taskHoldingDisplay(data, today);
+		if (holding) addChip(holding, 'pause-circle');
 		const deadline = taskDeadlineDisplay(data, today);
 		if (deadline) addChip(deadline.label, 'calendar-clock', deadline.modifier);
 		if (data.effort) {

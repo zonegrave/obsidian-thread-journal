@@ -1,13 +1,13 @@
 {
 	"name": "thread-journal",
-	"version": "0.47.1",
+	"version": "0.48.0",
 	"description": "Thread packs with flexible role files and structured commits for Obsidian",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"test": "esbuild tests/core.test.ts --bundle --platform=node --format=esm --outfile=/tmp/thread-journal-core-test.mjs && node --test /tmp/thread-journal-core-test.mjs",
+		"test": "esbuild tests/core.test.ts --bundle --platform=node --format=esm --outfile=/tmp/thread-journal-core-test.mjs && node --test /tmp/thread-journal-core-test.mjs && esbuild tests/holding-service.test.ts --bundle --platform=node --format=esm --alias:obsidian=./tests/obsidian-stub.ts --outfile=/tmp/thread-journal-holding-test.mjs && node --test /tmp/thread-journal-holding-test.mjs",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint ."
 	},

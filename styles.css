@@ -192,40 +192,8 @@
 	flex: 0 0 auto;
 }
 
-.thread-journal-fixed-breadcrumb-picker {
-	gap: 3px;
-}
-
 .thread-journal-fixed-breadcrumb-files {
 	gap: 3px;
-}
-
-.thread-journal-open-thread-suggestion {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-}
-
-.thread-journal-open-thread-copy {
-	min-width: 0;
-	flex: 1 1 auto;
-}
-
-.thread-journal-open-thread-actions {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	flex: 0 0 auto;
-}
-
-.thread-journal-open-thread-action {
-	padding: 3px 7px;
-	font-size: var(--font-ui-smaller);
-}
-
-.thread-journal-open-thread-action.is-close,
-.thread-journal-open-thread-close-choice > :first-child {
-	color: var(--text-error);
 }
 
 .thread-journal-thread-file-suggestion {
@@ -237,6 +205,33 @@
 .thread-journal-thread-file-copy {
 	min-width: 0;
 	flex: 1 1 auto;
+}
+
+.thread-journal-thread-file-icon {
+	flex: 0 0 auto;
+}
+
+.thread-journal-thread-file-title {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.thread-journal-thread-file-entry-marker {
+	display: inline-flex;
+	color: var(--text-accent);
+}
+
+.thread-journal-thread-file-entry-marker svg,
+.thread-journal-thread-file-icon-suggestion svg {
+	width: 14px;
+	height: 14px;
+}
+
+.thread-journal-thread-file-icon-suggestion {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
 }
 
 .thread-journal-thread-file-entry,
@@ -292,7 +287,6 @@
 }
 
 @media (max-width: 520px) {
-	.thread-journal-open-thread-suggestion,
 	.thread-journal-thread-file-suggestion {
 		align-items: stretch;
 		flex-direction: column;
@@ -1670,6 +1664,22 @@
 	font-size: var(--font-ui-smaller);
 }
 
+.thread-journal-overview-node-files {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.2rem;
+	width: auto;
+	height: 1.65rem;
+	padding: 0.08rem 0.35rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.thread-journal-overview-node-files svg {
+	width: 14px;
+	height: 14px;
+}
+
 .thread-journal-overview-node-content {
 	max-height: 24rem;
 	overflow: auto;
@@ -2494,7 +2504,7 @@
 }
 
 .thread-journal-overview-task-detail.is-disposition-future,
-.thread-journal-overview-task-detail.is-disposition-waiting {
+.thread-journal-overview-task-detail.is-disposition-holding {
 	color: var(--text-warning);
 }
 
@@ -2502,7 +2512,7 @@
 	color: var(--text-muted);
 }
 
-.thread-journal-overview-task-detail.is-disposition-maybe {
+.thread-journal-overview-task-detail.is-disposition-committed {
 	color: var(--color-purple);
 }
 
@@ -2651,9 +2661,17 @@
 	color: var(--text-success);
 }
 
-.thread-journal-overview-task-kind[data-disposition="waiting"],
+.thread-journal-overview-task-kind[data-disposition="holding"],
 .thread-journal-overview-task-kind[data-disposition="future"] {
 	color: var(--text-warning);
+}
+
+.thread-journal-overview-task-kind[data-disposition="idea"] {
+	color: var(--text-muted);
+}
+
+.thread-journal-overview-task-kind[data-disposition="committed"] {
+	color: var(--color-purple);
 }
 
 .thread-journal-overview-task > a {
@@ -2700,8 +2718,7 @@
 	--thread-journal-overview-status-color: var(--text-success);
 }
 
-.thread-journal-overview-node[data-status="dormant"],
-.thread-journal-overview-node[data-status="committed"] {
+.thread-journal-overview-node[data-status="dormant"] {
 	--thread-journal-overview-status-color: var(--text-accent);
 }
 
@@ -2715,8 +2732,7 @@
 	stroke: var(--text-success);
 }
 
-.thread-journal-overview-connector[data-status="dormant"],
-.thread-journal-overview-connector[data-status="committed"] {
+.thread-journal-overview-connector[data-status="dormant"] {
 	stroke: var(--text-accent);
 }
 
@@ -2743,4 +2759,38 @@
 	.thread-journal-overview-map-branch {
 		gap: 3.5rem;
 	}
+}
+
+/* State and holding are independent: held tasks remain readable in their source note. */
+.thread-journal-holding-fields {
+	border-top: 1px solid var(--background-modifier-border);
+	margin-top: 12px;
+	padding-top: 8px;
+}
+.thread-journal-holding-fields .setting-item {
+	flex-wrap: wrap;
+	gap: 8px;
+}
+.thread-journal-holding-fields .setting-item-control {
+	flex-wrap: wrap;
+	max-width: 100%;
+}
+.thread-journal-holding-modal {
+	width: min(760px, 95vw);
+}
+.thread-journal-holding-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	margin: 8px 0;
+	padding: 12px;
+	overflow-wrap: anywhere;
+}
+.thread-journal-holding-card .setting-item {
+	border: 0;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding-top: 0;
+}
+.thread-journal-holding-card .setting-item-control {
+	flex-wrap: wrap;
 }

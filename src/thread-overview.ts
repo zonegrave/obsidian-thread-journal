@@ -24,6 +24,7 @@ import {
 	type TodoDisposition,
 } from './thread-attention-model';
 import type { ThreadIndex } from './thread-index';
+import type { ThreadFileManager } from './thread-files';
 import {
 	buildThreadOverviewTree,
 	countThreadOverviewDescendants,
@@ -35,6 +36,7 @@ import type { TaskManager } from './task';
 import {
 	TASK_EFFORT_LABELS,
 	taskDeadlineDisplay,
+	taskHoldingDisplay,
 	taskNextActionLabel,
 	taskRepeatRuleDisplay,
 } from './task-display';
@@ -63,9 +65,9 @@ import { LANGUAGE_CHANGE_EVENT, t, type TranslationKey } from './i18n';
 const TASK_DISPOSITION_LABELS: Record<TodoDisposition, TranslationKey> = {
 	ready: 'ready',
 	future: 'future',
-	waiting: 'waiting',
-	idea: 'idea',
-	maybe: 'maybe',
+	holding: 'Holding',
+	idea: 'Idea',
+	committed: 'Committed',
 	unknown: 'other',
 };
 
@@ -128,6 +130,7 @@ class OverviewContent extends MarkdownRenderChild {
 		private readonly app: App,
 		private readonly index: ThreadIndex,
 		private readonly taskManager: TaskManager,
+		private readonly files: ThreadFileManager,
 	) {
 		super(el);
 	}
@@ -270,6 +273,8 @@ class OverviewContent extends MarkdownRenderChild {
 			this.viewScope = viewScopeSelect.value === 'today' ? 'today' : 'all';
 			this.render();
 		});
+		const holding = toolbar.createEl('button', { text: t('Holding queue') });
+		holding.addEventListener('click', () => this.taskManager.openHoldingQueue());
 		const taskScope = toolbar.createEl('label', {
 			cls: 'thread-journal-overview-task-scope',
 		});
@@ -279,9 +284,12 @@ class OverviewContent extends MarkdownRenderChild {
 		});
 		taskScopeSelect.createEl('option', { text: t('Active today'), value: 'today' });
 		taskScopeSelect.createEl('option', { text: t('All'), value: 'all' });
+		taskScopeSelect.createEl('option', { text: t('Idea'), value: 'idea' });
+		taskScopeSelect.createEl('option', { text: t('Committed'), value: 'committed' });
+		taskScopeSelect.createEl('option', { text: t('Open'), value: 'open' });
 		taskScopeSelect.value = this.taskScope;
 		taskScopeSelect.addEventListener('change', () => {
-			this.taskScope = taskScopeSelect.value === 'all' ? 'all' : 'today';
+			this.taskScope = taskScopeSelect.value as TaskScope;
 			this.render();
 		});
 		if (parent.hasClass('thread-journal-overview-view')) {
@@ -524,7 +532,7 @@ class OverviewContent extends MarkdownRenderChild {
 		}>();
 		for (const row of this.rows) {
 			for (const task of row.tasks) {
-				if (!task.pinned || pinned.has(task.key)) continue;
+				if (task.data.holding || !task.pinned || pinned.has(task.key)) continue;
 				pinned.set(task.key, {
 					task,
 					threadTitle: row.thread.title,
@@ -738,6 +746,22 @@ class OverviewContent extends MarkdownRenderChild {
 			cls: 'thread-journal-overview-node-header',
 		});
 		summary.createSpan({ cls: 'thread-journal-overview-node-status-dot' });
+		const activeFiles = this.files.getActiveThreadFiles(row.thread.file);
+		const filesButton = summary.createEl('button', {
+			cls: 'clickable-icon thread-journal-overview-node-files',
+			attr: {
+				type: 'button',
+				'aria-haspopup': 'menu',
+				'aria-label': t('Manage thread files ({count})', { count: activeFiles.length }),
+			},
+		});
+		setIcon(filesButton.createSpan(), 'files');
+		filesButton.createSpan({ text: String(activeFiles.length) });
+		filesButton.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.files.openActiveThreadFilesMenu(row.thread.file, event);
+		});
 		const entry = this.index.getEntry(row.thread.file) ?? row.thread.file;
 		const link = summary.createEl('a', {
 			cls: 'thread-journal-overview-node-title',
@@ -888,6 +912,8 @@ class OverviewContent extends MarkdownRenderChild {
 			);
 		}
 		const today = moment().format('YYYY-MM-DD');
+		const holding = taskHoldingDisplay(data, today);
+		if (holding) addDetail(holding, 'pause-circle');
 		const deadline = taskDeadlineDisplay(data, today);
 		if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
 		if (data.effort) {
@@ -1089,6 +1115,7 @@ export class ThreadOverviewView extends ItemView {
 		leaf: WorkspaceLeaf,
 		private readonly index: ThreadIndex,
 		private readonly taskManager: TaskManager,
+		private readonly files: ThreadFileManager,
 	) {
 		super(leaf);
 	}
@@ -1107,7 +1134,7 @@ export class ThreadOverviewView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.contentEl.addClass('thread-journal-overview-view');
-		this.content = new OverviewContent(this.contentEl, this.app, this.index, this.taskManager);
+		this.content = new OverviewContent(this.contentEl, this.app, this.index, this.taskManager, this.files);
 		this.content.load();
 	}
 
@@ -1141,8 +1168,9 @@ export function renderThreadOverview(
 	app: App,
 	index: ThreadIndex,
 	taskManager: TaskManager,
+	files: ThreadFileManager,
 	el: HTMLElement,
 	ctx: MarkdownPostProcessorContext,
 ): void {
-	ctx.addChild(new OverviewContent(el, app, index, taskManager));
+	ctx.addChild(new OverviewContent(el, app, index, taskManager, files));
 }

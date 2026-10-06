@@ -1,6 +1,6 @@
 import { t, type TranslationKey } from './i18n';
 
-export type ThreadStatus = 'idea' | 'committed' | 'active' | 'dormant' | 'paused' | 'review' | 'completed' | 'closed';
+export type ThreadStatus = 'active' | 'dormant' | 'paused' | 'review' | 'completed' | 'closed';
 export type OperationalThreadStatus = Extract<ThreadStatus, 'active' | 'dormant'>;
 
 export interface ThreadStatusChoice {
@@ -10,8 +10,6 @@ export interface ThreadStatusChoice {
 }
 
 export const THREAD_STATUS_CHOICES: readonly ThreadStatusChoice[] = [
- { value: 'idea', label: 'Idea', description: 'Keep the possibility without committing attention yet' },
- { value: 'committed', label: 'Committed', description: 'Committed to the work and waiting to begin; describe the commitment in the entry or a role file' },
  { value: 'active', label: 'Active', description: 'In progress and requiring continued attention; review the status when the subtree has no todo' },
  { value: 'dormant', label: 'Dormant', description: 'Open but handled on demand; ready todos require attention' },
  { value: 'paused', label: 'Paused', description: 'Explicitly frozen; keep unfinished items without cancelling the commitment' },
@@ -20,16 +18,16 @@ export const THREAD_STATUS_CHOICES: readonly ThreadStatusChoice[] = [
  { value: 'closed', label: 'Closed', description: 'No longer continuing; retain the history' },
 ];
 
+export const THREAD_CREATION_STATUS_CHOICES = THREAD_STATUS_CHOICES.filter(
+	(choice): choice is ThreadStatusChoice & { value: OperationalThreadStatus } => isOperationalThreadStatus(choice.value),
+);
+
 export function isThreadStatus(value: string): value is ThreadStatus {
  return THREAD_STATUS_CHOICES.some(choice => choice.value === value);
 }
 
 export function isOperationalThreadStatus(value: string): value is OperationalThreadStatus {
  return value === 'active' || value === 'dormant';
-}
-
-export function threadStatusUsesMembers(value: string): boolean {
-	return value !== 'idea' && value !== 'committed';
 }
 
 export function threadStatusLabel(value: string): string {

@@ -29,9 +29,10 @@ export function taskNextActionLabel(data: TaskData, today: string): string {
 }
 
 export function taskDeadlineDisplay(
-	data: Pick<TaskData, 'windowStart' | 'windowEnd'>,
+	data: Pick<TaskData, 'status' | 'windowStart' | 'windowEnd'>,
 	today: string,
 ): { label: string; modifier: string } | undefined {
+	if (data.status === 'completed' || data.status === 'cancelled') return undefined;
 	const current = moment(today, 'YYYY-MM-DD', true).startOf('day');
 	if (!current.isValid()) return undefined;
 	if (data.windowStart) {
@@ -53,4 +54,12 @@ export function taskDeadlineDisplay(
 		label: t('{count}d left', { count: days }),
 		modifier: taskWindowState(data, today) ?? 'current',
 	};
+}
+
+export function taskHoldingDisplay(data: TaskData, today: string): string {
+	if (!data.holding || ['completed', 'cancelled'].includes(data.status)) return '';
+	const parts = [t('Holding')];
+	if (data.holdingReview) parts.push(`${t(data.holdingReview <= today ? 'Review due' : 'Next review')}: ${data.holdingReview}`);
+	if (data.holdingFor.length) parts.push(t('Waiting for dependencies'));
+	return parts.join(' · ');
 }

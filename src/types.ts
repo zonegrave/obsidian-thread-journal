@@ -35,6 +35,7 @@ export interface ThreadMemberInfo {
 	file: TFile;
 	threadId: string;
 	role: string;
+	icon: string;
 	roleStatus: ThreadRoleStatus;
 	attentionFallback: boolean;
 }
