@@ -1,4 +1,5 @@
-import { HoldingQueueModal, renderHoldingFields, TASK_STATUS_LABELS } from './task-holding-ui';
+import { HoldingQueueModal, renderHoldingFields } from './task-holding-ui';
+import { TASK_STATUS_LABELS } from './task-display';
 import { holdingGraphError, scanTaskLines } from './task-holding-model';
 import { readTaskLocations, taskLookup } from './task-holding';
 import {

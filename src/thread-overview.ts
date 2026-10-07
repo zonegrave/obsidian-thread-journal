@@ -21,7 +21,6 @@ import {
 	attentionHint,
 	filterAttentionTasks,
 	type TaskScope,
-	type TodoDisposition,
 } from './thread-attention-model';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager } from './thread-files';
@@ -35,6 +34,8 @@ import {
 import type { TaskManager } from './task';
 import {
 	TASK_EFFORT_LABELS,
+	TASK_STATUS_ICONS,
+	TASK_STATUS_LABELS,
 	taskDeadlineDisplay,
 	taskHoldingDisplay,
 	taskNextActionLabel,
@@ -60,16 +61,7 @@ import {
 	threadStatusDescription,
 	threadStatusLabel,
 } from './thread-status-model';
-import { LANGUAGE_CHANGE_EVENT, t, type TranslationKey } from './i18n';
-
-const TASK_DISPOSITION_LABELS: Record<TodoDisposition, TranslationKey> = {
-	ready: 'ready',
-	future: 'future',
-	holding: 'Holding',
-	idea: 'Idea',
-	committed: 'Committed',
-	unknown: 'other',
-};
+import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
 
 export const THREAD_OVERVIEW_VIEW_TYPE = 'thread-journal-overview';
 
@@ -883,8 +875,21 @@ class OverviewContent extends MarkdownRenderChild {
 
 	private renderTaskLink(parent: HTMLElement, task: AttentionRowTask): void {
 		const taskLink = parent.createEl('a', {
-			text: task.text,
+			cls: 'thread-journal-overview-task-link',
 			href: task.file.path,
+		});
+		const statusLabel = t(TASK_STATUS_LABELS[task.data.status]);
+		const status = taskLink.createSpan({
+			cls: `thread-journal-overview-task-status is-${task.data.status}`,
+			attr: {
+				'aria-label': statusLabel,
+				title: statusLabel,
+			},
+		});
+		setIcon(status, TASK_STATUS_ICONS[task.data.status]);
+		taskLink.createSpan({
+			cls: 'thread-journal-overview-task-text',
+			text: task.text,
 		});
 		taskLink.addEventListener('click', (event) => {
 			event.preventDefault();
@@ -904,13 +909,7 @@ class OverviewContent extends MarkdownRenderChild {
 			setIcon(detail.createSpan({ cls: 'thread-journal-task-chip-icon' }), icon);
 			detail.createSpan({ text });
 		};
-		if (task.disposition !== 'ready') {
-			addDetail(
-				t(TASK_DISPOSITION_LABELS[task.disposition]),
-				'circle-alert',
-				`disposition-${task.disposition}`,
-			);
-		}
+		if (task.disposition === 'unknown') addDetail(t('other'), 'circle-alert', 'disposition-unknown');
 		const today = moment().format('YYYY-MM-DD');
 		const holding = taskHoldingDisplay(data, today);
 		if (holding) addDetail(holding, 'pause-circle');

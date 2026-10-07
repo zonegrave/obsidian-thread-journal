@@ -6,7 +6,24 @@ import {
 	taskWindowState,
 	type TaskData,
 	type TaskEffort,
+	type TaskStatus,
 } from './task-model';
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, TranslationKey> = {
+	idea: 'Idea',
+	committed: 'Committed',
+	open: 'Open',
+	completed: 'Completed',
+	cancelled: 'Cancelled',
+};
+
+export const TASK_STATUS_ICONS: Record<TaskStatus, string> = {
+	idea: 'lightbulb',
+	committed: 'circle-dot',
+	open: 'circle',
+	completed: 'circle-check',
+	cancelled: 'circle-minus',
+};
 
 export const TASK_EFFORT_LABELS: Record<Exclude<TaskEffort, ''>, TranslationKey> = {
 	quick: 'Quick',

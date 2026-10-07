@@ -1,13 +1,10 @@
 import { App, FuzzySuggestModal, Modal, Notice, Setting, moment } from 'obsidian';
-import { t, type TranslationKey } from './i18n';
-import { releaseTaskHolding, type TaskData, type TaskStatus } from './task-model';
+import { t } from './i18n';
+import { TASK_STATUS_LABELS } from './task-display';
+import { releaseTaskHolding, type TaskData } from './task-model';
 import { dependencyReference, holdingGraphError, holdingResult, parseDependency } from './task-holding-model';
 import { readTaskLocations, taskLookup } from './task-holding';
 import type { FileTaskLocation, TaskManager } from './task';
-
-export const TASK_STATUS_LABELS: Record<TaskStatus, TranslationKey> = {
-	idea: 'Idea', committed: 'Committed', open: 'Open', completed: 'Completed', cancelled: 'Cancelled',
-};
 
 class DependencyPicker extends FuzzySuggestModal<FileTaskLocation> {
 	constructor(app: App, private readonly items: FileTaskLocation[], private readonly choose: (item: FileTaskLocation) => void) {

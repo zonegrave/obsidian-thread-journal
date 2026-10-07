@@ -1316,9 +1316,11 @@
 }
 
 .thread-journal-overview-pinned-task > a {
-	display: block;
+	display: flex;
 	grid-column: 2;
 	grid-row: 2;
+	align-items: flex-start;
+	gap: 0.35rem;
 	min-width: 0;
 	font-size: var(--font-ui-small);
 	line-height: 1.4;
@@ -2675,13 +2677,53 @@
 }
 
 .thread-journal-overview-task > a {
-	display: block;
+	display: flex;
 	grid-column: 2;
 	grid-row: 1;
+	align-items: flex-start;
+	gap: 0.35rem;
 	min-width: 0;
 	font-size: var(--font-ui-medium);
 	line-height: 1.45;
 	overflow-wrap: anywhere;
+}
+
+.thread-journal-overview-task-status {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	margin-top: 0.12em;
+	color: var(--text-normal);
+}
+
+.thread-journal-overview-task-status svg {
+	width: 17px;
+	height: 17px;
+}
+
+.thread-journal-overview-task-status.is-idea {
+	color: var(--text-muted);
+}
+
+.thread-journal-overview-task-status.is-committed {
+	color: var(--color-purple);
+}
+
+.thread-journal-overview-task-status.is-open {
+	color: var(--text-success);
+}
+
+.thread-journal-overview-task-status.is-completed {
+	color: var(--text-success);
+}
+
+.thread-journal-overview-task-status.is-cancelled {
+	color: var(--text-muted);
+}
+
+.thread-journal-overview-task-text {
+	min-width: 0;
 }
 
 .thread-journal-overview-fallback > a {
