@@ -50,7 +50,6 @@ const ZH_TRANSLATIONS = {
 	'Failed to open thread task board: {error}': '无法打开 thread task 看板：{error}',
 	'{count} tasks': '{count} 个 task',
 	'No tasks in this state.': '这个状态下没有 task。',
-	'Pinned task': '已置顶 task',
 	'Manage thread': '管理 thread',
 	'Create commit': '创建 commit',
 	'Switch active thread role': '切换 active thread role',

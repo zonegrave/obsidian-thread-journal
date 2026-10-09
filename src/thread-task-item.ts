@@ -1,0 +1,196 @@
+import {
+	Notice,
+	moment,
+	setIcon,
+	type App,
+	type TFile,
+} from 'obsidian';
+import {
+	moveAttentionTaskToNext,
+	setAttentionTaskPinned,
+	type AttentionRowTask,
+} from './thread-attention';
+import {
+	TASK_EFFORT_LABELS,
+	TASK_STATUS_ICONS,
+	TASK_STATUS_LABELS,
+	taskDeadlineDisplay,
+	taskHoldingDisplay,
+	taskNextActionLabel,
+	taskRepeatRuleDisplay,
+} from './task-display';
+import { taskCurrentLabel } from './task-model';
+import type { TaskManager } from './task';
+import { t } from './i18n';
+
+export interface ThreadTaskItemContext {
+	app: App;
+	taskManager: TaskManager;
+	onRefresh: () => void | Promise<void>;
+}
+
+export function renderThreadTaskItem(
+	parent: HTMLElement,
+	task: AttentionRowTask,
+	threadFile: TFile,
+	context: ThreadTaskItemContext,
+): void {
+	renderTaskPinButton(parent, task, context);
+	renderTaskLink(parent, task, context.app);
+	renderTaskDetails(parent, task, context);
+	renderTaskActions(parent, task, threadFile, context);
+}
+
+function renderTaskLink(parent: HTMLElement, task: AttentionRowTask, app: App): void {
+	const taskLink = parent.createEl('a', {
+		cls: 'thread-journal-overview-task-link',
+		href: task.file.path,
+	});
+	const statusLabel = t(TASK_STATUS_LABELS[task.data.status]);
+	const status = taskLink.createSpan({
+		cls: `thread-journal-overview-task-status is-${task.data.status}`,
+		attr: {
+			'aria-label': statusLabel,
+			title: statusLabel,
+		},
+	});
+	setIcon(status, TASK_STATUS_ICONS[task.data.status]);
+	taskLink.createSpan({
+		cls: 'thread-journal-overview-task-text',
+		text: task.text,
+	});
+	taskLink.addEventListener('click', (event) => {
+		event.preventDefault();
+		void app.workspace.getLeaf(false).openFile(task.file, {
+			eState: { line: task.line },
+		});
+	});
+}
+
+function renderTaskDetails(
+	parent: HTMLElement,
+	task: AttentionRowTask,
+	context: ThreadTaskItemContext,
+): void {
+	const { data } = task;
+	const details = parent.createDiv({ cls: 'thread-journal-overview-task-details' });
+	const addDetail = (text: string, icon: string, modifier = ''): void => {
+		const detail = details.createSpan({
+			cls: `thread-journal-overview-task-detail${modifier ? ` is-${modifier}` : ''}`,
+		});
+		setIcon(detail.createSpan({ cls: 'thread-journal-task-chip-icon' }), icon);
+		detail.createSpan({ text });
+	};
+	if (task.disposition === 'unknown') addDetail(t('other'), 'circle-alert', 'disposition-unknown');
+	const today = moment().format('YYYY-MM-DD');
+	const holding = taskHoldingDisplay(data, today);
+	if (holding) addDetail(holding, 'pause-circle');
+	const deadline = taskDeadlineDisplay(data, today);
+	if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
+	if (data.effort) {
+		const label = t(TASK_EFFORT_LABELS[data.effort]);
+		const effort = details.createSpan({
+			cls: `thread-journal-task-effort is-${data.effort}`,
+			attr: { title: label, 'aria-label': label },
+		});
+		setIcon(effort, 'gauge');
+	}
+	if (data.repeat) {
+		const current = taskCurrentLabel(data.current, today, t('Today'));
+		const rule = taskRepeatRuleDisplay(data);
+		const nextLabel = taskNextActionLabel(data, today);
+		const repeat = details.createSpan({
+			cls: 'thread-journal-overview-task-repeat',
+			attr: { title: rule },
+		});
+		const next = repeat.createEl('button', {
+			cls: 'clickable-icon thread-journal-task-repeat-next',
+			attr: {
+				type: 'button',
+				'aria-label': `${rule} · ${nextLabel}`,
+				title: `${rule} · ${nextLabel}`,
+			},
+		});
+		setIcon(next, 'repeat-2');
+		if (current) repeat.createSpan({ text: current });
+		next.addEventListener('click', () => {
+			next.disabled = true;
+			void moveAttentionTaskToNext(context.app, task)
+				.then(() => context.onRefresh())
+				.catch((error: unknown) => {
+					next.disabled = false;
+					console.error('Thread Journal failed to move task to next occurrence', error);
+					new Notice(t('Failed to move task to next: {error}', { error: String(error) }));
+				});
+		});
+	}
+	if (!details.hasChildNodes()) details.remove();
+}
+
+function renderTaskActions(
+	parent: HTMLElement,
+	task: AttentionRowTask,
+	threadFile: TFile,
+	context: ThreadTaskItemContext,
+): void {
+	const actions = parent.createDiv({ cls: 'thread-journal-overview-task-actions' });
+	const commit = actions.createEl('button', {
+		cls: 'clickable-icon thread-journal-task-commit',
+		attr: {
+			type: 'button',
+			'aria-label': t('Create commit from task'),
+			title: t('Create commit from task'),
+		},
+	});
+	setIcon(commit, 'git-commit-horizontal');
+	commit.addEventListener('click', () => {
+		context.taskManager.openFileTaskCommit(
+			task.file,
+			task.line,
+			task.sourceLine,
+			task.data,
+			threadFile,
+			() => void context.onRefresh(),
+		);
+	});
+	const edit = actions.createEl('button', {
+		cls: 'clickable-icon thread-journal-overview-task-edit',
+		attr: { type: 'button', 'aria-label': t('Edit task'), title: t('Edit task') },
+	});
+	setIcon(edit, 'pencil');
+	edit.addEventListener('click', () => {
+		context.taskManager.openFileTaskEdit(
+			task.file,
+			task.line,
+			task.sourceLine,
+			task.data,
+			() => void context.onRefresh(),
+		);
+	});
+}
+
+function renderTaskPinButton(
+	parent: HTMLElement,
+	task: AttentionRowTask,
+	context: ThreadTaskItemContext,
+): void {
+	const button = parent.createEl('button', {
+		cls: `clickable-icon thread-journal-overview-task-pin${task.pinned ? ' is-pinned' : ''}`,
+		attr: {
+			type: 'button',
+			'aria-label': task.pinned ? t('Unpin task') : t('Pin task'),
+			'aria-pressed': String(task.pinned),
+		},
+	});
+	setIcon(button, task.pinned ? 'pin-off' : 'pin');
+	button.addEventListener('click', () => {
+		button.disabled = true;
+		void setAttentionTaskPinned(context.app, task, !task.pinned)
+			.then(() => context.onRefresh())
+			.catch((error: unknown) => {
+				button.disabled = false;
+				console.error('Thread Journal failed to update pinned task', error);
+				new Notice(t('Failed to update pinned task: {error}', { error: String(error) }));
+			});
+	});
+}

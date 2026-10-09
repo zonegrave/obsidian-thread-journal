@@ -2,7 +2,6 @@ import {
 	App,
 	ItemView,
 	Notice,
-	moment,
 	setIcon,
 	type WorkspaceLeaf,
 } from 'obsidian';
@@ -14,14 +13,11 @@ import {
 import type { ThreadIndex } from './thread-index';
 import type { TaskManager } from './task';
 import {
-	TASK_EFFORT_LABELS,
 	TASK_STATUS_ICONS,
 	TASK_STATUS_LABELS,
-	taskDeadlineDisplay,
-	taskHoldingDisplay,
-	taskRepeatRuleDisplay,
 } from './task-display';
-import { taskCurrentLabel, type TaskStatus } from './task-model';
+import type { TaskStatus } from './task-model';
+import { renderThreadTaskItem } from './thread-task-item';
 import type { ThreadInfo } from './types';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
 
@@ -31,25 +27,18 @@ const BOARD_STATUSES: TaskStatus[] = ['idea', 'committed', 'open'];
 
 interface BoardTask {
 	task: AttentionRowTask;
-	threads: ThreadInfo[];
+	thread: ThreadInfo;
 }
 
 function collectBoardTasks(rows: AttentionRow[]): BoardTask[] {
-	const tasks = new Map<string, BoardTask>();
+	const tasks: BoardTask[] = [];
 	for (const row of rows) {
 		for (const task of row.tasks) {
 			if (!BOARD_STATUSES.includes(task.data.status)) continue;
-			const current = tasks.get(task.key);
-			if (current) {
-				if (!current.threads.some((thread) => thread.id === row.thread.id)) {
-					current.threads.push(row.thread);
-				}
-				continue;
-			}
-			tasks.set(task.key, { task, threads: [row.thread] });
+			tasks.push({ task, thread: row.thread });
 		}
 	}
-	return [...tasks.values()].sort((left, right) => {
+	return tasks.sort((left, right) => {
 		const pinOrder = Number(right.task.pinned) - Number(left.task.pinned);
 		if (pinOrder) return pinOrder;
 		const leftDate = left.task.data.windowEnd
@@ -61,7 +50,8 @@ function collectBoardTasks(rows: AttentionRow[]): BoardTask[] {
 			|| right.task.data.current
 			|| '9999-99-99';
 		return leftDate.localeCompare(rightDate)
-			|| left.task.text.localeCompare(right.task.text);
+			|| left.task.text.localeCompare(right.task.text)
+			|| left.thread.title.localeCompare(right.thread.title);
 	});
 }
 
@@ -196,78 +186,19 @@ export class ThreadTaskBoardView extends ItemView {
 			cls: `thread-journal-task-board-card${task.data.holding ? ' is-holding' : ''}`,
 		});
 		const meta = card.createDiv({ cls: 'thread-journal-task-board-card-meta' });
-		for (const [index, thread] of item.threads.entries()) {
-			if (index > 0) meta.createSpan({ cls: 'thread-journal-task-board-separator', text: '·' });
-			const target = this.index.getEntry(thread.file) ?? thread.file;
-			const link = meta.createEl('a', { text: thread.title, href: target.path });
-			link.addEventListener('click', (event) => {
-				event.preventDefault();
-				void this.app.workspace.getLeaf(false).openFile(target);
-			});
-		}
-		if (task.pinned) {
-			const pin = meta.createSpan({
-				cls: 'thread-journal-task-board-pin',
-				attr: { title: t('Pinned task'), 'aria-label': t('Pinned task') },
-			});
-			setIcon(pin, 'pin');
-		}
-
-		const body = card.createDiv({ cls: 'thread-journal-task-board-card-body' });
-		const content = body.createEl('a', {
-			cls: 'thread-journal-task-board-card-title',
-			text: task.text,
-			href: task.file.path,
-		});
-		content.addEventListener('click', (event) => {
+		const target = this.index.getEntry(item.thread.file) ?? item.thread.file;
+		const link = meta.createEl('a', { text: item.thread.title, href: target.path });
+		link.addEventListener('click', (event) => {
 			event.preventDefault();
-			void this.openTaskSource(task);
+			void this.app.workspace.getLeaf(false).openFile(target);
 		});
-		const edit = body.createEl('button', {
-			cls: 'clickable-icon thread-journal-task-board-edit',
-			attr: { type: 'button', 'aria-label': t('Edit task'), title: t('Edit task') },
+		const taskItem = card.createDiv({
+			cls: 'thread-journal-overview-task thread-journal-task-board-task',
 		});
-		setIcon(edit, 'pencil');
-		edit.addEventListener('click', () => {
-			this.taskManager.openFileTaskEdit(
-				task.file,
-				task.line,
-				task.sourceLine,
-				task.data,
-				() => void this.refresh(),
-			);
-		});
-
-		const details = card.createDiv({ cls: 'thread-journal-task-board-card-details' });
-		const addDetail = (text: string, icon: string, modifier = ''): void => {
-			const detail = details.createSpan({
-				cls: `thread-journal-task-board-detail${modifier ? ` is-${modifier}` : ''}`,
-			});
-			setIcon(detail.createSpan(), icon);
-			detail.createSpan({ text });
-		};
-		const today = moment().format('YYYY-MM-DD');
-		const holding = taskHoldingDisplay(task.data, today);
-		if (holding) addDetail(holding, 'pause-circle', 'holding');
-		const deadline = taskDeadlineDisplay(task.data, today);
-		if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
-		if (task.data.effort) {
-			const effort = t(TASK_EFFORT_LABELS[task.data.effort]);
-			addDetail(effort, 'gauge', `effort-${task.data.effort}`);
-		}
-		if (task.data.repeat) {
-			const current = taskCurrentLabel(task.data.current, today, t('Today'));
-			const repeat = taskRepeatRuleDisplay(task.data);
-			addDetail(current || repeat, 'repeat-2', 'repeat');
-			const last = details.lastElementChild;
-			last?.setAttribute('title', repeat);
-		}
-		if (!details.hasChildNodes()) details.remove();
-	}
-
-	private async openTaskSource(task: AttentionRowTask): Promise<void> {
-		await this.app.workspace.getLeaf(false).openFile(task.file, {
-			eState: { line: task.line },
+		renderThreadTaskItem(taskItem, task, item.thread.file, {
+			app: this.app,
+			taskManager: this.taskManager,
+			onRefresh: () => this.refresh(),
 		});
 	}
 }
