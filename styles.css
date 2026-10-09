@@ -2777,12 +2777,12 @@
 .thread-journal-overview-task-pin {
 	grid-column: 1;
 	grid-row: 1;
-	width: 1.55rem;
-	height: 1.55rem;
-	min-width: 1.55rem;
-	min-height: 1.55rem;
+	width: 1.35rem;
+	height: 1.35rem;
+	min-width: 1.35rem;
+	min-height: 1.35rem;
 	margin-left: 0;
-	padding: 0.04rem;
+	padding: 0.1rem;
 	color: var(--text-faint);
 	opacity: 0.55;
 }
@@ -2796,8 +2796,8 @@
 }
 
 .thread-journal-overview-task-pin svg {
-	width: 21px;
-	height: 21px;
+	width: 16px;
+	height: 16px;
 }
 
 .thread-journal-overview-task-kind {
@@ -2850,8 +2850,41 @@
 }
 
 .thread-journal-overview-task-status svg {
-	width: 17px;
-	height: 17px;
+	width: 14px;
+	height: 14px;
+}
+
+.thread-journal-overview-task .thread-journal-task-chip-icon svg,
+.thread-journal-overview-task .thread-journal-task-effort svg {
+	width: 13px;
+	height: 13px;
+}
+
+.thread-journal-overview-task .thread-journal-task-repeat-next {
+	width: 1.1rem;
+	height: 1.1rem;
+	min-width: 1.1rem;
+	min-height: 1.1rem;
+}
+
+.thread-journal-overview-task .thread-journal-task-repeat-next svg {
+	width: 14px;
+	height: 14px;
+}
+
+.thread-journal-overview-task .thread-journal-task-commit,
+.thread-journal-overview-task .thread-journal-overview-task-edit {
+	width: 1.35rem;
+	height: 1.35rem;
+	min-width: 1.35rem;
+	min-height: 1.35rem;
+	padding: 0.12rem;
+}
+
+.thread-journal-overview-task .thread-journal-task-commit svg,
+.thread-journal-overview-task .thread-journal-overview-task-edit svg {
+	width: 16px;
+	height: 16px;
 }
 
 .thread-journal-overview-task-status.is-idea {

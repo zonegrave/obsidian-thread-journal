@@ -1,6 +1,6 @@
 {
 	"name": "thread-journal",
-	"version": "0.50.4",
+	"version": "0.50.5",
 	"description": "Thread packs with flexible role files and structured commits for Obsidian",
 	"main": "main.js",
 	"type": "module",
