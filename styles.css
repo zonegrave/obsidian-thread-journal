@@ -1236,7 +1236,21 @@
 }
 
 .thread-journal-task-board-refresh {
+	margin-left: 0;
+}
+
+.thread-journal-task-board-fields {
 	margin-left: auto;
+}
+
+.thread-journal-task-board-field-count {
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.thread-journal-task-board-fields-panel {
+	grid-template-columns: repeat(2, minmax(8rem, 1fr));
+	min-width: 18rem;
 }
 
 .thread-journal-task-board {
@@ -2838,6 +2852,22 @@
 	font-size: var(--font-ui-medium);
 	line-height: 1.45;
 	overflow-wrap: anywhere;
+}
+
+.thread-journal-overview-task.is-pin-hidden > a {
+	grid-column: 1 / 3;
+}
+
+.thread-journal-overview-task.is-actions-hidden > a {
+	grid-column: 2 / -1;
+}
+
+.thread-journal-overview-task.is-pin-hidden.is-actions-hidden > a {
+	grid-column: 1 / -1;
+}
+
+.thread-journal-overview-task.is-pin-hidden > .thread-journal-overview-task-details {
+	grid-column: 1 / -1;
 }
 
 .thread-journal-overview-task-status {

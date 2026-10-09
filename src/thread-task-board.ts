@@ -3,6 +3,7 @@ import {
 	ItemView,
 	Notice,
 	setIcon,
+	type ViewStateResult,
 	type WorkspaceLeaf,
 } from 'obsidian';
 import {
@@ -17,13 +18,40 @@ import {
 	TASK_STATUS_LABELS,
 } from './task-display';
 import type { TaskStatus } from './task-model';
-import { renderThreadTaskItem } from './thread-task-item';
+import {
+	renderThreadTaskItem,
+	type ThreadTaskItemField,
+} from './thread-task-item';
 import type { ThreadInfo } from './types';
-import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
+import { LANGUAGE_CHANGE_EVENT, t, type TranslationKey } from './i18n';
 
 export const THREAD_TASK_BOARD_VIEW_TYPE = 'thread-journal-task-board';
 
 const BOARD_STATUSES: TaskStatus[] = ['open', 'committed', 'idea'];
+
+type TaskBoardField = 'thread' | ThreadTaskItemField;
+
+const BOARD_FIELD_CHOICES: { field: TaskBoardField; label: TranslationKey }[] = [
+	{ field: 'thread', label: 'Thread' },
+	{ field: 'pin', label: 'Pin' },
+	{ field: 'status', label: 'Status' },
+	{ field: 'holding', label: 'Holding' },
+	{ field: 'window', label: 'Window' },
+	{ field: 'effort', label: 'Estimated effort' },
+	{ field: 'repeat', label: 'Repeat' },
+	{ field: 'actions', label: 'Actions' },
+];
+
+const BOARD_FIELDS = new Set<TaskBoardField>(BOARD_FIELD_CHOICES.map(({ field }) => field));
+
+function boardFieldsFromState(state: unknown): Set<TaskBoardField> | undefined {
+	if (typeof state !== 'object' || state === null) return undefined;
+	const fields = (state as Record<string, unknown>).fields;
+	if (!Array.isArray(fields)) return undefined;
+	return new Set(fields.filter((field): field is TaskBoardField => (
+		typeof field === 'string' && BOARD_FIELDS.has(field as TaskBoardField)
+	)));
+}
 
 interface BoardTask {
 	task: AttentionRowTask;
@@ -61,6 +89,8 @@ export class ThreadTaskBoardView extends ItemView {
 	private rows: AttentionRow[] = [];
 	private request = 0;
 	private timer: number | undefined;
+	private opened = false;
+	private visibleFields = new Set<TaskBoardField>(BOARD_FIELDS);
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -82,7 +112,23 @@ export class ThreadTaskBoardView extends ItemView {
 		return 'columns-3';
 	}
 
+	getState(): Record<string, unknown> {
+		return {
+			fields: BOARD_FIELD_CHOICES
+				.map(({ field }) => field)
+				.filter((field) => this.visibleFields.has(field)),
+		};
+	}
+
+	async setState(state: unknown, result: ViewStateResult): Promise<void> {
+		await super.setState(state, result);
+		const fields = boardFieldsFromState(state);
+		if (fields) this.visibleFields = fields;
+		if (this.opened) this.render();
+	}
+
 	async onOpen(): Promise<void> {
+		this.opened = true;
 		this.contentEl.addClass('thread-journal-task-board-view');
 		this.registerEvent(this.app.metadataCache.on('changed', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('delete', () => this.scheduleRefresh()));
@@ -96,6 +142,7 @@ export class ThreadTaskBoardView extends ItemView {
 	}
 
 	async onClose(): Promise<void> {
+		this.opened = false;
 		this.request += 1;
 		if (this.timer !== undefined) window.clearTimeout(this.timer);
 		this.contentEl.empty();
@@ -144,6 +191,8 @@ export class ThreadTaskBoardView extends ItemView {
 			cls: 'thread-journal-task-board-total',
 			text: t('{count} tasks', { count: tasks.length }),
 		});
+		const board = this.contentEl.createDiv({ cls: 'thread-journal-task-board' });
+		this.renderFieldMenu(header, () => this.renderBoard(board, tasks));
 		const refresh = header.createEl('button', {
 			cls: 'clickable-icon thread-journal-task-board-refresh',
 			attr: { type: 'button', 'aria-label': t('Refresh'), title: t('Refresh') },
@@ -154,9 +203,43 @@ export class ThreadTaskBoardView extends ItemView {
 			void this.refresh();
 		});
 
-		const board = this.contentEl.createDiv({ cls: 'thread-journal-task-board' });
+		this.renderBoard(board, tasks);
+	}
+
+	private renderBoard(board: HTMLElement, tasks: BoardTask[]): void {
+		board.empty();
 		for (const status of BOARD_STATUSES) {
 			this.renderColumn(board, status, tasks.filter((item) => item.task.data.status === status));
+		}
+	}
+
+	private renderFieldMenu(parent: HTMLElement, onChange: () => void): void {
+		const menu = parent.createEl('details', {
+			cls: 'thread-journal-overview-filter-menu thread-journal-task-board-fields',
+		});
+		const summary = menu.createEl('summary', {
+			cls: 'thread-journal-overview-filter-summary',
+		});
+		setIcon(summary.createSpan(), 'list-filter');
+		summary.createSpan({ text: t('Fields') });
+		const count = summary.createSpan({ cls: 'thread-journal-task-board-field-count' });
+		const updateCount = (): void => count.setText(String(this.visibleFields.size));
+		updateCount();
+		const panel = menu.createDiv({
+			cls: 'thread-journal-overview-filter-panel thread-journal-task-board-fields-panel',
+		});
+		for (const choice of BOARD_FIELD_CHOICES) {
+			const option = panel.createEl('label', { cls: 'thread-journal-overview-filter-option' });
+			const checkbox = option.createEl('input', { attr: { type: 'checkbox' } });
+			checkbox.checked = this.visibleFields.has(choice.field);
+			option.createSpan({ text: t(choice.label) });
+			checkbox.addEventListener('change', () => {
+				if (checkbox.checked) this.visibleFields.add(choice.field);
+				else this.visibleFields.delete(choice.field);
+				updateCount();
+				onChange();
+				void this.app.workspace.requestSaveLayout();
+			});
 		}
 	}
 
@@ -185,15 +268,19 @@ export class ThreadTaskBoardView extends ItemView {
 	private renderCard(parent: HTMLElement, item: BoardTask): void {
 		const { task } = item;
 		const card = parent.createDiv({
-			cls: `thread-journal-task-board-card${task.data.holding ? ' is-holding' : ''}`,
+			cls: `thread-journal-task-board-card${
+				task.data.holding && this.visibleFields.has('holding') ? ' is-holding' : ''
+			}`,
 		});
-		const meta = card.createDiv({ cls: 'thread-journal-task-board-card-meta' });
-		const target = this.index.getEntry(item.thread.file) ?? item.thread.file;
-		const link = meta.createEl('a', { text: item.thread.title, href: target.path });
-		link.addEventListener('click', (event) => {
-			event.preventDefault();
-			void this.app.workspace.getLeaf(false).openFile(target);
-		});
+		if (this.visibleFields.has('thread')) {
+			const meta = card.createDiv({ cls: 'thread-journal-task-board-card-meta' });
+			const target = this.index.getEntry(item.thread.file) ?? item.thread.file;
+			const link = meta.createEl('a', { text: item.thread.title, href: target.path });
+			link.addEventListener('click', (event) => {
+				event.preventDefault();
+				void this.app.workspace.getLeaf(false).openFile(target);
+			});
+		}
 		const taskItem = card.createDiv({
 			cls: 'thread-journal-overview-task thread-journal-task-board-task',
 		});
@@ -201,6 +288,7 @@ export class ThreadTaskBoardView extends ItemView {
 			app: this.app,
 			taskManager: this.taskManager,
 			onRefresh: () => this.refresh(),
+			isFieldVisible: (field) => this.visibleFields.has(field),
 		});
 	}
 }

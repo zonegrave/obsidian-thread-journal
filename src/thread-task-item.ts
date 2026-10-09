@@ -27,7 +27,17 @@ export interface ThreadTaskItemContext {
 	app: App;
 	taskManager: TaskManager;
 	onRefresh: () => void | Promise<void>;
+	isFieldVisible?: (field: ThreadTaskItemField) => boolean;
 }
+
+export type ThreadTaskItemField =
+	| 'pin'
+	| 'status'
+	| 'holding'
+	| 'window'
+	| 'effort'
+	| 'repeat'
+	| 'actions';
 
 export function renderThreadTaskItem(
 	parent: HTMLElement,
@@ -35,26 +45,36 @@ export function renderThreadTaskItem(
 	threadFile: TFile,
 	context: ThreadTaskItemContext,
 ): void {
-	renderTaskPinButton(parent, task, context);
-	renderTaskLink(parent, task, context.app);
-	renderTaskDetails(parent, task, context);
-	renderTaskActions(parent, task, threadFile, context);
+	const visible = (field: ThreadTaskItemField): boolean => context.isFieldVisible?.(field) ?? true;
+	parent.toggleClass('is-pin-hidden', !visible('pin'));
+	parent.toggleClass('is-actions-hidden', !visible('actions'));
+	if (visible('pin')) renderTaskPinButton(parent, task, context);
+	renderTaskLink(parent, task, context.app, visible('status'));
+	renderTaskDetails(parent, task, context, visible);
+	if (visible('actions')) renderTaskActions(parent, task, threadFile, context);
 }
 
-function renderTaskLink(parent: HTMLElement, task: AttentionRowTask, app: App): void {
+function renderTaskLink(
+	parent: HTMLElement,
+	task: AttentionRowTask,
+	app: App,
+	showStatus: boolean,
+): void {
 	const taskLink = parent.createEl('a', {
 		cls: 'thread-journal-overview-task-link',
 		href: task.file.path,
 	});
-	const statusLabel = t(TASK_STATUS_LABELS[task.data.status]);
-	const status = taskLink.createSpan({
-		cls: `thread-journal-overview-task-status is-${task.data.status}`,
-		attr: {
-			'aria-label': statusLabel,
-			title: statusLabel,
-		},
-	});
-	setIcon(status, TASK_STATUS_ICONS[task.data.status]);
+	if (showStatus) {
+		const statusLabel = t(TASK_STATUS_LABELS[task.data.status]);
+		const status = taskLink.createSpan({
+			cls: `thread-journal-overview-task-status is-${task.data.status}`,
+			attr: {
+				'aria-label': statusLabel,
+				title: statusLabel,
+			},
+		});
+		setIcon(status, TASK_STATUS_ICONS[task.data.status]);
+	}
 	taskLink.createSpan({
 		cls: 'thread-journal-overview-task-text',
 		text: task.text,
@@ -71,6 +91,7 @@ function renderTaskDetails(
 	parent: HTMLElement,
 	task: AttentionRowTask,
 	context: ThreadTaskItemContext,
+	visible: (field: ThreadTaskItemField) => boolean,
 ): void {
 	const { data } = task;
 	const details = parent.createDiv({ cls: 'thread-journal-overview-task-details' });
@@ -81,13 +102,17 @@ function renderTaskDetails(
 		setIcon(detail.createSpan({ cls: 'thread-journal-task-chip-icon' }), icon);
 		detail.createSpan({ text });
 	};
-	if (task.disposition === 'unknown') addDetail(t('other'), 'circle-alert', 'disposition-unknown');
+	if (visible('status') && task.disposition === 'unknown') {
+		addDetail(t('other'), 'circle-alert', 'disposition-unknown');
+	}
 	const today = moment().format('YYYY-MM-DD');
 	const holding = taskHoldingDisplay(data, today);
-	if (holding) addDetail(holding, 'pause-circle');
+	if (visible('holding') && holding) addDetail(holding, 'pause-circle');
 	const deadline = taskDeadlineDisplay(data, today);
-	if (deadline) addDetail(deadline.label, 'calendar-clock', deadline.modifier);
-	if (data.effort) {
+	if (visible('window') && deadline) {
+		addDetail(deadline.label, 'calendar-clock', deadline.modifier);
+	}
+	if (visible('effort') && data.effort) {
 		const label = t(TASK_EFFORT_LABELS[data.effort]);
 		const effort = details.createSpan({
 			cls: `thread-journal-task-effort is-${data.effort}`,
@@ -95,7 +120,7 @@ function renderTaskDetails(
 		});
 		setIcon(effort, 'gauge');
 	}
-	if (data.repeat) {
+	if (visible('repeat') && data.repeat) {
 		const current = taskCurrentLabel(data.current, today, t('Today'));
 		const rule = taskRepeatRuleDisplay(data);
 		const nextLabel = taskNextActionLabel(data, today);
