@@ -2,6 +2,7 @@ import {
 	App,
 	ItemView,
 	Notice,
+	moment,
 	setIcon,
 	type ViewStateResult,
 	type WorkspaceLeaf,
@@ -28,6 +29,8 @@ import { LANGUAGE_CHANGE_EVENT, t, type TranslationKey } from './i18n';
 export const THREAD_TASK_BOARD_VIEW_TYPE = 'thread-journal-task-board';
 
 const BOARD_STATUSES: TaskStatus[] = ['open', 'committed', 'idea'];
+type BoardColumn = 'pinned' | TaskStatus;
+type BoardGroup = 'review' | 'current' | 'holding';
 
 type TaskBoardField = 'thread' | ThreadTaskItemField;
 
@@ -67,10 +70,6 @@ function collectBoardTasks(rows: AttentionRow[]): BoardTask[] {
 		}
 	}
 	return tasks.sort((left, right) => {
-		const pinOrder = left.task.data.status === 'open' && right.task.data.status === 'open'
-			? Number(right.task.pinned) - Number(left.task.pinned)
-			: 0;
-		if (pinOrder) return pinOrder;
 		const leftDate = left.task.data.windowEnd
 			|| left.task.data.windowStart
 			|| left.task.data.current
@@ -208,8 +207,13 @@ export class ThreadTaskBoardView extends ItemView {
 
 	private renderBoard(board: HTMLElement, tasks: BoardTask[]): void {
 		board.empty();
+		this.renderColumn(board, 'pinned', tasks.filter((item) => item.task.pinned));
 		for (const status of BOARD_STATUSES) {
-			this.renderColumn(board, status, tasks.filter((item) => item.task.data.status === status));
+			this.renderColumn(
+				board,
+				status,
+				tasks.filter((item) => !item.task.pinned && item.task.data.status === status),
+			);
 		}
 	}
 
@@ -243,13 +247,18 @@ export class ThreadTaskBoardView extends ItemView {
 		}
 	}
 
-	private renderColumn(parent: HTMLElement, status: TaskStatus, tasks: BoardTask[]): void {
+	private renderColumn(parent: HTMLElement, columnId: BoardColumn, tasks: BoardTask[]): void {
 		const column = parent.createEl('section', {
-			cls: `thread-journal-task-board-column is-${status}`,
+			cls: `thread-journal-task-board-column is-${columnId}`,
 		});
 		const header = column.createDiv({ cls: 'thread-journal-task-board-column-header' });
-		setIcon(header.createSpan({ cls: 'thread-journal-task-board-column-icon' }), TASK_STATUS_ICONS[status]);
-		header.createEl('h3', { text: t(TASK_STATUS_LABELS[status]) });
+		setIcon(
+			header.createSpan({ cls: 'thread-journal-task-board-column-icon' }),
+			columnId === 'pinned' ? 'pin' : TASK_STATUS_ICONS[columnId],
+		);
+		header.createEl('h3', {
+			text: columnId === 'pinned' ? t('Pinned tasks') : t(TASK_STATUS_LABELS[columnId]),
+		});
 		header.createSpan({
 			cls: 'thread-journal-task-board-count',
 			text: String(tasks.length),
@@ -262,15 +271,44 @@ export class ThreadTaskBoardView extends ItemView {
 			});
 			return;
 		}
-		for (const item of tasks) this.renderCard(list, item);
+		const today = moment().format('YYYY-MM-DD');
+		const grouped: Record<BoardGroup, BoardTask[]> = {
+			review: [],
+			current: [],
+			holding: [],
+		};
+		for (const item of tasks) grouped[this.groupForTask(item, today)].push(item);
+		this.renderGroup(list, grouped.review, 'review');
+		this.renderGroup(list, grouped.current, 'current');
+		this.renderGroup(list, grouped.holding, 'holding');
 	}
 
-	private renderCard(parent: HTMLElement, item: BoardTask): void {
+	private groupForTask(item: BoardTask, today: string): BoardGroup {
+		const { data } = item.task;
+		if (!data.holding) return 'current';
+		if (data.holdingReview && data.holdingReview <= today) return 'review';
+		return 'holding';
+	}
+
+	private renderGroup(parent: HTMLElement, tasks: BoardTask[], group: BoardGroup): void {
+		if (!tasks.length) return;
+		if (group !== 'current') {
+			parent.createDiv({
+				cls: `thread-journal-task-board-group-title is-${group}`,
+				text: `${t(group === 'review' ? 'Review due' : 'Holding')} · ${tasks.length}`,
+			});
+		}
+		for (const item of tasks) this.renderCard(parent, item, group);
+	}
+
+	private renderCard(parent: HTMLElement, item: BoardTask, group: BoardGroup): void {
 		const { task } = item;
 		const card = parent.createDiv({
-			cls: `thread-journal-task-board-card${
-				task.data.holding && this.visibleFields.has('holding') ? ' is-holding' : ''
-			}`,
+			cls: [
+				'thread-journal-task-board-card',
+				group === 'review' ? 'is-review-due' : '',
+				task.data.holding && this.visibleFields.has('holding') ? 'is-holding' : '',
+			].filter(Boolean).join(' '),
 		});
 		if (this.visibleFields.has('thread')) {
 			const meta = card.createDiv({ cls: 'thread-journal-task-board-card-meta' });

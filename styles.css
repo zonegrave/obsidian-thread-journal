@@ -1258,7 +1258,7 @@
 	min-width: 0;
 	min-height: 0;
 	flex: 1 1 auto;
-	grid-template-columns: repeat(3, minmax(16rem, 1fr));
+	grid-template-columns: repeat(4, minmax(16rem, 1fr));
 	gap: 0.75rem;
 	overflow-x: auto;
 }
@@ -1303,6 +1303,10 @@
 	color: var(--color-purple);
 }
 
+.thread-journal-task-board-column.is-pinned .thread-journal-task-board-column-icon {
+	color: var(--text-accent);
+}
+
 .thread-journal-task-board-column.is-open .thread-journal-task-board-column-icon {
 	color: var(--text-success);
 }
@@ -1334,6 +1338,18 @@
 	text-align: center;
 }
 
+.thread-journal-task-board-group-title {
+	margin: 0.25rem 0 0.05rem;
+	padding: 0 0.1rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+}
+
+.thread-journal-task-board-group-title.is-review {
+	color: var(--text-warning);
+}
+
 .thread-journal-task-board-card {
 	padding: 0.55rem 0.6rem;
 	border: 1px solid var(--background-modifier-border);
@@ -1344,6 +1360,10 @@
 
 .thread-journal-task-board-card.is-holding {
 	border-color: color-mix(in srgb, var(--text-warning) 45%, var(--background-modifier-border));
+}
+
+.thread-journal-task-board-card.is-review-due {
+	border-color: var(--text-warning);
 }
 
 .thread-journal-task-board-card-meta {
@@ -1370,7 +1390,7 @@
 
 @media (max-width: 820px) {
 	.thread-journal-task-board {
-		grid-template-columns: repeat(3, minmax(15rem, 82vw));
+		grid-template-columns: repeat(4, minmax(15rem, 82vw));
 	}
 }
 
