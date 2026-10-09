@@ -1793,14 +1793,6 @@
 	background: var(--background-modifier-hover);
 }
 
-.thread-journal-overview-node-status-dot {
-	width: 7px;
-	height: 7px;
-	flex: 0 0 auto;
-	border-radius: 50%;
-	background: var(--thread-journal-overview-status-color);
-}
-
 .thread-journal-overview-node-title {
 	min-width: 0;
 	flex: 1 1 auto;
@@ -1810,7 +1802,6 @@
 	white-space: nowrap;
 }
 
-.thread-journal-overview-node-status,
 .thread-journal-overview-node-count {
 	flex: 0 0 auto;
 	padding: 0.08rem 0.4rem;
@@ -2923,20 +2914,6 @@
 	--thread-journal-overview-status-color: var(--text-warning);
 }
 
-.thread-journal-overview-connector[data-status="active"],
-.thread-journal-overview-connector[data-status="completed"] {
-	stroke: var(--text-success);
-}
-
-.thread-journal-overview-connector[data-status="dormant"] {
-	stroke: var(--text-accent);
-}
-
-.thread-journal-overview-connector[data-status="paused"],
-.thread-journal-overview-connector[data-status="review"] {
-	stroke: var(--text-warning);
-}
-
 @media (max-width: 650px) {
 	.thread-journal-overview-view > .thread-journal-overview-pinned-panel {
 		width: min(16rem, calc(100% - 1.5rem));
@@ -2945,10 +2922,6 @@
 	.thread-journal-overview-filter-panel {
 		grid-template-columns: minmax(12rem, 1fr);
 		min-width: 14rem;
-	}
-
-	.thread-journal-overview-node-status {
-		display: none;
 	}
 
 	.thread-journal-overview-map-layout,

@@ -54,7 +54,6 @@ export const THREAD_OVERVIEW_VIEW_TYPE = 'thread-journal-overview';
 interface MindMapEdge {
 	from: HTMLElement;
 	to: HTMLElement;
-	status: string;
 }
 
 type OverviewViewScope = 'all' | 'today';
@@ -621,7 +620,7 @@ class OverviewContent extends MarkdownRenderChild {
 		const roots = layout.createDiv({ cls: 'thread-journal-overview-map-children' });
 		for (const node of tree) {
 			const child = this.renderBranch(roots, node, rowById);
-			if (child) this.edges.push({ from: root, to: child, status: node.item.status });
+			if (child) this.edges.push({ from: root, to: child });
 		}
 
 		this.resizeObserver = new ResizeObserver((entries) => {
@@ -669,7 +668,7 @@ class OverviewContent extends MarkdownRenderChild {
 			else this.expandedNodes.delete(node.item.id);
 			this.scheduleConnectorDraw();
 		});
-		this.renderNodeHeader(details, row, node);
+		this.renderNodeHeader(details, row);
 		this.renderNodeContent(details, row, node);
 
 		const branchCollapsed = this.collapsedBranches.has(node.item.id);
@@ -708,7 +707,6 @@ class OverviewContent extends MarkdownRenderChild {
 					this.edges.push({
 						from: details,
 						to: child,
-						status: childNode.item.status,
 					});
 				}
 			}
@@ -719,12 +717,10 @@ class OverviewContent extends MarkdownRenderChild {
 	private renderNodeHeader(
 		details: HTMLDetailsElement,
 		row: AttentionRow,
-		node: ThreadOverviewNode,
 	): void {
 		const summary = details.createEl('summary', {
 			cls: 'thread-journal-overview-node-header',
 		});
-		summary.createSpan({ cls: 'thread-journal-overview-node-status-dot' });
 		const activeFiles = this.files.getActiveThreadFiles(row.thread.file);
 		const filesButton = summary.createEl('button', {
 			cls: 'clickable-icon thread-journal-overview-node-files',
@@ -755,11 +751,6 @@ class OverviewContent extends MarkdownRenderChild {
 				'',
 				event.metaKey || event.ctrlKey,
 			);
-		});
-		summary.createSpan({
-			cls: 'thread-journal-overview-node-status',
-			text: node.item.status || 'unset',
-			attr: { title: threadStatusLabel(node.item.status) },
 		});
 		const visibleTasks = this.tasksForRow(row);
 		const attentionCount = visibleTasks.length + row.fallbacks.length;
@@ -893,7 +884,6 @@ class OverviewContent extends MarkdownRenderChild {
 			const controlX = startX + Math.max(24, (endX - startX) / 2);
 			const path = createSvg('path');
 			path.classList.add('thread-journal-overview-connector');
-			path.setAttribute('data-status', edge.status || 'unset');
 			path.setAttribute(
 				'd',
 				`M ${startX} ${startY} C ${controlX} ${startY}, ${controlX} ${endY}, ${endX} ${endY}`,
