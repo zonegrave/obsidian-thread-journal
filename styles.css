@@ -1802,6 +1802,13 @@
 	white-space: nowrap;
 }
 
+.thread-journal-overview-node[open] .thread-journal-overview-node-title {
+	overflow: visible;
+	text-overflow: clip;
+	overflow-wrap: anywhere;
+	white-space: normal;
+}
+
 .thread-journal-overview-node-count {
 	flex: 0 0 auto;
 	padding: 0.08rem 0.4rem;
