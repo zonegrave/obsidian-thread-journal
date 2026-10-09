@@ -5,6 +5,11 @@ import {
 	THREAD_OVERVIEW_VIEW_TYPE,
 	ThreadOverviewView,
 } from './thread-overview';
+import {
+	openThreadTaskBoard,
+	THREAD_TASK_BOARD_VIEW_TYPE,
+	ThreadTaskBoardView,
+} from './thread-task-board';
 import { ThreadBreadcrumbManager } from './thread-breadcrumb';
 import {
 	MarkdownView,
@@ -66,6 +71,10 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.registerView(
 			THREAD_OVERVIEW_VIEW_TYPE,
 			(leaf) => new ThreadOverviewView(leaf, this.index, this.tasks, this.files),
+		);
+		this.registerView(
+			THREAD_TASK_BOARD_VIEW_TYPE,
+			(leaf) => new ThreadTaskBoardView(leaf, this.index, this.tasks),
 		);
 		this.parents = new ThreadParentManager(this.index);
 		this.commits = new CommitManager(
@@ -165,6 +174,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	private registerCommands(): void {
 		this.addCommand({ id: 'holding-queue', name: t('Holding queue'), callback: () => this.tasks.openHoldingQueue() });
 		this.addCommand({ id: 'thread-overview', name: t('Open thread overview'), callback: () => void openThreadOverview(this.app) });
+		this.addCommand({ id: 'thread-task-board', name: t('Open thread task board'), callback: () => void openThreadTaskBoard(this.app) });
 		this.addCommand({
 			id: 'edit-current-thread-commit-template',
 			name: t('Edit commit template'),
