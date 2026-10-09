@@ -244,51 +244,67 @@ export class ThreadCreator {
 		});
 	}
 
+	canCreateChildFromFile(file: TFile): boolean {
+		const member = this.index.getMember(file);
+		const parentFile = member ? this.index.getThreadForMember(file) : undefined;
+		const parent = parentFile ? this.index.getThread(parentFile) : undefined;
+		return member?.roleStatus === 'active'
+			&& Boolean(parentFile)
+			&& Boolean(parent && isOperationalThreadStatus(parent.status));
+	}
+
+	async createChildFromFile(file: TFile): Promise<TFile> {
+		const member = this.index.getMember(file);
+		const parentFile = member ? this.index.getThreadForMember(file) : undefined;
+		const parent = parentFile ? this.index.getThread(parentFile) : undefined;
+		if (member?.roleStatus !== 'active' || !parentFile || !parent) {
+			throw new Error(t('Only an active thread file can become a child thread entry.'));
+		}
+		if (!isOperationalThreadStatus(parent.status)) {
+			throw new Error(t('The thread cannot create children in its current status: {path}', {
+				path: parentFile.path,
+			}));
+		}
+
+		const wasEntry = this.index.isEntry(file);
+		const replacementEntry = wasEntry
+			? this.index.getMembersByThreadId(parent.id)
+				.find((candidate) => candidate.file.path !== file.path && candidate.roleStatus === 'active')
+				?.file
+			: undefined;
+		const title = file.basename;
+		const child = await this.createThreadMeta(title, 'active', parentFile, file);
+		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+			const metadata = frontmatter as Record<string, unknown>;
+			metadata.thread_id = child.id;
+			metadata.thread_role_status = 'active';
+			delete metadata.type;
+			delete metadata.status;
+			delete metadata.parent;
+			delete metadata.entry;
+			delete metadata.commit_fields;
+		});
+		if (wasEntry) {
+			if (replacementEntry) {
+				await this.files.setEntry(parentFile, replacementEntry, false, parent.id);
+			} else {
+				await this.app.fileManager.processFrontMatter(parentFile, (frontmatter) => {
+					delete (frontmatter as Record<string, unknown>).entry;
+				});
+			}
+		}
+		new Notice(t('Created {title}', { title }));
+		return child.file;
+	}
+
 	async createThread(
 		title: string,
 		status: OperationalThreadStatus,
 		parent?: TFile,
 		template?: ThreadRoleTemplate,
 	): Promise<TFile> {
-		if (parent) {
-			const parentThread = this.index.getThread(parent);
-			if (!parentThread || !isOperationalThreadStatus(parentThread.status)) {
-				new Notice(t('Only active or dormant threads can create child threads.'));
-				throw new Error(t('The thread cannot create children in its current status: {path}', {
-					path: parent.path,
-				}));
-			}
-		}
-		const settings = this.getSettings();
-		const folder = settings.threadMetaFolder;
-		await ensureFolder(this.app, folder);
-		const threadId = stableThreadId();
-		const path = normalizePath(`${folder}/${threadId}.md`);
-		if (this.app.vault.getAbstractFileByPath(path)) {
-			throw new Error(t('Thread meta already exists: {path}', { path }));
-		}
-		const parentLink = parent
-			? this.app.fileManager.generateMarkdownLink(
-				parent,
-				path,
-				undefined,
-				this.index.getDisplayName(parent),
-			)
-			: undefined;
-		const created = moment().format('YYYY-MM-DD');
-		const file = await this.app.vault.create(path, '');
-		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-			const metadata = frontmatter as Record<string, unknown>;
-			metadata.type = 'thread';
-			metadata.thread_id = threadId;
-			delete metadata.title;
-			metadata.aliases = [...new Set([title, ...stringList(metadata.aliases)])];
-			metadata.tags = [...new Set(['线程', ...stringList(metadata.tags)])];
-			metadata.status = status;
-			metadata.created = created;
-			if (parentLink) metadata.parent = parentLink;
-			else delete metadata.parent;
-		});
+		const createdThread = await this.createThreadMeta(title, status, parent);
+		const { file, id: threadId, parentLink, created } = createdThread;
 		const selectedTemplate = template ?? (await this.files.getRoleTemplates())[0];
 		if (!selectedTemplate) throw new Error(t('No thread file template is available.'));
 		const entry = await this.files.createThreadFile(
@@ -308,5 +324,62 @@ export class ThreadCreator {
 		await this.files.openFile(entry);
 		new Notice(t('Created {title}', { title }));
 		return file;
+	}
+
+	private async createThreadMeta(
+		title: string,
+		status: OperationalThreadStatus,
+		parent?: TFile,
+		entry?: TFile,
+	): Promise<{
+		file: TFile;
+		id: string;
+		parentLink?: string;
+		created: string;
+	}> {
+		if (parent) {
+			const parentThread = this.index.getThread(parent);
+			if (!parentThread || !isOperationalThreadStatus(parentThread.status)) {
+				new Notice(t('Only active or dormant threads can create child threads.'));
+				throw new Error(t('The thread cannot create children in its current status: {path}', {
+					path: parent.path,
+				}));
+			}
+		}
+		const folder = this.getSettings().threadMetaFolder;
+		await ensureFolder(this.app, folder);
+		const threadId = stableThreadId();
+		const path = normalizePath(`${folder}/${threadId}.md`);
+		if (this.app.vault.getAbstractFileByPath(path)) {
+			throw new Error(t('Thread meta already exists: {path}', { path }));
+		}
+		const parentLink = parent
+			? this.app.fileManager.generateMarkdownLink(
+				parent,
+				path,
+				undefined,
+				this.index.getDisplayName(parent),
+			)
+			: undefined;
+		const entryLink = entry
+			? this.app.fileManager.generateMarkdownLink(entry, path, undefined, entry.basename)
+			: undefined;
+		const created = moment().format('YYYY-MM-DD');
+		const file = await this.app.vault.create(path, '');
+		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+			const metadata = frontmatter as Record<string, unknown>;
+			metadata.type = 'thread';
+			metadata.thread_id = threadId;
+			delete metadata.title;
+			metadata.aliases = [...new Set([title, ...stringList(metadata.aliases)])];
+			metadata.tags = [...new Set(['线程', ...stringList(metadata.tags)])];
+			metadata.status = status;
+			metadata.created = created;
+			if (parentLink) metadata.parent = parentLink;
+			else delete metadata.parent;
+			if (entryLink) metadata.entry = entryLink;
+			else delete metadata.entry;
+		});
+		return { file, id: threadId, parentLink, created };
 	}
 }

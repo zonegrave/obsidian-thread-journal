@@ -234,6 +234,25 @@ export default class ThreadJournalPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'create-child-thread-from-current-file',
+			name: t('Create child thread from current file'),
+			checkCallback: (checking) => {
+				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+				const file = view?.file;
+				if (!file || !this.creator.canCreateChildFromFile(file)) return false;
+				if (!checking) {
+					void this.creator.createChildFromFile(file).catch((error: unknown) => {
+						console.error('Thread Journal failed to create a child thread from the current file', error);
+						new Notice(t('Failed to create child thread from current file: {error}', {
+							error: String(error),
+						}));
+					});
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: 'create-task',
 			name: t('Create or edit task'),
 			editorCheckCallback: (checking, editor, view) => {
