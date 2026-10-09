@@ -23,7 +23,7 @@ import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
 
 export const THREAD_TASK_BOARD_VIEW_TYPE = 'thread-journal-task-board';
 
-const BOARD_STATUSES: TaskStatus[] = ['idea', 'committed', 'open'];
+const BOARD_STATUSES: TaskStatus[] = ['open', 'committed', 'idea'];
 
 interface BoardTask {
 	task: AttentionRowTask;
@@ -39,7 +39,9 @@ function collectBoardTasks(rows: AttentionRow[]): BoardTask[] {
 		}
 	}
 	return tasks.sort((left, right) => {
-		const pinOrder = Number(right.task.pinned) - Number(left.task.pinned);
+		const pinOrder = left.task.data.status === 'open' && right.task.data.status === 'open'
+			? Number(right.task.pinned) - Number(left.task.pinned)
+			: 0;
 		if (pinOrder) return pinOrder;
 		const leftDate = left.task.data.windowEnd
 			|| left.task.data.windowStart
