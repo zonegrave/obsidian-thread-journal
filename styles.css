@@ -1223,6 +1223,7 @@
 	flex: 0 0 auto;
 	align-items: center;
 	gap: 0.6rem;
+	padding-top: 0.1rem;
 }
 
 .thread-journal-task-board-header h2 {
@@ -1249,6 +1250,8 @@
 }
 
 .thread-journal-task-board-fields-panel {
+	top: auto;
+	bottom: calc(100% + 0.3rem);
 	grid-template-columns: repeat(2, minmax(8rem, 1fr));
 	min-width: 18rem;
 }

@@ -184,13 +184,13 @@ export class ThreadTaskBoardView extends ItemView {
 	private render(): void {
 		const tasks = collectBoardTasks(this.rows);
 		this.contentEl.empty();
+		const board = this.contentEl.createDiv({ cls: 'thread-journal-task-board' });
 		const header = this.contentEl.createDiv({ cls: 'thread-journal-task-board-header' });
 		header.createEl('h2', { text: t('Thread task board') });
 		header.createSpan({
 			cls: 'thread-journal-task-board-total',
 			text: t('{count} tasks', { count: tasks.length }),
 		});
-		const board = this.contentEl.createDiv({ cls: 'thread-journal-task-board' });
 		this.renderFieldMenu(header, () => this.renderBoard(board, tasks));
 		const refresh = header.createEl('button', {
 			cls: 'clickable-icon thread-journal-task-board-refresh',
