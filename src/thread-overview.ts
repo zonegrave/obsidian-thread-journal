@@ -5,14 +5,12 @@ import {
 	Notice,
 	setIcon,
 	type MarkdownPostProcessorContext,
-	type TFile,
 	type WorkspaceLeaf,
 } from 'obsidian';
 import {
 	collectAttention,
 	type AttentionRow,
 	type AttentionRowFallback,
-	type AttentionRowTask,
 } from './thread-attention';
 import {
 	attentionHint,
@@ -65,7 +63,6 @@ class OverviewContent extends MarkdownRenderChild {
 	private viewScope: OverviewViewScope = 'all';
 	private taskScope: TaskScope = 'today';
 	private filterOpen = false;
-	private pinnedCollapsed = false;
 	private rows: AttentionRow[] = [];
 	private request = 0;
 	private timer: number | undefined;
@@ -173,7 +170,6 @@ class OverviewContent extends MarkdownRenderChild {
 			? filterThreadOverviewTree(statusTree, (item) => attentionToday.has(item.id))
 			: statusTree;
 		this.renderToolbar(el, tree);
-		this.renderPinnedTasks(el);
 		if (this.selectedStatuses.size === 0) {
 			el.createEl('p', {
 				cls: 'thread-journal-empty',
@@ -499,77 +495,6 @@ class OverviewContent extends MarkdownRenderChild {
 
 	private tasksForRow(row: AttentionRow): AttentionRow['tasks'] {
 		return filterAttentionTasks(row.tasks, this.taskScope);
-	}
-
-	private pinnedTasks(): { task: AttentionRowTask; threadTitle: string; threadFile: TFile }[] {
-		const pinned = new Map<string, {
-			task: AttentionRowTask;
-			threadTitle: string;
-			threadFile: TFile;
-		}>();
-		for (const row of this.rows) {
-			for (const task of row.tasks) {
-				if (task.data.holding || !task.pinned || pinned.has(task.key)) continue;
-				pinned.set(task.key, {
-					task,
-					threadTitle: row.thread.title,
-					threadFile: row.thread.file,
-				});
-			}
-		}
-		return [...pinned.values()];
-	}
-
-	private renderPinnedTasks(parent: HTMLElement): void {
-		const pinned = this.pinnedTasks();
-		const panel = parent.createEl('aside', {
-			cls: `thread-journal-overview-pinned-panel${this.pinnedCollapsed ? ' is-collapsed' : ''}`,
-			attr: { 'aria-label': t('Pinned tasks') },
-		});
-		const header = panel.createDiv({ cls: 'thread-journal-overview-pinned-header' });
-		setIcon(header.createSpan(), 'pin');
-		header.createSpan({ text: t('Pinned tasks') });
-		header.createSpan({
-			cls: 'thread-journal-overview-pinned-count',
-			text: String(pinned.length),
-		});
-		const collapse = header.createEl('button', {
-			cls: 'clickable-icon thread-journal-overview-pinned-collapse',
-			attr: { type: 'button' },
-		});
-		const list = panel.createDiv({ cls: 'thread-journal-overview-pinned-list' });
-		const updateCollapsedState = (): void => {
-			panel.toggleClass('is-collapsed', this.pinnedCollapsed);
-			list.hidden = this.pinnedCollapsed;
-			const label = this.pinnedCollapsed ? t('Expand pinned tasks') : t('Collapse pinned tasks');
-			collapse.setAttribute('aria-label', label);
-			collapse.setAttribute('title', label);
-			collapse.setAttribute('aria-expanded', String(!this.pinnedCollapsed));
-			collapse.empty();
-			setIcon(collapse, this.pinnedCollapsed ? 'chevron-down' : 'chevron-up');
-		};
-		collapse.addEventListener('click', () => {
-			this.pinnedCollapsed = !this.pinnedCollapsed;
-			updateCollapsedState();
-		});
-		updateCollapsedState();
-		if (pinned.length === 0) {
-			list.createDiv({
-				cls: 'thread-journal-empty',
-				text: t('No pinned tasks.'),
-			});
-		} else {
-			for (const { task, threadTitle, threadFile } of pinned) {
-				const item = list.createDiv({ cls: 'thread-journal-overview-pinned-task' });
-				const meta = item.createDiv({ cls: 'thread-journal-overview-pinned-task-meta' });
-				meta.createSpan({ text: threadTitle });
-				renderThreadTaskItem(item, task, threadFile, {
-					app: this.app,
-					taskManager: this.taskManager,
-					onRefresh: () => this.refresh(),
-				});
-			}
-		}
 	}
 
 	private overviewItems(): {
