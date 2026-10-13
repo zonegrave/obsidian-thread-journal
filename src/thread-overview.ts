@@ -194,7 +194,10 @@ class OverviewContent extends MarkdownRenderChild {
 		for (const row of this.rows) {
 			counts.set(row.thread.status, (counts.get(row.thread.status) ?? 0) + 1);
 		}
-		const toolbar = parent.createDiv({ cls: 'thread-journal-overview-toolbar' });
+		const inOverviewView = parent.hasClass('thread-journal-overview-view');
+		const toolbar = parent.createDiv({
+			cls: `thread-journal-overview-toolbar${inOverviewView ? ' thread-journal-view-bottom-bar' : ''}`,
+		});
 		const filters = toolbar.createEl('details', {
 			cls: 'thread-journal-overview-filter-menu',
 		});
@@ -265,7 +268,7 @@ class OverviewContent extends MarkdownRenderChild {
 			this.taskScope = taskScopeSelect.value as TaskScope;
 			this.render();
 		});
-		if (parent.hasClass('thread-journal-overview-view')) {
+		if (inOverviewView) {
 			this.renderZoomControls(toolbar);
 		}
 
