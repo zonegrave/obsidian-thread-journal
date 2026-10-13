@@ -50,7 +50,6 @@ const ZH_TRANSLATIONS = {
 	'Failed to open thread task board: {error}': '无法打开 thread task 看板：{error}',
 	'{count} tasks': '{count} 个 task',
 	'No tasks in this state.': '这个状态下没有 task。',
-	'Pinned & recurring': '置顶与循环任务',
 	'Recurring tasks': '循环任务',
 	'Fields': '字段',
 	'Actions': '操作',

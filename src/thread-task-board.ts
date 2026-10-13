@@ -29,7 +29,6 @@ import { LANGUAGE_CHANGE_EVENT, t, type TranslationKey } from './i18n';
 export const THREAD_TASK_BOARD_VIEW_TYPE = 'thread-journal-task-board';
 
 const BOARD_STATUSES: TaskStatus[] = ['open', 'committed', 'idea'];
-type BoardColumn = 'priority' | TaskStatus;
 type BoardGroup = 'review' | 'current' | 'holding';
 
 type TaskBoardField = 'thread' | ThreadTaskItemField;
@@ -252,17 +251,17 @@ export class ThreadTaskBoardView extends ItemView {
 		}
 	}
 
-	private renderColumn(parent: HTMLElement, columnId: BoardColumn, tasks: BoardTask[]): void {
+	private renderColumn(parent: HTMLElement, columnId: TaskStatus, tasks: BoardTask[]): void {
 		const column = parent.createEl('section', {
 			cls: `thread-journal-task-board-column is-${columnId}`,
 		});
 		const header = column.createDiv({ cls: 'thread-journal-task-board-column-header' });
 		setIcon(
 			header.createSpan({ cls: 'thread-journal-task-board-column-icon' }),
-			columnId === 'priority' ? 'pin' : TASK_STATUS_ICONS[columnId],
+			TASK_STATUS_ICONS[columnId],
 		);
 		header.createEl('h3', {
-			text: columnId === 'priority' ? t('Pinned & recurring') : t(TASK_STATUS_LABELS[columnId]),
+			text: t(TASK_STATUS_LABELS[columnId]),
 		});
 		header.createSpan({
 			cls: 'thread-journal-task-board-count',
@@ -284,38 +283,37 @@ export class ThreadTaskBoardView extends ItemView {
 		pinned: BoardTask[],
 		recurring: BoardTask[],
 	): void {
-		const column = parent.createEl('section', {
-			cls: 'thread-journal-task-board-column is-priority',
+		const stack = parent.createDiv({ cls: 'thread-journal-task-board-priority-stack' });
+		this.renderPrioritySection(stack, pinned, 'Pinned tasks', 'pin', 'pinned');
+		this.renderPrioritySection(stack, recurring, 'Recurring tasks', 'repeat-2', 'recurring');
+	}
+
+	private renderPrioritySection(
+		parent: HTMLElement,
+		tasks: BoardTask[],
+		label: 'Pinned tasks' | 'Recurring tasks',
+		icon: 'pin' | 'repeat-2',
+		kind: 'pinned' | 'recurring',
+	): void {
+		const section = parent.createEl('section', {
+			cls: `thread-journal-task-board-column is-priority-${kind}`,
 		});
-		const header = column.createDiv({ cls: 'thread-journal-task-board-column-header' });
-		setIcon(header.createSpan({ cls: 'thread-journal-task-board-column-icon' }), 'pin');
-		header.createEl('h3', { text: t('Pinned & recurring') });
+		const header = section.createDiv({ cls: 'thread-journal-task-board-column-header' });
+		setIcon(header.createSpan({ cls: 'thread-journal-task-board-column-icon' }), icon);
+		header.createEl('h3', { text: t(label) });
 		header.createSpan({
 			cls: 'thread-journal-task-board-count',
-			text: String(pinned.length + recurring.length),
+			text: String(tasks.length),
 		});
-		const list = column.createDiv({ cls: 'thread-journal-task-board-list' });
-		if (!pinned.length && !recurring.length) {
+		const list = section.createDiv({ cls: 'thread-journal-task-board-list' });
+		if (!tasks.length) {
 			list.createDiv({
 				cls: 'thread-journal-task-board-empty',
 				text: t('No tasks in this state.'),
 			});
 			return;
 		}
-		if (pinned.length) {
-			list.createDiv({
-				cls: 'thread-journal-task-board-section-title',
-				text: `${t('Pinned tasks')} · ${pinned.length}`,
-			});
-			this.renderTaskGroups(list, pinned);
-		}
-		if (recurring.length) {
-			list.createDiv({
-				cls: 'thread-journal-task-board-section-title',
-				text: `${t('Recurring tasks')} · ${recurring.length}`,
-			});
-			this.renderTaskGroups(list, recurring);
-		}
+		this.renderTaskGroups(list, tasks);
 	}
 
 	private renderTaskGroups(parent: HTMLElement, tasks: BoardTask[]): void {
