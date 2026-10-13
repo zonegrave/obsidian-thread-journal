@@ -1409,6 +1409,10 @@
 	padding: 0;
 }
 
+.thread-journal-task-board-task .thread-journal-overview-task-text {
+	color: var(--text-normal);
+}
+
 @media (max-width: 820px) {
 	.thread-journal-task-board {
 		grid-template-columns: repeat(4, minmax(15rem, 82vw));
