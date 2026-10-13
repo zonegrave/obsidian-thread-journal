@@ -1226,11 +1226,6 @@
 	padding-top: 0.1rem;
 }
 
-.thread-journal-task-board-header h2 {
-	margin: 0;
-	font-size: var(--font-ui-large);
-}
-
 .thread-journal-task-board-total {
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
