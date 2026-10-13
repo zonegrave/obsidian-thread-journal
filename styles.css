@@ -1273,15 +1273,25 @@
 }
 
 .thread-journal-task-board-priority-stack {
-	display: grid;
+	display: flex;
 	min-width: 16rem;
 	min-height: 0;
-	grid-template-rows: repeat(2, minmax(0, 1fr));
+	flex-direction: column;
 	gap: 0.75rem;
+	overflow-y: auto;
 }
 
 .thread-journal-task-board-priority-stack > .thread-journal-task-board-column {
 	min-width: 0;
+	min-height: auto;
+	flex: 0 0 auto;
+	overflow: visible;
+}
+
+.thread-journal-task-board-priority-stack .thread-journal-task-board-list {
+	min-height: auto;
+	flex: 0 0 auto;
+	overflow: visible;
 }
 
 .thread-journal-task-board-column-header {
