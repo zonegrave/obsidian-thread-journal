@@ -3,6 +3,12 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'Collapse files': '收起文件',
+	'Expand all files': '展开所有文件',
+	'Collapse all file lists': '收起所有文件列表',
+	'Expand all file lists': '展开所有文件列表',
+	'No thread files yet.': '暂无 Thread 文件。',
+	'Terminated': '已终止',
 	"Cancelled": "已取消",
 	"Task status": "任务状态",
 	"Holding": "挂起",

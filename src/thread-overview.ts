@@ -7,27 +7,15 @@ import {
 	type MarkdownPostProcessorContext,
 	type WorkspaceLeaf,
 } from 'obsidian';
-import {
-	collectAttention,
-	type AttentionRow,
-	type AttentionRowFallback,
-} from './thread-attention';
-import {
-	attentionHint,
-	filterAttentionTasks,
-	type TaskScope,
-} from './thread-attention-model';
+import type { ThreadInfo, ThreadMemberInfo } from './types';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager } from './thread-files';
 import {
 	buildThreadOverviewTree,
 	countThreadOverviewDescendants,
 	DEFAULT_THREAD_OVERVIEW_STATUSES,
-	filterThreadOverviewTree,
 	type ThreadOverviewNode,
 } from './thread-overview-model';
-import type { TaskManager } from './task';
-import { renderThreadTaskItem } from './thread-task-item';
 import {
 	clampMapZoom,
 	fitMapZoom,
@@ -54,16 +42,17 @@ interface MindMapEdge {
 	to: HTMLElement;
 }
 
-type OverviewViewScope = 'all' | 'today';
+interface OverviewRow {
+	thread: ThreadInfo;
+	members: ThreadMemberInfo[];
+}
 
 class OverviewContent extends MarkdownRenderChild {
 	private readonly selectedStatuses = new Set<string>(DEFAULT_THREAD_OVERVIEW_STATUSES);
 	private readonly expandedNodes = new Set<string>();
 	private readonly collapsedBranches = new Set<string>();
-	private viewScope: OverviewViewScope = 'all';
-	private taskScope: TaskScope = 'today';
 	private filterOpen = false;
-	private rows: AttentionRow[] = [];
+	private rows: OverviewRow[] = [];
 	private request = 0;
 	private timer: number | undefined;
 	private zoom = 1;
@@ -103,7 +92,6 @@ class OverviewContent extends MarkdownRenderChild {
 		el: HTMLElement,
 		private readonly app: App,
 		private readonly index: ThreadIndex,
-		private readonly taskManager: TaskManager,
 		private readonly files: ThreadFileManager,
 	) {
 		super(el);
@@ -143,7 +131,13 @@ class OverviewContent extends MarkdownRenderChild {
 	private async refresh(): Promise<void> {
 		const request = ++this.request;
 		try {
-			const rows = await collectAttention(this.app, this.index);
+			const members = this.index.getAllMembers();
+			const rows = this.index.getAllThreads().map((thread) => ({
+				thread,
+				members: members.filter((member) => member.threadId === thread.id)
+					.sort((a, b) => Number(a.roleStatus === 'terminated') - Number(b.roleStatus === 'terminated')
+						|| a.file.basename.localeCompare(b.file.basename)),
+			}));
 			if (request !== this.request) return;
 			this.rows = rows;
 			this.render();
@@ -161,14 +155,7 @@ class OverviewContent extends MarkdownRenderChild {
 		this.teardownMap();
 		const el = this.containerEl;
 		el.empty();
-		const statusTree = buildThreadOverviewTree(this.overviewItems(), this.selectedStatuses);
-		const attentionToday = new Set(this.rows
-			.filter((row) => filterAttentionTasks(row.tasks, 'today').length > 0
-				|| row.fallbacks.length > 0)
-			.map((row) => row.thread.id));
-		const tree = this.viewScope === 'today'
-			? filterThreadOverviewTree(statusTree, (item) => attentionToday.has(item.id))
-			: statusTree;
+		const tree = buildThreadOverviewTree(this.overviewItems(), this.selectedStatuses);
 		this.renderToolbar(el, tree);
 		if (this.selectedStatuses.size === 0) {
 			el.createEl('p', {
@@ -180,9 +167,7 @@ class OverviewContent extends MarkdownRenderChild {
 		if (tree.length === 0) {
 			el.createEl('p', {
 				cls: 'thread-journal-empty',
-				text: this.viewScope === 'today'
-					? t('No threads need attention today.')
-					: t('No threads match the selected statuses.'),
+				text: t('No threads match the selected statuses.'),
 			});
 			return;
 		}
@@ -235,66 +220,33 @@ class OverviewContent extends MarkdownRenderChild {
 				this.render();
 			});
 		}
-		const viewScope = toolbar.createEl('label', {
-			cls: 'thread-journal-overview-view-scope',
-		});
-		viewScope.createSpan({ text: t('View') });
-		const viewScopeSelect = viewScope.createEl('select', {
-			attr: { 'aria-label': t('Filter thread overview') },
-		});
-		viewScopeSelect.createEl('option', { text: t('All threads'), value: 'all' });
-		viewScopeSelect.createEl('option', { text: t('Attention today'), value: 'today' });
-		viewScopeSelect.value = this.viewScope;
-		viewScopeSelect.addEventListener('change', () => {
-			this.viewScope = viewScopeSelect.value === 'today' ? 'today' : 'all';
-			this.render();
-		});
-		const holding = toolbar.createEl('button', { text: t('Holding queue') });
-		holding.addEventListener('click', () => this.taskManager.openHoldingQueue());
-		const taskScope = toolbar.createEl('label', {
-			cls: 'thread-journal-overview-task-scope',
-		});
-		taskScope.createSpan({ text: t('Tasks') });
-		const taskScopeSelect = taskScope.createEl('select', {
-			attr: { 'aria-label': t('Filter thread tasks') },
-		});
-		taskScopeSelect.createEl('option', { text: t('Active today'), value: 'today' });
-		taskScopeSelect.createEl('option', { text: t('All'), value: 'all' });
-		taskScopeSelect.createEl('option', { text: t('Idea'), value: 'idea' });
-		taskScopeSelect.createEl('option', { text: t('Committed'), value: 'committed' });
-		taskScopeSelect.createEl('option', { text: t('Open'), value: 'open' });
-		taskScopeSelect.value = this.taskScope;
-		taskScopeSelect.addEventListener('change', () => {
-			this.taskScope = taskScopeSelect.value as TaskScope;
-			this.render();
-		});
 		if (inOverviewView) {
 			this.renderZoomControls(toolbar);
 		}
 
-		const { nodeIds, taskIds, branchIds } = this.overviewExpansionTargets(tree);
+		const { nodeIds, fileIds, branchIds } = this.overviewExpansionTargets(tree);
 		const openNodeIds = nodeIds.filter((id) => this.expandedNodes.has(id));
-		const allTasksExpanded = taskIds.length > 0
-			? taskIds.every((id) => this.expandedNodes.has(id))
+		const allFilesExpanded = fileIds.length > 0
+			? fileIds.every((id) => this.expandedNodes.has(id))
 				&& branchIds.every((id) => !this.collapsedBranches.has(id))
 			: openNodeIds.length > 0;
 		const expandButton = toolbar.createEl('button', {
-			cls: 'thread-journal-overview-expand-tasks',
-			text: allTasksExpanded ? t('Collapse items') : t('Expand all items'),
+			cls: 'thread-journal-overview-expand-files',
+			text: allFilesExpanded ? t('Collapse files') : t('Expand all files'),
 			attr: {
 				type: 'button',
-				'aria-label': allTasksExpanded
-					? t('Collapse all attention lists')
-					: t('Expand all attention lists'),
+				'aria-label': allFilesExpanded
+					? t('Collapse all file lists')
+					: t('Expand all file lists'),
 			},
 		});
-		expandButton.disabled = taskIds.length === 0 && openNodeIds.length === 0;
+		expandButton.disabled = fileIds.length === 0 && openNodeIds.length === 0;
 		expandButton.addEventListener('click', () => {
-			if (allTasksExpanded) {
+			if (allFilesExpanded) {
 				for (const id of nodeIds) this.expandedNodes.delete(id);
 			} else {
 				for (const id of branchIds) this.collapsedBranches.delete(id);
-				for (const id of taskIds) this.expandedNodes.add(id);
+				for (const id of fileIds) this.expandedNodes.add(id);
 			}
 			this.render();
 		});
@@ -468,36 +420,32 @@ class OverviewContent extends MarkdownRenderChild {
 
 	private overviewExpansionTargets(tree: readonly ThreadOverviewNode[]): {
 		nodeIds: string[];
-		taskIds: string[];
+		fileIds: string[];
 		branchIds: string[];
 	} {
 		const nodeIds: string[] = [];
-		const taskIds: string[] = [];
+		const fileIds: string[] = [];
 		const branchIds: string[] = [];
 		const rowById = new Map(this.rows.map((row) => [row.thread.id, row]));
 		const visit = (node: ThreadOverviewNode): boolean => {
 			nodeIds.push(node.item.id);
 			const row = rowById.get(node.item.id);
-			const hasOwnTasks = Boolean(
+			const hasOwnFiles = Boolean(
 				!node.contextOnly && row
-					&& (this.tasksForRow(row).length > 0 || row.fallbacks.length > 0),
+					&& row.members.length > 0,
 			);
-			if (hasOwnTasks) {
-				taskIds.push(node.item.id);
+			if (hasOwnFiles) {
+				fileIds.push(node.item.id);
 			}
-			let hasTasksBelow = false;
+			let hasFilesBelow = false;
 			for (const child of node.children) {
-				hasTasksBelow = visit(child) || hasTasksBelow;
+				hasFilesBelow = visit(child) || hasFilesBelow;
 			}
-			if (hasTasksBelow) branchIds.push(node.item.id);
-			return hasOwnTasks || hasTasksBelow;
+			if (hasFilesBelow) branchIds.push(node.item.id);
+			return hasOwnFiles || hasFilesBelow;
 		};
 		for (const node of tree) visit(node);
-		return { nodeIds, taskIds, branchIds };
-	}
-
-	private tasksForRow(row: AttentionRow): AttentionRow['tasks'] {
-		return filterAttentionTasks(row.tasks, this.taskScope);
+		return { nodeIds, fileIds, branchIds };
 	}
 
 	private overviewItems(): {
@@ -573,7 +521,7 @@ class OverviewContent extends MarkdownRenderChild {
 	private renderBranch(
 		parent: HTMLElement,
 		node: ThreadOverviewNode,
-		rowById: ReadonlyMap<string, AttentionRow>,
+		rowById: ReadonlyMap<string, OverviewRow>,
 	): HTMLElement | undefined {
 		const row = rowById.get(node.item.id);
 		if (!row) return undefined;
@@ -644,7 +592,7 @@ class OverviewContent extends MarkdownRenderChild {
 
 	private renderNodeHeader(
 		details: HTMLDetailsElement,
-		row: AttentionRow,
+		row: OverviewRow,
 	): void {
 		const summary = details.createEl('summary', {
 			cls: 'thread-journal-overview-node-header',
@@ -680,22 +628,11 @@ class OverviewContent extends MarkdownRenderChild {
 				event.metaKey || event.ctrlKey,
 			);
 		});
-		const visibleTasks = this.tasksForRow(row);
-		const attentionCount = visibleTasks.length + row.fallbacks.length;
-		if (attentionCount > 0) {
-			summary.createSpan({
-				cls: 'thread-journal-overview-node-count',
-				text: String(attentionCount),
-				attr: {
-					title: t('{count} attention items', { count: attentionCount }),
-				},
-			});
-		}
 	}
 
 	private renderNodeContent(
 		details: HTMLDetailsElement,
-		row: AttentionRow,
+		row: OverviewRow,
 		node: ThreadOverviewNode,
 	): void {
 		const content = details.createDiv({ cls: 'thread-journal-overview-node-content' });
@@ -706,78 +643,23 @@ class OverviewContent extends MarkdownRenderChild {
 			});
 			return;
 		}
-		const hint = row.fallbacks.length > 0
-			&& row.thread.status === 'active'
-			&& row.summary.open === 0
-			? ''
-			: attentionHint(row.thread.status, row.summary);
-		if (hint) {
-			content.createEl('p', {
-				cls: 'thread-journal-overview-hint',
-				text: hint,
+		content.createDiv({ cls: 'thread-journal-overview-files-title', text: `${t('Thread files')} · ${row.members.length}` });
+		if (!row.members.length) {
+			content.createDiv({ cls: 'thread-journal-empty', text: t('No thread files yet.') });
+		}
+		for (const member of row.members) {
+			const item = content.createDiv({ cls: 'thread-journal-overview-file' });
+			item.toggleClass('is-terminated', member.roleStatus === 'terminated');
+			setIcon(item.createSpan({ cls: 'thread-journal-overview-file-icon' }), this.files.iconForMember(member));
+			const link = item.createEl('a', { text: member.file.basename, href: member.file.path });
+			link.addEventListener('click', (event) => {
+				event.preventDefault();
+				void this.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
 			});
+			item.createSpan({ cls: 'thread-journal-overview-file-role', text: member.role });
+			if (this.index.isEntry(member.file)) item.createSpan({ text: t('Entry') });
+			if (member.roleStatus === 'terminated') item.createSpan({ text: t('Terminated') });
 		}
-		this.renderTasks(content, row);
-	}
-
-	private renderTasks(parent: HTMLElement, row: AttentionRow): void {
-		const visibleTasks = this.tasksForRow(row);
-		const attentionCount = visibleTasks.length + row.fallbacks.length;
-		const tasks = parent.createDiv({ cls: 'thread-journal-overview-tasks' });
-		tasks.createDiv({
-			cls: 'thread-journal-overview-tasks-title',
-			text: `${t('Attention')} · ${attentionCount}`,
-		});
-		if (attentionCount === 0) {
-			tasks.createDiv({
-				cls: 'thread-journal-empty',
-				text: this.taskScope === 'today'
-					? t('No attention items today in this thread.')
-					: t('No attention items in this thread.'),
-			});
-			return;
-		}
-		for (const task of visibleTasks) {
-			const item = tasks.createDiv({ cls: 'thread-journal-overview-task' });
-			renderThreadTaskItem(item, task, row.thread.file, {
-				app: this.app,
-				taskManager: this.taskManager,
-				onRefresh: () => this.refresh(),
-			});
-		}
-		for (const fallback of row.fallbacks) {
-			this.renderFallbackLink(tasks, fallback);
-		}
-	}
-
-	private renderFallbackLink(parent: HTMLElement, fallback: AttentionRowFallback): void {
-		const item = parent.createDiv({
-			cls: 'thread-journal-overview-task thread-journal-overview-fallback',
-		});
-		const meta = item.createDiv({ cls: 'thread-journal-overview-task-meta' });
-		setIcon(meta.createSpan({ cls: 'thread-journal-overview-fallback-icon' }), 'file-text');
-		meta.createSpan({
-			cls: 'thread-journal-overview-task-kind',
-			text: fallback.role,
-		});
-		if (this.index.isEntry(fallback.file)) {
-			meta.createSpan({
-				cls: 'thread-journal-overview-fallback-entry',
-				text: t('Entry'),
-			});
-		}
-		const link = item.createEl('a', {
-			text: fallback.file.basename,
-			href: fallback.file.path,
-		});
-		link.addEventListener('click', (event) => {
-			event.preventDefault();
-			void this.app.workspace.openLinkText(
-				fallback.file.path,
-				'',
-				event.metaKey || event.ctrlKey,
-			);
-		});
 	}
 
 	private scheduleConnectorDraw(): void {
@@ -882,7 +764,6 @@ export class ThreadOverviewView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
 		private readonly index: ThreadIndex,
-		private readonly taskManager: TaskManager,
 		private readonly files: ThreadFileManager,
 	) {
 		super(leaf);
@@ -902,7 +783,7 @@ export class ThreadOverviewView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.contentEl.addClass('thread-journal-overview-view');
-		this.content = new OverviewContent(this.contentEl, this.app, this.index, this.taskManager, this.files);
+		this.content = new OverviewContent(this.contentEl, this.app, this.index, this.files);
 		this.content.load();
 	}
 
@@ -935,10 +816,9 @@ export async function openThreadOverview(app: App): Promise<void> {
 export function renderThreadOverview(
 	app: App,
 	index: ThreadIndex,
-	taskManager: TaskManager,
 	files: ThreadFileManager,
 	el: HTMLElement,
 	ctx: MarkdownPostProcessorContext,
 ): void {
-	ctx.addChild(new OverviewContent(el, app, index, taskManager, files));
+	ctx.addChild(new OverviewContent(el, app, index, files));
 }

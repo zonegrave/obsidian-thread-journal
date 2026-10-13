@@ -70,7 +70,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
 		this.registerView(
 			THREAD_OVERVIEW_VIEW_TYPE,
-			(leaf) => new ThreadOverviewView(leaf, this.index, this.tasks, this.files),
+			(leaf) => new ThreadOverviewView(leaf, this.index, this.files),
 		);
 		this.registerView(
 			THREAD_TASK_BOARD_VIEW_TYPE,
@@ -304,7 +304,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerRenderers(): void {
-		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.tasks, this.files, el, ctx));
+		this.registerMarkdownCodeBlockProcessor('thread-overview', (_source, el, ctx) => renderThreadOverview(this.app, this.index, this.files, el, ctx));
 		this.registerMarkdownCodeBlockProcessor('task-reference', (source, el, ctx) => {
 			renderTaskReference(source, el, ctx, this.app, this.tasks);
 		});
