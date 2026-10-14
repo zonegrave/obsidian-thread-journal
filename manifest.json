@@ -1,7 +1,7 @@
 {
 	"id": "thread-journal",
 	"name": "Thread Journal",
-	"version": "0.52.12",
+	"version": "0.52.13",
 	"minAppVersion": "1.13.1",
 	"description": "Organize thread packs with flexible role files and structured commits.",
 	"author": "zonegrave",

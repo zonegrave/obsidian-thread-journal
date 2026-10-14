@@ -1,6 +1,6 @@
 import { migrateTaskStates } from '../scripts/task-state-migration';
 import { EMPTY_TASK, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
-import { taskIsActiveOnBoard } from '../src/thread-task-board-model';
+import { taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
 import { dependencyReference, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
 	attentionHint,
@@ -111,6 +111,19 @@ import {
 } from '../src/task-model';
 import { parseTaskReference } from '../src/task-reference-model';
 import { is24HourTime } from '../src/time-input';
+
+void test('moving a board task changes only its state marker and preserves metadata exactly', () => {
+	const body = '重复任务 [task_id:: task-123456789abc] [thread_pin:: true] [holding:: true] [holding_for:: task-abcdefghijkl] [window_start:: 2026-10-14] [repeat:: daily] [current:: 2026-10-14] [effort:: light] [custom:: value] ^task-block';
+	for (const from of ['open', 'committed', 'idea'] as const) {
+		const line = `  > - [${taskStatusMarker(from)}] ${body}  `;
+		for (const to of ['open', 'committed', 'idea'] as const) {
+			assert.equal(taskLineWithBoardStatus(line, to), `  > - [${taskStatusMarker(to)}] ${body}  `);
+		}
+	}
+	assert.equal(taskLineWithBoardStatus('- [x] finished', 'open'), undefined);
+	assert.equal(taskLineWithBoardStatus('- [-] cancelled', 'open'), undefined);
+	assert.equal(taskLineWithBoardStatus('ordinary text', 'idea'), undefined);
+});
 
 void test('task board shows tasks whose start has arrived, including overdue tasks', () => {
 	const today = '2026-10-14';

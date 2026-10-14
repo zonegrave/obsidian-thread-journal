@@ -18,8 +18,7 @@ import {
 	TASK_STATUS_ICONS,
 	TASK_STATUS_LABELS,
 } from './task-display';
-import type { TaskStatus } from './task-model';
-import { taskIsActiveOnBoard } from './thread-task-board-model';
+import { taskIsActiveOnBoard, type BoardTaskStatus } from './thread-task-board-model';
 import {
 	renderThreadTaskItem,
 	type ThreadTaskItemField,
@@ -29,7 +28,8 @@ import { LANGUAGE_CHANGE_EVENT, t, type TranslationKey } from './i18n';
 
 export const THREAD_TASK_BOARD_VIEW_TYPE = 'thread-journal-task-board';
 
-const BOARD_STATUSES: TaskStatus[] = ['open', 'committed', 'idea'];
+const BOARD_STATUSES: BoardTaskStatus[] = ['open', 'committed', 'idea'];
+const TASK_DRAG_TYPE = 'application/x-thread-journal-board-task';
 type BoardGroup = 'review' | 'current' | 'holding';
 
 type TaskBoardField = 'thread' | ThreadTaskItemField;
@@ -90,6 +90,8 @@ export class ThreadTaskBoardView extends ItemView {
 	private timer: number | undefined;
 	private opened = false;
 	private visibleFields = new Set<TaskBoardField>(BOARD_FIELDS);
+	private draggedTask?: BoardTask;
+	private savingDrop = false;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -142,6 +144,7 @@ export class ThreadTaskBoardView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.opened = false;
+		this.draggedTask = undefined;
 		this.request += 1;
 		if (this.timer !== undefined) window.clearTimeout(this.timer);
 		this.contentEl.empty();
@@ -182,6 +185,7 @@ export class ThreadTaskBoardView extends ItemView {
 	}
 
 	private render(): void {
+		if (this.draggedTask || this.savingDrop) return;
 		const tasks = collectBoardTasks(this.rows, moment().format('YYYY-MM-DD'));
 		this.contentEl.empty();
 		const board = this.contentEl.createDiv({ cls: 'thread-journal-task-board' });
@@ -254,10 +258,11 @@ export class ThreadTaskBoardView extends ItemView {
 		}
 	}
 
-	private renderColumn(parent: HTMLElement, columnId: TaskStatus, tasks: BoardTask[]): void {
+	private renderColumn(parent: HTMLElement, columnId: BoardTaskStatus, tasks: BoardTask[]): void {
 		const column = parent.createEl('section', {
 			cls: `thread-journal-task-board-column is-${columnId}`,
 		});
+		this.registerColumnDrop(column, columnId);
 		const header = column.createDiv({ cls: 'thread-journal-task-board-column-header' });
 		setIcon(
 			header.createSpan({ cls: 'thread-journal-task-board-column-icon' }),
@@ -279,6 +284,49 @@ export class ThreadTaskBoardView extends ItemView {
 			return;
 		}
 		this.renderTaskGroups(list, tasks);
+	}
+
+	private registerColumnDrop(column: HTMLElement, status: BoardTaskStatus): void {
+		column.addEventListener('dragover', (event) => {
+			if (!this.draggedTask || this.savingDrop || !event.dataTransfer?.types.includes(TASK_DRAG_TYPE)) return;
+			event.preventDefault();
+			event.dataTransfer.dropEffect = 'move';
+			column.addClass('is-drop-target');
+		});
+		column.addEventListener('dragleave', (event) => {
+			if (event.relatedTarget instanceof Node && column.contains(event.relatedTarget)) return;
+			column.removeClass('is-drop-target');
+		});
+		column.addEventListener('drop', (event) => {
+			const item = this.draggedTask;
+			if (!item || this.savingDrop || !event.dataTransfer?.types.includes(TASK_DRAG_TYPE)) return;
+			event.preventDefault();
+			event.stopPropagation();
+			this.draggedTask = undefined;
+			this.clearDragStyles();
+			if (item.task.data.status === status) return;
+			void this.saveDroppedTask(item, status);
+		});
+	}
+
+	private clearDragStyles(): void {
+		this.contentEl.querySelectorAll('.is-drop-target, .is-dragging').forEach((el) => {
+			el.removeClass('is-drop-target', 'is-dragging');
+		});
+	}
+
+	private async saveDroppedTask(item: BoardTask, status: BoardTaskStatus): Promise<void> {
+		this.savingDrop = true;
+		try {
+			const { task } = item;
+			await this.taskManager.setFileTaskBoardStatus(task.file, task.line, task.sourceLine, status);
+		} catch (error) {
+			console.error('Thread Journal failed to move task between board columns', error);
+			new Notice(t('Failed to update task: {error}', { error: String(error) }));
+		} finally {
+			this.savingDrop = false;
+			if (this.opened) await this.refresh();
+		}
 	}
 
 	private renderPriorityColumn(
@@ -359,6 +407,22 @@ export class ThreadTaskBoardView extends ItemView {
 				task.data.holding && this.visibleFields.has('holding') ? 'is-holding' : '',
 			].filter(Boolean).join(' '),
 		});
+		card.draggable = true;
+		card.addEventListener('dragstart', (event) => {
+			if (this.savingDrop || !event.dataTransfer) {
+				event.preventDefault();
+				return;
+			}
+			this.draggedTask = item;
+			event.dataTransfer.setData(TASK_DRAG_TYPE, task.key);
+			event.dataTransfer.effectAllowed = 'move';
+			card.addClass('is-dragging');
+		});
+		card.addEventListener('dragend', () => {
+			this.draggedTask = undefined;
+			this.clearDragStyles();
+			if (this.opened && !this.savingDrop) this.render();
+		});
 		if (this.visibleFields.has('thread')) {
 			const meta = card.createDiv({ cls: 'thread-journal-task-board-card-meta' });
 			const target = this.index.getEntry(item.thread.file) ?? item.thread.file;
@@ -377,6 +441,7 @@ export class ThreadTaskBoardView extends ItemView {
 			onRefresh: () => this.refresh(),
 			isFieldVisible: (field) => this.visibleFields.has(field),
 		});
+		card.querySelectorAll('a').forEach((link) => { link.draggable = false; });
 	}
 }
 

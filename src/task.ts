@@ -15,6 +15,7 @@ import {
 import { t } from './i18n';
 import { cursorLineIsFrontmatter } from './commit-core';
 import { taskLineWithPin } from './thread-attention-model';
+import { taskLineWithBoardStatus, type BoardTaskStatus } from './thread-task-board-model';
 import {
 	advanceTaskLine,
 	completeTaskData,
@@ -471,6 +472,25 @@ export class TaskManager {
 				throw error;
 			});
 		}).open();
+	}
+
+	async setFileTaskBoardStatus(
+		file: TFile,
+		line: number,
+		sourceLine: string,
+		status: BoardTaskStatus,
+	): Promise<void> {
+		await this.app.vault.process(file, (content) => {
+			const lines = content.split('\n');
+			const taskId = parseTaskLine(sourceLine)?.data.taskId ?? '';
+			const resolved = resolveSourceLine(lines, line, sourceLine, taskId);
+			const current = lines[resolved];
+			const updated = current === sourceLine ? taskLineWithBoardStatus(current, status) : undefined;
+			if (updated === undefined) throw new Error(t('The task changed; reopen the form and try again.'));
+			lines[resolved] = updated;
+			return lines.join('\n');
+		});
+		this.invalidateTaskIndex();
 	}
 
 	async setFileTaskPinned(

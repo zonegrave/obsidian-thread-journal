@@ -1426,6 +1426,20 @@
 	box-shadow: var(--shadow-s);
 }
 
+.thread-journal-task-board-card[draggable="true"] {
+	cursor: grab;
+}
+
+.thread-journal-task-board-card.is-dragging {
+	opacity: 0.45;
+	cursor: grabbing;
+}
+
+.thread-journal-task-board-column.is-drop-target {
+	border-color: var(--interactive-accent);
+	box-shadow: inset 0 0 0 1px var(--interactive-accent);
+}
+
 .thread-journal-task-board-card.is-holding {
 	border-color: color-mix(in srgb, var(--text-warning) 45%, var(--background-modifier-border));
 }
