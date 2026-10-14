@@ -19,6 +19,7 @@ import {
 	TASK_STATUS_LABELS,
 } from './task-display';
 import type { TaskStatus } from './task-model';
+import { taskIsActiveOnBoard } from './thread-task-board-model';
 import {
 	renderThreadTaskItem,
 	type ThreadTaskItemField,
@@ -60,11 +61,11 @@ interface BoardTask {
 	thread: ThreadInfo;
 }
 
-function collectBoardTasks(rows: AttentionRow[]): BoardTask[] {
+function collectBoardTasks(rows: AttentionRow[], today: string): BoardTask[] {
 	const tasks: BoardTask[] = [];
 	for (const row of rows) {
 		for (const task of row.tasks) {
-			if (!BOARD_STATUSES.includes(task.data.status)) continue;
+			if (!taskIsActiveOnBoard(task.data, today)) continue;
 			tasks.push({ task, thread: row.thread });
 		}
 	}
@@ -181,7 +182,7 @@ export class ThreadTaskBoardView extends ItemView {
 	}
 
 	private render(): void {
-		const tasks = collectBoardTasks(this.rows);
+		const tasks = collectBoardTasks(this.rows, moment().format('YYYY-MM-DD'));
 		this.contentEl.empty();
 		const board = this.contentEl.createDiv({ cls: 'thread-journal-task-board' });
 		const footer = this.contentEl.createDiv({

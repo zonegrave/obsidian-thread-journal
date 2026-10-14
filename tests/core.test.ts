@@ -1,5 +1,6 @@
 import { migrateTaskStates } from '../scripts/task-state-migration';
 import { EMPTY_TASK, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
+import { taskIsActiveOnBoard } from '../src/thread-task-board-model';
 import { dependencyReference, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
 	attentionHint,
@@ -110,6 +111,34 @@ import {
 } from '../src/task-model';
 import { parseTaskReference } from '../src/task-reference-model';
 import { is24HourTime } from '../src/time-input';
+
+void test('task board shows tasks whose start has arrived, including overdue tasks', () => {
+	const today = '2026-10-14';
+	for (const status of ['open', 'committed', 'idea'] as const) {
+		const data = { ...EMPTY_TASK, status };
+		assert.equal(taskIsActiveOnBoard(data, today), true);
+		assert.equal(taskIsActiveOnBoard({ ...data, windowStart: '2026-10-15' }, today), false);
+		assert.equal(taskIsActiveOnBoard({ ...data, windowStart: today }, today), true);
+		assert.equal(taskIsActiveOnBoard({ ...data, windowStart: '2026-10-13' }, today), true);
+		assert.equal(taskIsActiveOnBoard({ ...data, windowEnd: '2026-10-13' }, today), true);
+		assert.equal(taskIsActiveOnBoard({ ...data, windowEnd: today }, today), true);
+	}
+	for (const status of ['completed', 'cancelled'] as const) {
+		assert.equal(taskIsActiveOnBoard({ ...EMPTY_TASK, status }, today), false);
+	}
+});
+
+void test('task board hides future recurring occurrences even when pinned', () => {
+	const today = '2026-10-14';
+	for (const pinned of [false, true]) {
+		const data = { ...EMPTY_TASK, repeat: true, pinned };
+		assert.equal(taskIsActiveOnBoard({ ...data, current: '2026-10-15' }, today), false);
+		assert.equal(taskIsActiveOnBoard({ ...data, current: today }, today), true);
+		assert.equal(taskIsActiveOnBoard({ ...data, current: '2026-10-13' }, today), true);
+		assert.equal(taskIsActiveOnBoard(data, today), false);
+		assert.equal(taskIsActiveOnBoard({ ...data, current: today, windowStart: '2026-10-15' }, today), false);
+	}
+});
 
 void test('resolves automatic language and translates interpolated UI text', () => {
 	assert.equal(resolveLocale('auto', 'zh-CN'), 'zh');
