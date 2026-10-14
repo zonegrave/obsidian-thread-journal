@@ -1,6 +1,6 @@
 import { migrateTaskStates } from '../scripts/task-state-migration';
 import { EMPTY_TASK, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
-import { taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
+import { compareBoardTasks, taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
 import { dependencyReference, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
 	attentionHint,
@@ -111,6 +111,26 @@ import {
 } from '../src/task-model';
 import { parseTaskReference } from '../src/task-reference-model';
 import { is24HourTime } from '../src/time-input';
+
+void test('board puts deadlines first and retains default ordering for remaining tasks', () => {
+	const item = (text: string, dates: Partial<TaskData> = {}, title = '') => ({
+		task: { text, data: { ...EMPTY_TASK, ...dates } }, thread: { title },
+	});
+	const tasks = [
+		item('Undated Z'),
+		item('Early start', { windowStart: '2026-01-01' }),
+		item('Later deadline', { windowEnd: '2026-10-20' }),
+		item('Current', { current: '2026-10-10' }),
+		item('Today deadline', { windowEnd: '2026-10-14' }),
+		item('Undated A'),
+		item('Overdue', { windowEnd: '2026-10-12' }),
+	];
+	assert.deepEqual(tasks.sort(compareBoardTasks).map(({ task }) => task.text), [
+		'Overdue', 'Today deadline', 'Later deadline', 'Early start', 'Current', 'Undated A', 'Undated Z',
+	]);
+	assert.ok(compareBoardTasks(item('A', { windowEnd: '2026-10-14' }), item('B', { windowEnd: '2026-10-14' })) < 0);
+	assert.ok(compareBoardTasks(item('A', {}, 'A'), item('A', {}, 'B')) < 0);
+});
 
 void test('moving a board task changes only its state marker and preserves metadata exactly', () => {
 	const body = '重复任务 [task_id:: task-123456789abc] [thread_pin:: true] [holding:: true] [holding_for:: task-abcdefghijkl] [window_start:: 2026-10-14] [repeat:: daily] [current:: 2026-10-14] [effort:: light] [custom:: value] ^task-block';

@@ -18,7 +18,7 @@ import {
 	TASK_STATUS_ICONS,
 	TASK_STATUS_LABELS,
 } from './task-display';
-import { taskIsActiveOnBoard, type BoardTaskStatus } from './thread-task-board-model';
+import { compareBoardTasks, taskIsActiveOnBoard, type BoardTaskStatus } from './thread-task-board-model';
 import {
 	renderThreadTaskItem,
 	type ThreadTaskItemField,
@@ -69,19 +69,7 @@ function collectBoardTasks(rows: AttentionRow[], today: string): BoardTask[] {
 			tasks.push({ task, thread: row.thread });
 		}
 	}
-	return tasks.sort((left, right) => {
-		const leftDate = left.task.data.windowEnd
-			|| left.task.data.windowStart
-			|| left.task.data.current
-			|| '9999-99-99';
-		const rightDate = right.task.data.windowEnd
-			|| right.task.data.windowStart
-			|| right.task.data.current
-			|| '9999-99-99';
-		return leftDate.localeCompare(rightDate)
-			|| left.task.text.localeCompare(right.task.text)
-			|| left.thread.title.localeCompare(right.thread.title);
-	});
+	return tasks.sort(compareBoardTasks);
 }
 
 export class ThreadTaskBoardView extends ItemView {
@@ -374,7 +362,11 @@ export class ThreadTaskBoardView extends ItemView {
 			current: [],
 			holding: [],
 		};
-		for (const item of tasks) grouped[this.groupForTask(item, today)].push(item);
+		for (const item of tasks) {
+			const group = this.groupForTask(item, today);
+			if (item.task.data.windowEnd) this.renderCard(parent, item, group);
+			else grouped[group].push(item);
+		}
 		this.renderGroup(parent, grouped.review, 'review');
 		this.renderGroup(parent, grouped.current, 'current');
 		this.renderGroup(parent, grouped.holding, 'holding');
