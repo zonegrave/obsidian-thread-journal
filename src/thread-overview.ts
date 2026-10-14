@@ -643,22 +643,29 @@ class OverviewContent extends MarkdownRenderChild {
 			});
 			return;
 		}
-		content.createDiv({ cls: 'thread-journal-overview-files-title', text: `${t('Thread files')} · ${row.members.length}` });
 		if (!row.members.length) {
 			content.createDiv({ cls: 'thread-journal-empty', text: t('No thread files yet.') });
 		}
 		for (const member of row.members) {
 			const item = content.createDiv({ cls: 'thread-journal-overview-file' });
 			item.toggleClass('is-terminated', member.roleStatus === 'terminated');
-			setIcon(item.createSpan({ cls: 'thread-journal-overview-file-icon' }), this.files.iconForMember(member));
+			const isEntry = this.index.isEntry(member.file);
+			const description = [
+				member.role,
+				isEntry ? t('Entry') : '',
+				member.roleStatus === 'terminated' ? t('Terminated') : '',
+			].filter(Boolean).join(' · ');
+			item.setAttribute('title', description);
+			const icon = item.createSpan({
+				cls: `thread-journal-overview-file-icon${isEntry ? ' is-entry' : ''}`,
+				attr: { 'aria-label': description },
+			});
+			setIcon(icon, this.files.iconForMember(member));
 			const link = item.createEl('a', { text: member.file.basename, href: member.file.path });
 			link.addEventListener('click', (event) => {
 				event.preventDefault();
 				void this.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
 			});
-			item.createSpan({ cls: 'thread-journal-overview-file-role', text: member.role });
-			if (this.index.isEntry(member.file)) item.createSpan({ text: t('Entry') });
-			if (member.roleStatus === 'terminated') item.createSpan({ text: t('Terminated') });
 		}
 	}
 

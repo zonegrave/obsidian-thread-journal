@@ -2983,9 +2983,8 @@
 	flex-wrap: wrap;
 }
 
-.thread-journal-overview-files-title { margin-bottom: 0.5rem; color: var(--text-muted); }
 .thread-journal-overview-file { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0; flex-wrap: wrap; }
 .thread-journal-overview-file > a { overflow-wrap: anywhere; flex: 1; min-width: 8rem; }
 .thread-journal-overview-file-icon svg { width: 14px; height: 14px; }
-.thread-journal-overview-file-role { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.thread-journal-overview-file-icon.is-entry { color: var(--text-accent); }
 .thread-journal-overview-file.is-terminated { opacity: 0.6; }
