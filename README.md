@@ -49,7 +49,7 @@ thread meta（唯一）
 
 ### Thread meta
 
-每个 thread 只有一个 meta 文件。插件以 UUID 作为文件名，默认放在 `50-行动系统/Thread Meta/`：
+每个 thread 只有一个 meta 文件。普通 thread 以 UUID 作为文件名，默认放在 `50-行动系统/Thread Meta/`：
 
 ```yaml
 ---
@@ -72,6 +72,8 @@ created: 2026-09-13
 - Meta 不保存成员列表；成员通过自己的 `thread_id` 自动归属。
 
 在 meta 或任意成员中运行 **Manage thread**，可以在一个界面中查看 Thread ID 与 meta 路径，并修改 `aliases[0]`、`status`、`parent` 和 `entry`。同一界面也提供 commit 模板与成员管理入口；修改显示名称不会重命名文件。
+
+系统根节点是唯一例外：meta 固定为配置的 meta 目录下的 `ROOT.md`，身份固定为 `thread_id: ROOT`，显示名称为 ROOT，始终 active 且没有 parent。插件首次加载时创建缺失的 ROOT，不预建成员或 entry。**Open ROOT thread** 打开其入口（没有入口时打开 meta）；**Create ROOT thread file** 可从任意位置向 ROOT 添加随笔、零散记录等成员，首个 active 成员自动成为 entry。成员通过 `thread_id: ROOT` 归属，文件、log、commit、模板和查询沿用现有机制；管理表单锁定 ROOT 的名称、状态与父节点。已有顶层 thread 继续保持 parent 为空，无需改挂 ROOT。
 
 ### Thread 成员
 
@@ -204,7 +206,7 @@ order: asc
 
 | 字段 | 可用值 | 默认值 |
 | --- | --- | --- |
-| `thread_id` | 单个 UUID，或 `[UUID, UUID]` | 全部 thread |
+| `thread_id` | 单个 UUID、`ROOT`，或身份列表 | 全部 thread |
 | `date` | `YYYY-MM-DD` 或闭区间 | 全部日期 |
 | `type` | `commit`、`log` 或列表 | 两种记录 |
 | `group_by` | `none`、`thread`、`type` | `none` |
@@ -276,6 +278,8 @@ reference_task_id: task-4f8a0d92c3e1
 | --- | --- | --- |
 | **Create thread** | 任意位置 | 以 active 或 dormant 状态创建 meta，并选择模板创建入口 |
 | **Create thread file** | meta 或成员 | 从角色模板向当前 pack 添加成员 |
+| **Open ROOT thread** | 任意位置 | 打开 ROOT 的入口，无入口时打开 ROOT meta |
+| **Create ROOT thread file** | 任意位置 | 从角色模板向 ROOT 添加成员 |
 | **Manage thread** | meta 或成员 | 查看 Thread ID 与 meta 路径；修改显示名称、状态、父节点和入口；进入 commit 模板与成员管理 |
 | **Edit commit template** | meta 或成员 | 直接编辑当前 thread 的 commit 字段模板 |
 | **Manage thread files** | meta 或成员 | 打开成员、设置入口、终止或重新激活成员 |

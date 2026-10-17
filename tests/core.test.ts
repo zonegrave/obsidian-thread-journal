@@ -53,6 +53,8 @@ import {
 	renderThreadFileTemplate,
 } from '../src/thread-template';
 import { ThreadIndex } from '../src/thread-index';
+import { RootThreadManager } from '../src/thread-root';
+import { ROOT_THREAD_ID, rootThreadContent, rootThreadPath, rootThreadSettingsValid } from '../src/thread-root-model';
 import {
 	buildInlineLogEdit,
 	inlineLogEntryAroundLine,
@@ -540,6 +542,76 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 	const threadMetadata = frontmatter.get(threadFile);
 	if (threadMetadata) threadMetadata.entry = '[[睡眠研究]]';
 	assert.equal(index.getEntry(threadFile as never), undefined);
+});
+
+void test('ROOT has one canonical meta, fixed identity, and ordinary member and entry resolution', () => {
+	const root = { path: 'Meta/ROOT.md', basename: 'ROOT' };
+	const duplicate = { path: 'Other/ROOT.md', basename: 'ROOT' };
+	const entry = { path: '随笔.md', basename: '随笔' };
+	const normal = { path: 'Meta/normal.md', basename: 'normal' };
+	const frontmatter = new Map<unknown, Record<string, unknown>>([
+		[root, { type: 'thread', thread_id: ROOT_THREAD_ID, aliases: ['wrong name'], status: 'closed', parent: '[[normal]]', entry: '[[随笔]]' }],
+		[duplicate, { type: 'thread', thread_id: ROOT_THREAD_ID }],
+		[entry, { thread_id: ROOT_THREAD_ID, thread_role: 'workspace' }],
+		[normal, { type: 'thread', thread_id: 'uuid', status: 'active', aliases: ['Normal'] }],
+	]);
+	const index = new ThreadIndex({
+		vault: { getMarkdownFiles: () => [duplicate, root, entry, normal] },
+		metadataCache: {
+			getFileCache: (file: unknown) => ({ frontmatter: frontmatter.get(file) }),
+			getFirstLinkpathDest: (link: string) => link === '随笔' ? entry : normal,
+		},
+	} as never, () => 'Meta/ROOT.md');
+	assert.equal(index.getThreadById(ROOT_THREAD_ID)?.file, root);
+	assert.equal(index.getThread(duplicate as never), undefined);
+	assert.equal(index.getThread(root as never)?.title, 'ROOT');
+	assert.equal(index.getDisplayName(root as never), 'ROOT');
+	assert.equal(index.getThread(root as never)?.status, 'active');
+	assert.equal(index.getParent(root as never), undefined);
+	assert.equal(index.getThreadForMember(entry as never), root);
+	assert.equal(index.getEntry(root as never), entry);
+	assert.equal(index.getParent(normal as never), undefined);
+	assert.deepEqual(availableThreadParentIds([{ id: 'normal', status: 'active' }], ROOT_THREAD_ID), []);
+	assert.equal(rootThreadSettingsValid('ROOT', 'active', ''), true);
+	assert.equal(rootThreadSettingsValid('renamed', 'active', ''), false);
+	assert.equal(rootThreadSettingsValid('ROOT', 'closed', ''), false);
+	assert.equal(rootThreadSettingsValid('ROOT', 'active', 'normal'), false);
+});
+
+void test('ROOT initialization is single flight, preserves existing content, and refuses collisions', async () => {
+	const files = new Map<string, { path: string; extension?: string; content?: string }>();
+	const metadata = new Map<unknown, Record<string, unknown>>();
+	let writes = 0;
+	const app = {
+		vault: {
+			getAbstractFileByPath: (path: string) => files.get(path),
+			getMarkdownFiles: () => [...files.values()].filter(file => file.extension === 'md'),
+			createFolder: (path: string) => { files.set(path, { path }); return Promise.resolve(); },
+			create: (path: string, content: string) => {
+				writes++;
+				const file = { path, extension: 'md', content };
+				files.set(path, file);
+				metadata.set(file, { type: 'thread', thread_id: 'ROOT', entry: '[[随笔]]' });
+				return Promise.resolve(file);
+			},
+		},
+		metadataCache: { getFileCache: (file: unknown) => ({ frontmatter: metadata.get(file) }) },
+	};
+	const manager = new RootThreadManager(app as never, () => 'Meta');
+	const [one, two] = await Promise.all([manager.ensure('2026-10-17'), manager.ensure('2026-10-17')]);
+	assert.equal(one, two);
+	assert.equal(writes, 1);
+	assert.equal(files.get('Meta/ROOT.md')?.content, rootThreadContent('2026-10-17'));
+	assert.equal(await manager.ensure('2026-10-18'), one);
+	assert.equal(writes, 1);
+	assert.equal(metadata.get(one)?.entry, '[[随笔]]');
+	const moved = new RootThreadManager(app as never, () => 'Other');
+	await assert.rejects(moved.ensure('2026-10-17'), /ROOT/);
+	metadata.set(one, { type: 'source' });
+	await assert.rejects(manager.ensure('2026-10-17'), /ROOT/);
+	assert.equal(writes, 1);
+	assert.equal(rootThreadPath('Meta/'), 'Meta/ROOT.md');
+	assert.equal(rootThreadPath(''), 'ROOT.md');
 });
 
 void test('uses aliases then the filename as the thread display name', () => {

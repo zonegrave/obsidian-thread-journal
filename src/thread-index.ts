@@ -1,6 +1,7 @@
 import type { App, TFile } from 'obsidian';
 import { stripWikiLink, wikiLinkAlias } from './core';
 import type { ThreadInfo, ThreadMemberInfo, ThreadRoleStatus } from './types';
+import { ROOT_THREAD_ID } from './thread-root-model';
 
 export interface ThreadParentCandidate {
 	file: TFile;
@@ -30,18 +31,19 @@ function threadRoleStatus(value: unknown): ThreadRoleStatus {
 }
 
 export class ThreadIndex {
-	constructor(private readonly app: App) {}
+	constructor(private readonly app: App, private readonly getRootPath?: () => string) {}
 
 	getThread(file: TFile): ThreadInfo | undefined {
 		const frontmatter = frontmatterFor(this.app, file);
 		const id = textValue(frontmatter.thread_id);
 		if (frontmatter.type !== 'thread' || !id) return undefined;
+		if (id === ROOT_THREAD_ID && file.path !== (this.getRootPath?.() ?? '50-行动系统/Thread Meta/ROOT.md')) return undefined;
 		return {
 			file,
 			id,
-			title: firstTextValue(frontmatter.aliases) || file.basename,
-			status: textValue(frontmatter.status),
-			parentLink: stripWikiLink(frontmatter.parent),
+			title: id === ROOT_THREAD_ID ? ROOT_THREAD_ID : firstTextValue(frontmatter.aliases) || file.basename,
+			status: id === ROOT_THREAD_ID ? 'active' : textValue(frontmatter.status),
+			parentLink: id === ROOT_THREAD_ID ? '' : stripWikiLink(frontmatter.parent),
 		};
 	}
 
@@ -109,11 +111,13 @@ export class ThreadIndex {
 	}
 
 	getDisplayName(file: TFile): string {
+		if (this.getThread(file)?.id === ROOT_THREAD_ID) return ROOT_THREAD_ID;
 		const frontmatter = frontmatterFor(this.app, file);
 		return firstTextValue(frontmatter.aliases) || file.basename;
 	}
 
 	getParent(file: TFile): ThreadAncestor | undefined {
+		if (this.getThread(file)?.id === ROOT_THREAD_ID) return undefined;
 		const metadata = frontmatterFor(this.app, file);
 		const parent = stripWikiLink(metadata.parent);
 		if (!parent) return undefined;

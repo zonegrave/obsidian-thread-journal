@@ -3,6 +3,9 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'ROOT must remain active and have no parent.': 'ROOT 名称固定，必须保持 active 且没有父节点。',
+	'ROOT meta conflicts with an existing file: {path}': 'ROOT meta 与现有文件冲突：{path}',
+	'Failed to initialize ROOT: {error}': '无法初始化 ROOT：{error}',
 	'Collapse files': '收起文件',
 	'Expand all files': '展开所有文件',
 	'Collapse all file lists': '收起所有文件列表',

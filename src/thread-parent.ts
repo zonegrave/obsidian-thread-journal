@@ -7,6 +7,7 @@ import {
 import { isOperationalThreadStatus } from './thread-status-model';
 import { t } from './i18n';
 import type { ThreadInfo } from './types';
+import { ROOT_THREAD_ID } from './thread-root-model';
 
 export class ThreadParentManager {
 	constructor(private readonly index: ThreadIndex) {}
@@ -33,6 +34,7 @@ export class ThreadParentManager {
 	validateParent(threadFile: TFile, parent?: TFile): void {
 		const thread = this.index.getThread(threadFile);
 		if (!thread) throw new Error(t('Only a valid thread meta can have its parent changed.'));
+		if (thread.id === ROOT_THREAD_ID && parent) throw new Error(t('ROOT must remain active and have no parent.'));
 		const currentParent = this.index.getParentFile(threadFile);
 		if (currentParent?.path === parent?.path || (!currentParent && !parent)) {
 			return;

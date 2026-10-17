@@ -17,6 +17,7 @@ import {
 	Plugin,
 	TFile,
 	getLanguage,
+	moment,
 } from 'obsidian';
 import { CommitManager } from './commit';
 import { commitEditorExtension } from './commit-editor';
@@ -33,6 +34,8 @@ import {
 import { ThreadCreator } from './thread-creator';
 import { ThreadFileManager } from './thread-files';
 import { ThreadIndex } from './thread-index';
+import { RootThreadManager } from './thread-root';
+import { ROOT_THREAD_ID, rootThreadPath } from './thread-root-model';
 import { ThreadMetaManager } from './thread-meta';
 import { ThreadParentManager } from './thread-parent';
 import { TaskManager } from './task';
@@ -56,6 +59,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	private commits!: CommitManager;
 	private breadcrumbs!: ThreadBreadcrumbManager;
 	private tasks!: TaskManager;
+	private rootThread!: RootThreadManager;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -64,7 +68,8 @@ export default class ThreadJournalPlugin extends Plugin {
 			(leaf) => new CommitPanelView(leaf),
 		);
 		const getSettings = () => this.settings;
-		this.index = new ThreadIndex(this.app);
+		this.index = new ThreadIndex(this.app, () => rootThreadPath(this.settings.threadMetaFolder));
+		this.rootThread = new RootThreadManager(this.app, () => this.settings.threadMetaFolder);
 		this.tasks = new TaskManager(this.app, this.index);
 		new TaskHoldingService(this.app, () => this.tasks.invalidateTaskIndex()).register(this);
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
@@ -143,7 +148,28 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.registerCommands();
 		this.registerRenderers();
 		this.addSettingTab(new ThreadJournalSettingTab(this.app, this));
-		this.app.workspace.onLayoutReady(() => this.breadcrumbs.refresh());
+		this.app.workspace.onLayoutReady(() => {
+			this.breadcrumbs.refresh();
+			void this.ensureRootThread().catch((error: unknown) => {
+				console.error('Thread Journal failed to initialize ROOT', error);
+				new Notice(t('Failed to initialize ROOT: {error}', { error: String(error) }));
+			});
+		});
+	}
+
+	private ensureRootThread(): Promise<TFile> {
+		return this.rootThread.ensure(moment().format('YYYY-MM-DD'));
+	}
+
+	private async openRootThread(createFile: boolean): Promise<void> {
+		try {
+			const root = await this.ensureRootThread();
+			if (createFile) this.files.openNewThreadFileModal(root);
+			else await this.files.openFile(this.index.getEntry(root) ?? root);
+		} catch (error) {
+			console.error('Thread Journal failed to open ROOT', error);
+			new Notice(t('Failed to initialize ROOT: {error}', { error: String(error) }));
+		}
 	}
 
 	onunload(): void {
@@ -172,6 +198,9 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerCommands(): void {
+		// ROOT is the reserved system identity; command names remain English.
+		this.addCommand({ id: 'open-root-thread', name: `Open ${ROOT_THREAD_ID} thread`, callback: () => void this.openRootThread(false) });
+		this.addCommand({ id: 'new-root-thread-file', name: `Create ${ROOT_THREAD_ID} thread file`, callback: () => void this.openRootThread(true) });
 		this.addCommand({ id: 'holding-queue', name: t('Holding queue'), callback: () => this.tasks.openHoldingQueue() });
 		this.addCommand({ id: 'thread-overview', name: t('Open thread overview'), callback: () => void openThreadOverview(this.app) });
 		this.addCommand({ id: 'thread-task-board', name: t('Open thread task board'), callback: () => void openThreadTaskBoard(this.app) });

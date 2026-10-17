@@ -19,6 +19,7 @@ import {
 	type ThreadStatus,
 } from './thread-status-model';
 import type { ThreadInfo, ThreadMemberInfo } from './types';
+import { ROOT_THREAD_ID, rootThreadSettingsValid } from './thread-root-model';
 
 interface ThreadMetaFormData {
 	title: string;
@@ -60,6 +61,7 @@ class ThreadMetaModal extends Modal {
 	}
 
 	onOpen(): void {
+		const isRoot = this.context.thread.id === ROOT_THREAD_ID;
 		this.modalEl.addClass('thread-journal-thread-meta-modal');
 		this.setTitle(t('Manage thread'));
 
@@ -82,6 +84,7 @@ class ThreadMetaModal extends Modal {
 			.setName(t('Title'))
 			.setDesc(t('Updates aliases[0] without renaming files.'))
 			.addText((text) => text
+				.setDisabled(isRoot)
 				.setPlaceholder(t('Thread title'))
 				.setValue(this.title)
 				.onChange((value) => {
@@ -91,6 +94,7 @@ class ThreadMetaModal extends Modal {
 		new Setting(this.contentEl)
 			.setName(t('Status'))
 			.addDropdown((dropdown) => {
+				dropdown.setDisabled(isRoot);
 				for (const choice of THREAD_STATUS_CHOICES) {
 					dropdown.addOption(choice.value, threadStatusOptionLabel(choice));
 				}
@@ -103,6 +107,7 @@ class ThreadMetaModal extends Modal {
 			.setName(t('Parent'))
 			.setDesc(t('Only active or dormant threads can become a new parent.'))
 			.addDropdown((dropdown) => {
+				dropdown.setDisabled(isRoot);
 				dropdown.addOption('', t('None — root thread'));
 				for (const candidate of this.context.parentCandidates) {
 					dropdown.addOption(
@@ -253,6 +258,9 @@ export class ThreadMetaManager {
 		if (!thread) throw new Error(t('Thread meta no longer exists.'));
 		const title = data.title.trim();
 		if (!title) throw new Error(t('Title cannot be empty.'));
+		if (thread.id === ROOT_THREAD_ID && !rootThreadSettingsValid(title, data.status, data.parentId)) {
+			throw new Error(t('ROOT must remain active and have no parent.'));
+		}
 
 		const parent = data.parentId ? this.index.getThreadById(data.parentId)?.file : undefined;
 		if (data.parentId && !parent) throw new Error(t('The selected parent no longer exists.'));

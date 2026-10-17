@@ -1,4 +1,5 @@
 import { isOperationalThreadStatus } from './thread-status-model';
+import { ROOT_THREAD_ID } from './thread-root-model';
 
 export interface ThreadParentNode {
 	id: string;
@@ -26,6 +27,7 @@ export function availableThreadParentIds(
 	nodes: readonly ThreadParentNode[],
 	threadId: string,
 ): string[] {
+	if (threadId === ROOT_THREAD_ID) return [];
 	return nodes
 		.filter((node) => isOperationalThreadStatus(node.status))
 		.filter((node) => !wouldCreateThreadParentCycle(nodes, threadId, node.id))
