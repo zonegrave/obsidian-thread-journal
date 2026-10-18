@@ -11,7 +11,7 @@ import type { ThreadInfo, ThreadMemberInfo } from './types';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadFileManager } from './thread-files';
 import {
-	buildThreadOverviewTree,
+	buildRootedThreadOverviewTree,
 	countThreadOverviewDescendants,
 	DEFAULT_THREAD_OVERVIEW_STATUSES,
 	type ThreadOverviewNode,
@@ -34,6 +34,7 @@ import {
 	threadStatusLabel,
 } from './thread-status-model';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
+import { ROOT_THREAD_ID } from './thread-root-model';
 
 export const THREAD_OVERVIEW_VIEW_TYPE = 'thread-journal-overview';
 
@@ -155,9 +156,9 @@ class OverviewContent extends MarkdownRenderChild {
 		this.teardownMap();
 		const el = this.containerEl;
 		el.empty();
-		const tree = buildThreadOverviewTree(this.overviewItems(), this.selectedStatuses);
+		const tree = buildRootedThreadOverviewTree(this.overviewItems(), this.selectedStatuses);
 		this.renderToolbar(el, tree);
-		if (this.selectedStatuses.size === 0) {
+		if (this.selectedStatuses.size === 0 && tree.length === 0) {
 			el.createEl('p', {
 				cls: 'thread-journal-empty',
 				text: t('Select at least one status.'),
@@ -177,6 +178,7 @@ class OverviewContent extends MarkdownRenderChild {
 	private renderToolbar(parent: HTMLElement, tree: ThreadOverviewNode[]): void {
 		const counts = new Map<string, number>();
 		for (const row of this.rows) {
+			if (row.thread.id === ROOT_THREAD_ID) continue;
 			counts.set(row.thread.status, (counts.get(row.thread.status) ?? 0) + 1);
 		}
 		const inOverviewView = parent.hasClass('thread-journal-overview-view');
@@ -490,13 +492,8 @@ class OverviewContent extends MarkdownRenderChild {
 		this.connectorSvg = svg;
 
 		const layout = map.createDiv({ cls: 'thread-journal-overview-map-layout' });
-		const root = layout.createDiv({ cls: 'thread-journal-overview-map-root' });
-		setIcon(root.createSpan(), 'git-branch');
-		root.createSpan({ text: t('Threads') });
-		const roots = layout.createDiv({ cls: 'thread-journal-overview-map-children' });
 		for (const node of tree) {
-			const child = this.renderBranch(roots, node, rowById);
-			if (child) this.edges.push({ from: root, to: child });
+			this.renderBranch(layout, node, rowById);
 		}
 
 		this.resizeObserver = new ResizeObserver((entries) => {
@@ -538,6 +535,7 @@ class OverviewContent extends MarkdownRenderChild {
 				'data-status': node.item.status || 'unset',
 			},
 		});
+		details.toggleClass('is-system-root', node.item.id === ROOT_THREAD_ID);
 		details.open = this.expandedNodes.has(node.item.id);
 		details.addEventListener('toggle', () => {
 			if (details.open) this.expandedNodes.add(node.item.id);
@@ -606,7 +604,7 @@ class OverviewContent extends MarkdownRenderChild {
 				'aria-label': t('Manage thread files ({count})', { count: activeFiles.length }),
 			},
 		});
-		setIcon(filesButton.createSpan(), 'files');
+		setIcon(filesButton.createSpan(), row.thread.id === ROOT_THREAD_ID ? 'folder-tree' : 'files');
 		filesButton.createSpan({ text: String(activeFiles.length) });
 		filesButton.addEventListener('click', (event) => {
 			event.preventDefault();

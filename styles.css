@@ -1672,24 +1672,6 @@
 	padding: 1rem 2rem;
 }
 
-.thread-journal-overview-map-root {
-	display: inline-flex;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 0.7rem 0.9rem;
-	border: 1px solid var(--interactive-accent);
-	border-radius: 999px;
-	background: var(--interactive-accent);
-	color: var(--text-on-accent);
-	font-weight: var(--font-semibold);
-	box-shadow: var(--shadow-s);
-}
-
-.thread-journal-overview-map-root svg {
-	width: 16px;
-	height: 16px;
-}
-
 .thread-journal-overview-map-children {
 	display: flex;
 	flex-direction: column;
@@ -2935,6 +2917,10 @@
 .thread-journal-overview-node[data-status="paused"],
 .thread-journal-overview-node[data-status="review"] {
 	--thread-journal-overview-status-color: var(--text-warning);
+}
+
+.thread-journal-overview-node.is-system-root {
+	--thread-journal-overview-status-color: var(--interactive-accent);
 }
 
 @media (max-width: 650px) {

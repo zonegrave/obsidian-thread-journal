@@ -18,6 +18,7 @@ import {
 	breadcrumbRightClearance,
 	breadcrumbTooltipPlacement,
 	filterBreadcrumbThreads,
+	rootedBreadcrumbTrail,
 } from '../src/thread-breadcrumb-model';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -81,6 +82,7 @@ import {
 import { replaceThreadDisplayAlias } from '../src/thread-meta-model';
 import {
 	buildThreadOverviewTree,
+	buildRootedThreadOverviewTree,
 	countThreadOverviewDescendants,
 	DEFAULT_THREAD_OVERVIEW_STATUSES,
 	filterThreadOverviewTree,
@@ -542,6 +544,41 @@ void test('groups arbitrary member files under meta and resolves its unique entr
 	const threadMetadata = frontmatter.get(threadFile);
 	if (threadMetadata) threadMetadata.entry = '[[睡眠研究]]';
 	assert.equal(index.getEntry(threadFile as never), undefined);
+});
+
+void test('overview uses ROOT as the system root without duplicating or changing stored parents', () => {
+	const items = [
+		{ id: 'ROOT', title: 'ROOT', status: 'active' },
+		{ id: 'a', title: 'A', status: 'active' },
+		{ id: 'b', title: 'B', status: 'dormant', parent: 'ROOT' },
+		{ id: 'c', title: 'C', status: 'active', parent: 'a' },
+	];
+	const before = JSON.stringify(items);
+	const tree = buildRootedThreadOverviewTree(items, new Set(['active', 'dormant']));
+	assert.deepEqual(tree.map(node => node.item.id), ['ROOT']);
+	assert.deepEqual(tree[0]?.children.map(node => node.item.id), ['a', 'b']);
+	assert.deepEqual(tree[0]?.children[0]?.children.map(node => node.item.id), ['c']);
+	assert.equal(JSON.stringify(items), before);
+	const dormant = buildRootedThreadOverviewTree(items, new Set(['dormant']));
+	assert.equal(dormant[0]?.contextOnly, false);
+	assert.deepEqual(dormant[0]?.children.map(node => node.item.id), ['b']);
+	const none = buildRootedThreadOverviewTree(items, new Set());
+	assert.equal(none[0]?.item.id, 'ROOT');
+	assert.deepEqual(none[0]?.children, []);
+	assert.equal(buildRootedThreadOverviewTree([items[0]!], new Set(['closed']))[0]?.item.id, 'ROOT');
+});
+
+void test('breadcrumb shows ROOT once and excludes it from ordinary thread switchers', () => {
+	const root = { file: { path: 'Meta/ROOT.md' }, label: 'ROOT' };
+	const current = { file: { path: 'Meta/a.md' }, label: 'A' };
+	assert.deepEqual(rootedBreadcrumbTrail(root as never, [current as never]), [root, current]);
+	assert.deepEqual(rootedBreadcrumbTrail(root as never, [root as never, current as never]), [root, current]);
+	assert.deepEqual(rootedBreadcrumbTrail(root as never, [root as never]), [root]);
+	const choices = [
+		{ id: 'ROOT', title: 'ROOT', status: 'active' },
+		{ id: 'a', title: 'A', status: 'active' },
+	];
+	assert.deepEqual(filterBreadcrumbThreads(choices as never).map(item => item.id), ['a']);
 });
 
 void test('ROOT has one canonical meta, fixed identity, and ordinary member and entry resolution', () => {

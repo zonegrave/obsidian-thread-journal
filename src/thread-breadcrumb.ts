@@ -14,9 +14,11 @@ import {
 	breadcrumbRightClearance,
 	breadcrumbTooltipPlacement,
 	filterBreadcrumbThreads,
+	rootedBreadcrumbTrail,
 } from './thread-breadcrumb-model';
 import type { ThreadInfo, ThreadJournalSettings } from './types';
 import { t } from './i18n';
+import { ROOT_THREAD_ID } from './thread-root-model';
 
 interface MountedBar {
 	bar: HTMLElement;
@@ -238,8 +240,12 @@ export class ThreadBreadcrumbManager {
 	): void {
 		const { bar } = mounted;
 		bar.empty();
+		const rootThread = this.index.getThreadById(ROOT_THREAD_ID);
 		const rootThreads = filterBreadcrumbThreads(
-			this.index.getAllThreads().filter((thread) => !this.index.getParentFile(thread.file)),
+			this.index.getAllThreads().filter((thread) => {
+				const parent = this.index.getParentFile(thread.file);
+				return !parent || parent.path === rootThread?.file.path;
+			}),
 		);
 		const root = bar.createEl('button', {
 			cls: 'clickable-icon thread-journal-fixed-breadcrumb-root',
@@ -250,11 +256,12 @@ export class ThreadBreadcrumbManager {
 		root.addEventListener('click', () => {
 			void openThreadOverview(this.app);
 		});
-		const trail = [...this.index.getAncestors(threadFile).items, {
+		const trail = rootedBreadcrumbTrail(rootThread ? { file: rootThread.file, label: ROOT_THREAD_ID } : undefined,
+			[...this.index.getAncestors(threadFile).items, {
 			file: threadFile,
 			label: current.title,
-		}];
-		if (rootThreads.length > 0) {
+		}]);
+		if (!rootThread && rootThreads.length > 0) {
 			const rootSeparator = bar.createEl('button', {
 				cls: 'clickable-icon thread-journal-fixed-breadcrumb-separator',
 				attr: {
@@ -292,7 +299,7 @@ export class ThreadBreadcrumbManager {
 				void this.app.workspace.openLinkText(target.path, threadFile.path);
 			});
 			const children = filterBreadcrumbThreads(
-				this.index.getDirectChildren(item.file),
+				item.file.path === rootThread?.file.path ? rootThreads : this.index.getDirectChildren(item.file),
 			);
 			const separatesNextSegment = trailIndex < trail.length - 1;
 			if (children.length > 0) {

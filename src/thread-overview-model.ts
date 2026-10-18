@@ -1,3 +1,5 @@
+import { ROOT_THREAD_ID } from './thread-root-model';
+
 export const DEFAULT_THREAD_OVERVIEW_STATUSES = ['active', 'dormant'] as const;
 
 export interface ThreadOverviewItem {
@@ -11,6 +13,22 @@ export interface ThreadOverviewNode {
 	item: ThreadOverviewItem;
 	contextOnly: boolean;
 	children: ThreadOverviewNode[];
+}
+
+export function buildRootedThreadOverviewTree(
+	items: readonly ThreadOverviewItem[],
+	selectedStatuses: ReadonlySet<string>,
+): ThreadOverviewNode[] {
+	const root = items.find((item) => item.id === ROOT_THREAD_ID);
+	const threads = items.filter((item) => item.id !== ROOT_THREAD_ID)
+		.map((item) => item.parent === ROOT_THREAD_ID ? { ...item, parent: undefined } : item);
+	const children = buildThreadOverviewTree(threads, selectedStatuses);
+	if (!root) return children;
+	return [{
+		item: { ...root, title: ROOT_THREAD_ID, status: 'active', parent: undefined },
+		contextOnly: false,
+		children,
+	}];
 }
 
 export function filterThreadOverviewTree(

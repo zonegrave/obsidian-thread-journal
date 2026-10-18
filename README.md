@@ -75,6 +75,8 @@ created: 2026-09-13
 
 系统根节点是唯一例外：meta 固定为配置的 meta 目录下的 `ROOT.md`，身份固定为 `thread_id: ROOT`，显示名称为 ROOT，始终 active 且没有 parent。插件首次加载时创建缺失的 ROOT，不预建成员或 entry。**Open ROOT thread** 打开其入口（没有入口时打开 meta）；**Create ROOT thread file** 可从任意位置向 ROOT 添加随笔、零散记录等成员，首个 active 成员自动成为 entry。成员通过 `thread_id: ROOT` 归属，文件、log、commit、模板和查询沿用现有机制；管理表单锁定 ROOT 的名称、状态与父节点。已有顶层 thread 继续保持 parent 为空，无需改挂 ROOT。
 
+Overview 中 ROOT 是系统中心节点，替代原来的 Threads 占位节点；它始终显示且不计入普通状态筛选计数，展开可见直属 Thread Files。已有顶层 thread 与显式以 ROOT 为 parent 的 thread 在图上从 ROOT 连出，不增加重复 ROOT 节点。Breadcrumb 同样以 ROOT 为统一起点，顶层切换菜单不把 ROOT 当作普通 thread 选项。以上层级是展示和导航关系，不改写已有 parent，也不改变任务与记录的实际归属。
+
 ### Thread 成员
 
 成员可以位于 vault 的任何位置。通过插件新建的成员默认放在 `50-行动系统/Thread Files/`：

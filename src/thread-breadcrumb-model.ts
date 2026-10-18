@@ -1,7 +1,13 @@
 import type { ThreadInfo } from './types';
 import { isOperationalThreadStatus } from './thread-status-model';
+import { ROOT_THREAD_ID } from './thread-root-model';
+import type { ThreadAncestor } from './thread-index';
 
 export type BreadcrumbPosition = 'top' | 'bottom';
+
+export function rootedBreadcrumbTrail(root: ThreadAncestor | undefined, trail: readonly ThreadAncestor[]): ThreadAncestor[] {
+	return root ? [root, ...trail.filter((item) => item.file.path !== root.file.path)] : [...trail];
+}
 
 export function breadcrumbTooltipPlacement(position: BreadcrumbPosition): 'top' | 'bottom' {
 	return position === 'bottom' ? 'top' : 'bottom';
@@ -11,6 +17,7 @@ export function filterBreadcrumbThreads(
 	threads: ThreadInfo[],
 ): ThreadInfo[] {
 	return threads
+		.filter((thread) => thread.id !== ROOT_THREAD_ID)
 		.filter((thread) => isOperationalThreadStatus(thread.status))
 		.sort((left, right) => left.title.localeCompare(right.title));
 }
