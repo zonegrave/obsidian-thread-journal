@@ -18,7 +18,7 @@ import {
 	TASK_STATUS_ICONS,
 	TASK_STATUS_LABELS,
 } from './task-display';
-import { compareBoardTasks, taskIsActiveOnBoard, type BoardTaskStatus } from './thread-task-board-model';
+import { compareBoardTasks, groupBoardTasks, taskIsActiveOnBoard, type BoardGroup, type BoardTaskStatus } from './thread-task-board-model';
 import {
 	renderThreadTaskItem,
 	type ThreadTaskItemField,
@@ -30,7 +30,6 @@ export const THREAD_TASK_BOARD_VIEW_TYPE = 'thread-journal-task-board';
 
 const BOARD_STATUSES: BoardTaskStatus[] = ['open', 'committed', 'idea'];
 const TASK_DRAG_TYPE = 'application/x-thread-journal-board-task';
-type BoardGroup = 'review' | 'current' | 'holding';
 
 type TaskBoardField = 'thread' | ThreadTaskItemField;
 
@@ -357,26 +356,10 @@ export class ThreadTaskBoardView extends ItemView {
 
 	private renderTaskGroups(parent: HTMLElement, tasks: BoardTask[]): void {
 		const today = moment().format('YYYY-MM-DD');
-		const grouped: Record<BoardGroup, BoardTask[]> = {
-			review: [],
-			current: [],
-			holding: [],
-		};
-		for (const item of tasks) {
-			const group = this.groupForTask(item, today);
-			if (item.task.data.windowEnd) this.renderCard(parent, item, group);
-			else grouped[group].push(item);
-		}
+		const grouped = groupBoardTasks(tasks, today);
 		this.renderGroup(parent, grouped.review, 'review');
 		this.renderGroup(parent, grouped.current, 'current');
 		this.renderGroup(parent, grouped.holding, 'holding');
-	}
-
-	private groupForTask(item: BoardTask, today: string): BoardGroup {
-		const { data } = item.task;
-		if (!data.holding) return 'current';
-		if (data.holdingReview && data.holdingReview <= today) return 'review';
-		return 'holding';
 	}
 
 	private renderGroup(parent: HTMLElement, tasks: BoardTask[], group: BoardGroup): void {

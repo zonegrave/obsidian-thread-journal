@@ -1,6 +1,6 @@
 import { migrateTaskStates } from '../scripts/task-state-migration';
 import { EMPTY_TASK, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
-import { compareBoardTasks, taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
+import { compareBoardTasks, groupBoardTasks, taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
 import { dependencyReference, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
 	attentionHint,
@@ -134,6 +134,28 @@ void test('board puts deadlines first and retains default ordering for remaining
 	]);
 	assert.ok(compareBoardTasks(item('A', { windowEnd: '2026-10-14' }), item('B', { windowEnd: '2026-10-14' })) < 0);
 	assert.ok(compareBoardTasks(item('A', {}, 'A'), item('A', {}, 'B')) < 0);
+});
+
+void test('due holding reviews precede actionable deadlines and held deadlines remain in holding', () => {
+	const item = (text: string, data: Partial<TaskData>) => ({
+		task: { text, data: { ...EMPTY_TASK, ...data } }, thread: { title: '' },
+	});
+	const tasks = [
+		item('Future deadline', { windowEnd: '2026-11-19' }),
+		item('Ordinary', {}),
+		item('Held overdue', { holding: true, windowEnd: '2026-10-01', holdingReview: '2026-10-20' }),
+		item('Review today', { holding: true, holdingReview: '2026-10-19' }),
+		item('Overdue actionable', { windowEnd: '2026-10-18' }),
+		item('Review with deadline', { holding: true, holdingReview: '2026-10-18', windowEnd: '2026-10-21' }),
+		item('Held without review', { holding: true, windowEnd: '2026-10-19' }),
+	];
+	const before = JSON.stringify(tasks);
+	const grouped = groupBoardTasks(tasks, '2026-10-19');
+	assert.deepEqual(grouped.review.map(item => item.task.text), ['Review with deadline', 'Review today']);
+	assert.deepEqual(grouped.current.map(item => item.task.text), ['Overdue actionable', 'Future deadline', 'Ordinary']);
+	assert.deepEqual(grouped.holding.map(item => item.task.text), ['Held overdue', 'Held without review']);
+	assert.equal(JSON.stringify(tasks), before);
+	assert.deepEqual(groupBoardTasks([], '2026-10-19'), { review: [], current: [], holding: [] });
 });
 
 void test('moving a board task changes only its state marker and preserves metadata exactly', () => {

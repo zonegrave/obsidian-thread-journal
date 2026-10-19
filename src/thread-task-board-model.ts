@@ -1,6 +1,7 @@
 import { parseTaskLine, taskStatusMarker, taskWindowState, type TaskData } from './task-model';
 
 export type BoardTaskStatus = 'open' | 'committed' | 'idea';
+export type BoardGroup = 'review' | 'current' | 'holding';
 
 interface BoardSortItem {
 	task: {
@@ -19,6 +20,19 @@ export function compareBoardTasks(left: BoardSortItem, right: BoardSortItem): nu
 	return leftDate.localeCompare(rightDate)
 		|| left.task.text.localeCompare(right.task.text)
 		|| left.thread.title.localeCompare(right.thread.title);
+}
+
+export function groupBoardTasks<T extends BoardSortItem & {
+	task: { data: Pick<TaskData, 'holding' | 'holdingReview'> };
+}>(tasks: readonly T[], today: string): Record<BoardGroup, T[]> {
+	const grouped: Record<BoardGroup, T[]> = { review: [], current: [], holding: [] };
+	for (const item of [...tasks].sort(compareBoardTasks)) {
+		const { data } = item.task;
+		if (!data.holding) grouped.current.push(item);
+		else if (data.holdingReview && data.holdingReview <= today) grouped.review.push(item);
+		else grouped.holding.push(item);
+	}
+	return grouped;
 }
 
 export function taskLineWithBoardStatus(line: string, status: BoardTaskStatus): string | undefined {
