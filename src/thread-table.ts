@@ -151,13 +151,22 @@ export class ThreadTableView extends ItemView {
 			if (key === 'status') { cell.setText(threadStatusLabel(data.thread.status)); continue; }
 			const value = data.counts[key];
 			cell.toggleClass('is-zero', !value);
+			const column = THREAD_TABLE_COLUMNS.find(column => column.key === key)!;
+			cell.setAttribute('title', `${t(column.label)} · ${value}`);
+			const count: HTMLElement = cell.createEl(key === 'files' || (key === 'children' && node.children.length) ? 'button' : 'span', {
+				cls: 'thread-journal-table-count',
+				attr: { 'aria-label': `${t(column.label)}: ${value}` },
+			});
+			if (column.icon) setIcon(count.createSpan({ cls: 'thread-journal-table-count-icon', attr: { 'aria-hidden': 'true' } }), column.icon);
+			count.createSpan({ text: value ? String(value) : '–' });
 			if (key === 'files') {
-				const button = cell.createEl('button', { text: String(value), attr: { type: 'button', 'aria-label': t('Manage thread files ({count})', { count: value }) } });
-				button.addEventListener('click', event => this.files.openActiveThreadFilesMenu(data.thread.file, event));
+				count.setAttribute('type', 'button');
+				count.setAttribute('aria-label', t('Manage thread files ({count})', { count: value }));
+				count.addEventListener('click', event => this.files.openActiveThreadFilesMenu(data.thread.file, event));
 			} else if (key === 'children' && node.children.length) {
-				const button = cell.createEl('button', { text: String(value), attr: { type: 'button' } });
-				button.addEventListener('click', () => this.toggle(data.thread.id));
-			} else cell.setText(value ? String(value) : '–');
+				count.setAttribute('type', 'button');
+				count.addEventListener('click', () => this.toggle(data.thread.id));
+			}
 		}
 	}
 

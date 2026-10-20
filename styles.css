@@ -1405,6 +1405,49 @@
 }
 
 .thread-journal-table-value > button:hover { background: var(--background-modifier-hover); }
+.thread-journal-table-value { --thread-table-count-color: var(--text-muted); }
+.thread-journal-table-value.is-files,
+.thread-journal-table-value.is-children { --thread-table-count-color: var(--color-blue); }
+.thread-journal-table-value.is-open,
+.thread-journal-table-value.is-completed { --thread-table-count-color: var(--text-success); }
+.thread-journal-table-value.is-committed { --thread-table-count-color: var(--color-purple); }
+.thread-journal-table-value.is-idea,
+.thread-journal-table-value.is-holding,
+.thread-journal-table-value.is-pinned { --thread-table-count-color: var(--text-warning); }
+.thread-journal-table-value.is-recurring { --thread-table-count-color: var(--color-cyan); }
+.thread-journal-table-value.is-commits { --thread-table-count-color: var(--color-green); }
+
+.thread-journal-table-value > .thread-journal-table-count {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	min-width: 42px;
+	height: 24px;
+	padding: 0 6px;
+	border-radius: var(--radius-s);
+	background: color-mix(in srgb, var(--thread-table-count-color) 8%, transparent);
+	color: var(--text-normal);
+	font-weight: var(--font-semibold);
+	vertical-align: middle;
+}
+
+.thread-journal-table-count-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+	color: var(--thread-table-count-color);
+}
+.thread-journal-table-count-icon svg { width: 15px; height: 15px; }
+.thread-journal-table-value.is-zero > .thread-journal-table-count {
+	background: transparent;
+	color: var(--text-faint);
+	font-weight: var(--font-normal);
+}
+.thread-journal-table-value.is-zero .thread-journal-table-count-icon { color: var(--text-faint); }
+.thread-journal-table-value > button.thread-journal-table-count:hover {
+	background: color-mix(in srgb, var(--thread-table-count-color) 16%, transparent);
+}
+
 .thread-journal-table-footer > span:first-child { margin-right: auto; font-size: var(--font-ui-smaller); }
 
 .thread-journal-table-fields > .thread-journal-overview-filter-panel {
