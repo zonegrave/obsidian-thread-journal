@@ -1197,7 +1197,8 @@
 }
 
 .workspace-leaf-content > .view-content.thread-journal-overview-view,
-.workspace-leaf-content > .view-content.thread-journal-task-board-view {
+.workspace-leaf-content > .view-content.thread-journal-task-board-view,
+.workspace-leaf-content > .view-content.thread-journal-table-view {
 	position: relative;
 	display: flex;
 	box-sizing: border-box;
@@ -1270,6 +1271,147 @@
 
 .thread-journal-task-board-footer {
 	justify-content: flex-end;
+}
+
+.thread-journal-table-scroll {
+	min-height: 0;
+	flex: 1 1 auto;
+	overflow: auto;
+}
+
+.thread-journal-thread-table {
+	width: max-content;
+	min-width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	font-size: var(--font-ui-small);
+	font-variant-numeric: tabular-nums;
+}
+
+.thread-journal-thread-table th,
+.thread-journal-thread-table td {
+	box-sizing: border-box;
+	height: 32px;
+	padding: 0 10px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	white-space: nowrap;
+}
+
+.thread-journal-thread-table th {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium);
+	text-align: center;
+}
+
+.thread-journal-thread-table th:first-child,
+.thread-journal-thread-table td:first-child {
+	position: sticky;
+	left: 0;
+	z-index: 1;
+	width: 24rem;
+	min-width: 18rem;
+	max-width: 32rem;
+	background: var(--background-primary);
+	text-align: left;
+}
+
+.thread-journal-thread-table th:first-child {
+	z-index: 3;
+	background: var(--background-secondary);
+}
+
+.thread-journal-thread-table tr:hover td {
+	background: var(--background-primary-alt);
+}
+
+.thread-journal-thread-table .is-root > td:first-child {
+	font-weight: var(--font-semibold);
+}
+
+.thread-journal-table-name {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	height: 32px;
+}
+
+.thread-journal-table-name > a {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--text-normal);
+	text-decoration: none;
+	text-overflow: ellipsis;
+}
+
+.thread-journal-table-name > a:hover { text-decoration: underline; }
+
+.thread-journal-table-guide,
+.thread-journal-table-branch {
+	position: relative;
+	width: 18px;
+	height: 100%;
+	flex: 0 0 18px;
+}
+
+.thread-journal-table-guide.is-continuing::before,
+.thread-journal-table-branch::before {
+	position: absolute;
+	top: -1px;
+	bottom: -1px;
+	left: 9px;
+	border-left: 1px solid var(--background-modifier-border-hover);
+	content: '';
+}
+
+.thread-journal-table-branch.is-last::before { bottom: 50%; }
+
+.thread-journal-table-branch::after {
+	position: absolute;
+	top: 50%;
+	right: 0;
+	left: 9px;
+	border-top: 1px solid var(--background-modifier-border-hover);
+	content: '';
+}
+
+.thread-journal-table-name > .thread-journal-table-toggle {
+	width: 22px;
+	height: 22px;
+	min-height: 22px;
+	flex: 0 0 22px;
+	margin-right: 4px;
+	padding: 3px;
+}
+
+.thread-journal-table-toggle svg { width: 14px; height: 14px; }
+.thread-journal-table-toggle:disabled { visibility: hidden; }
+.thread-journal-table-value { text-align: center; }
+.thread-journal-table-value.is-zero { color: var(--text-faint); }
+.thread-journal-table-value.is-status { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+
+.thread-journal-table-value > button {
+	min-height: 22px;
+	padding: 0 5px;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	color: inherit;
+	font: inherit;
+}
+
+.thread-journal-table-value > button:hover { background: var(--background-modifier-hover); }
+.thread-journal-table-footer > span:first-child { margin-right: auto; font-size: var(--font-ui-smaller); }
+
+.thread-journal-table-fields > .thread-journal-overview-filter-panel {
+	top: auto;
+	bottom: calc(100% + 0.3rem);
+	max-height: min(70vh, 32rem);
+	overflow-y: auto;
 }
 
 .thread-journal-task-board-total {

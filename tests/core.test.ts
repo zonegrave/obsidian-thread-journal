@@ -55,6 +55,8 @@ import {
 } from '../src/thread-template';
 import { ThreadIndex } from '../src/thread-index';
 import { RootThreadManager } from '../src/thread-root';
+import { collectThreadTable } from '../src/thread-table-data';
+import { countTableTask, emptyThreadTableCounts, flattenThreadTableTree, threadTableContent } from '../src/thread-table-model';
 import { ROOT_THREAD_ID, rootThreadContent, rootThreadPath, rootThreadSettingsValid } from '../src/thread-root-model';
 import {
 	buildInlineLogEdit,
@@ -601,6 +603,95 @@ void test('breadcrumb shows ROOT once and excludes it from ordinary thread switc
 		{ id: 'a', title: 'A', status: 'active' },
 	];
 	assert.deepEqual(filterBreadcrumbThreads(choices as never).map(item => item.id), ['a']);
+});
+
+void test('table counts every action state and skips code samples and task references', () => {
+	const source = [
+		'---', 'sample: |', '  - [ ] YAML example', '---',
+		'- [ ] open [holding:: true] [thread_pin:: true]',
+		'- [+] committed', '- [!] idea', '- [x] completed', '- [-] cancelled',
+		'- [/] recurring [repeat:: FREQ=DAILY] [current:: 2026-10-20]',
+		'- [ ] [reference_task_id:: task-123456789abc]',
+		'```md', '- [ ] fenced task', '- [commit:: true]',
+		'> [!thread-log]', '> - (thread_log:: 2026-10-20T09:00) fake', '```',
+		'', 'Code example:', '', '    - [ ] indented task', '    - [commit:: true]',
+		'> [!thread-commit]', '> - [commit:: true] [commit_date:: 2026-10-20] ^commit-a', '',
+		'> [!thread-log]', '> - (thread_log:: 2026-10-20T09:00) actual ^log-a',
+	].join('\n');
+	const result = threadTableContent(source);
+	const counts = emptyThreadTableCounts();
+	for (const task of result.tasks) countTableTask(counts, task.parsed.data);
+	assert.deepEqual({ ...counts, commits: result.commits, logs: result.logs }, {
+		files: 0, children: 0, open: 2, committed: 1, idea: 1, completed: 1, cancelled: 1,
+		holding: 1, recurring: 1, pinned: 1, commits: 1, logs: 1,
+	});
+});
+
+void test('table collapse hides descendants without losing their hierarchy or sibling guides', () => {
+	const tree = buildRootedThreadOverviewTree([
+		{ id: 'ROOT', title: 'ROOT', status: 'active' },
+		{ id: 'a', title: 'A', status: 'active' },
+		{ id: 'b', title: 'B', status: 'active' },
+		{ id: 'c', title: 'C', status: 'active', parent: 'a' },
+	], new Set(['active']));
+	const flat = flattenThreadTableTree(tree, new Set());
+	assert.deepEqual(flat.map(row => [row.node.item.id, row.depth]), [['ROOT', 0], ['a', 1], ['c', 2], ['b', 1]]);
+	assert.deepEqual(flat.find(row => row.node.item.id === 'c')?.guides, [true]);
+	assert.equal(flat.find(row => row.node.item.id === 'b')?.last, true);
+	assert.deepEqual(flattenThreadTableTree(tree, new Set(['a'])).map(row => row.node.item.id), ['ROOT', 'a', 'b']);
+	assert.deepEqual(flattenThreadTableTree(tree, new Set(['ROOT'])).map(row => row.node.item.id), ['ROOT']);
+	assert.equal(flattenThreadTableTree(tree, new Set()).length, 4);
+});
+
+void test('table totals stay with each owner including history; external links count once per owner', async () => {
+	const file = (path: string) => ({ path, basename: path.replace(/^.*\//u, '').replace(/\.md$/u, '') });
+	const root = file('Meta/ROOT.md');
+	const parent = file('Meta/parent.md');
+	const child = file('Meta/child.md');
+	const essay = file('随笔.md');
+	const work = file('工作.md');
+	const history = file('历史.md');
+	const childWork = file('子线程.md');
+	const external = file('外部.md');
+	const metadata = new Map<unknown, Record<string, unknown>>([
+		[root, { type: 'thread', thread_id: 'ROOT', status: 'active' }],
+		[parent, { type: 'thread', thread_id: 'parent', status: 'active' }],
+		[child, { type: 'thread', thread_id: 'child', status: 'active', parent: '[[parent]]' }],
+		[essay, { thread_id: 'ROOT' }], [work, { thread_id: 'parent' }],
+		[history, { thread_id: 'parent', thread_role_status: 'terminated' }],
+		[childWork, { thread_id: 'child' }],
+	]);
+	const contents = new Map<unknown, string>([
+		[essay, '- [ ] essay'], [work, '- [ ] work\n> [!thread-commit]\n> - [commit:: true]'],
+		[history, '- [x] finished\n- [-] cancelled'],
+		[childWork, '- [ ] child work\n> [!thread-log]\n> - (thread_log:: 2026-10-20T09:00) child log'],
+		[external, '- [+] external [[parent]] [[工作]]'],
+	]);
+	const app = {
+		vault: { getMarkdownFiles: () => [root, parent, child, essay, work, history, childWork, external],
+			cachedRead: (f: unknown) => Promise.resolve(contents.get(f) ?? '') },
+		metadataCache: {
+			getFileCache: (f: unknown) => ({ frontmatter: metadata.get(f),
+				listItems: f === external ? [{ task: '+' }] : [],
+				links: f === external ? ['parent', '工作'].map(link => ({ link, position: { start: { line: 0 } } })) : [] }),
+			getFirstLinkpathDest: (link: string) => link === 'parent' ? parent : link === '工作' ? work : null,
+		},
+	};
+	const rows = await collectThreadTable(app as never, new ThreadIndex(app as never, () => root.path));
+	const totals = new Map(rows.map(row => [row.thread.id, row.counts]));
+	assert.equal(totals.get('ROOT')?.children, 1);
+	assert.equal(totals.get('ROOT')?.files, 1);
+	assert.equal(totals.get('ROOT')?.open, 1);
+	assert.equal(totals.get('parent')?.children, 1);
+	assert.equal(totals.get('parent')?.files, 2);
+	assert.equal(totals.get('parent')?.open, 1);
+	assert.equal(totals.get('parent')?.committed, 1);
+	assert.equal(totals.get('parent')?.completed, 1);
+	assert.equal(totals.get('parent')?.cancelled, 1);
+	assert.equal(totals.get('parent')?.commits, 1);
+	assert.equal(totals.get('parent')?.logs, 0);
+	assert.equal(totals.get('child')?.open, 1);
+	assert.equal(totals.get('child')?.logs, 1);
 });
 
 void test('ROOT has one canonical meta, fixed identity, and ordinary member and entry resolution', () => {

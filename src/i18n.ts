@@ -3,6 +3,18 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'Thread overview table': 'Thread 总览表格',
+	'Loading thread table…': '正在加载 Thread 表格…',
+	'Failed to read thread table: {error}': '无法读取 Thread 表格：{error}',
+	'Child threads': '子线程',
+	'Commits': 'Commits',
+	'Logs': 'Logs',
+	'Own counts': '仅统计自身',
+	'Own files include historical members. Holding, recurring and pinned counts overlap task states.': '统计自身文件，含历史成员。挂起、循环和固定数量可与任务状态重叠。',
+	'Expand child threads': '展开子线程',
+	'Collapse child threads': '收起子线程',
+	'Expand all threads': '展开全部线程',
+	'Collapse all threads': '收起全部线程',
 	'ROOT must remain active and have no parent.': 'ROOT 名称固定，必须保持 active 且没有父节点。',
 	'ROOT meta conflicts with an existing file: {path}': 'ROOT meta 与现有文件冲突：{path}',
 	'Failed to initialize ROOT: {error}': '无法初始化 ROOT：{error}',

@@ -245,6 +245,8 @@ order: asc
 
 **Open thread overview** 打开常驻 Overview tab；`thread-overview` 代码块嵌入同一视图。Overview 只负责 thread 层级、状态和所属 Thread Files，不扫描或展示具体任务，也不提供任务范围、今日关注或 Holding queue 控件。Status 默认选择 `active` 与 `dormant`，支持八种状态，必要祖先以淡色结构节点保留。节点标题打开 entry，无 entry 时打开 meta；展开节点显示全部成员文件的名称、图标、角色、入口标记，terminated 文件淡化并标注，仍可打开查看历史。文件列表不受任务内容或 attention_fallback 影响。节点上的文件菜单提供 active 成员快捷入口。**Expand all files / Collapse files** 控制文件列表，节点右侧按钮独立控制子分支。独立视图保留缩放、适应视图、滚动与视角恢复功能；底部工具栏保留状态筛选、文件展开、缩放与刷新。
 
+**Open thread overview table** 打开独立的紧凑树形表格，保留原来的思维导图视图。每行对应一个 thread，通过缩进、折线和箭头展示并折叠父子关系。默认显示状态、Thread Files、直接子线程数量、Open／Committed／Idea／Completed／Cancelled，以及 Holding／Recurring／Pinned、Commit 和 Log 数量。每行只统计自身的 meta、成员文件与明确链接到自身的外部任务，不累计子线程；成员数量和历史统计包含 terminated 成员，不受 Task Board 的日期和注意力筛选影响。Holding、Recurring、Pinned 是独立维度，可以与任务状态重复计数；任务引用不重复统计。ROOT 的子线程数按树上直属分支计算。表头和线程列固定，底栏可选择显示列、全部展开／收起；列选择与折叠状态随视图保存。点击文件数可打开成员菜单，点击子线程数可展开／收起分支。
+
 Active 成员的编辑视图提供统一的 **Create or edit task**。光标在 task 行时直接编辑；在普通文本行时先将该行原地转换为 Markdown task，再打开编辑表单；空行则打开空白新建表单。任务内容本身表达要达成的结果；表单保存只读的 `task_id`、任务状态、独立 holding 条件、可选固定、可选的日期窗口、`quick`/`light`/`normal`/`deep` 模糊消耗，以及可选循环。日期窗口通过独立浮层编辑，不改变任务表单尺寸；浮层并排展示两个日历，左侧选择开始、右侧选择结束，各自可翻月，也可清除单侧或整体清空；主表单不再重复提供 Clear 按钮。`task_id` 在创建时自动生成，用于任务移动行号后继续准确定位；表单顶部以小号只读文字展示，左侧 Pin 图标可直接切换固定状态，阅读视图、Live Preview 摘要和 Task Board 不显示 ID。表单中预计消耗、状态与 Window 位于选择区域；Repeat 单独占下一行，开启后在同行展开 Frequency 与 Current，选择每 N 天时将间隔输入合并在 Frequency 控件内。Task 没有 fixed/flexible 分类：所有任务都可在窗口内安排，精确占用时段的事项由独立 Event 模型承担。
 
 开启 Repeat 时，`current` 默认是当天，并作为当前循环期的独立指针；规则使用精简的 RRULE 风格字符串保存，第一版支持每天、每周、每月和每 N 天。Current 使用与 Window 一致的独立日历浮层选择日期，不提供 Clear，保证循环任务始终保留当前期指针。Live Preview、阅读视图和 Task Board 会隐藏原始 inline fields，并使用一致的紧凑摘要：开始日期尚未到时显示灰色“未开始”；开始后若没有结束日期则不显示窗口；截止日在 30 天内显示剩余天数，超过 30 天显示 `30d+`，今天截止与逾期分别提示；预计消耗只显示绿、黄、红、紫 gauge 图标；recurring 只显示 current，当天显示“今天”、同年省略年份，周期规则放在悬浮提示中，只有前面的循环图标可点击推进，悬浮时显示实际将到达的下一日期。笔记内的任务摘要在内容前显示 Pin 控件，可直接切换固定状态。进入 Live Preview 当前行时恢复源码以便编辑。铅笔图标可直接调整窗口，**To next** 会在同一行推进 `current`；若推进后仍早于今天，则继续跳过过期 occurrence，直到落在今天或未来，再按最终跨越的总天数移动已有窗口，并把 checkbox 恢复为未完成。循环不会生成新的任务行，执行记录仍由 commit 保存。
@@ -287,6 +289,7 @@ reference_task_id: task-4f8a0d92c3e1
 | **Manage thread files** | meta 或成员 | 打开成员、设置入口、终止或重新激活成员 |
 | **Switch active thread role** | meta 或成员 | 在当前 pack 的 active 成员间循环切换；从 meta 或 terminated 成员进入入口 |
 | **Open thread overview** | 任意位置 | 打开可筛选、可展开的 thread 思维导图，查看 thread 状态、层级与所属文件 |
+| **Open thread overview table** | 任意位置 | 打开可折叠树形表格，查看自身文件、子线程及各类任务、Commit、Log 数量 |
 | **Create or edit task** | active 成员编辑视图 | 编辑光标所在 task；普通文本行原地转为 task 后编辑；空行创建新 task |
 | **Insert inline log** | active 成员编辑视图 | 在光标处插入 log |
 | **Create commit** | meta 或成员 | 打开 commit 侧栏表单 |

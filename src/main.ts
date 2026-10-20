@@ -1,4 +1,5 @@
 import { TaskHoldingService } from './task-holding';
+import { openThreadTable, ThreadTableView, THREAD_TABLE_VIEW_TYPE } from './thread-table';
 import {
 	openThreadOverview,
 	renderThreadOverview,
@@ -73,6 +74,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.tasks = new TaskManager(this.app, this.index);
 		new TaskHoldingService(this.app, () => this.tasks.invalidateTaskIndex()).register(this);
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
+		this.registerView(THREAD_TABLE_VIEW_TYPE, leaf => new ThreadTableView(leaf, this.index, this.files));
 		this.registerView(
 			THREAD_OVERVIEW_VIEW_TYPE,
 			(leaf) => new ThreadOverviewView(leaf, this.index, this.files),
@@ -198,6 +200,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerCommands(): void {
+		this.addCommand({ id: 'thread-overview-table', name: 'Open thread overview table', callback: () => void openThreadTable(this.app) });
 		// ROOT is the reserved system identity; command names remain English.
 		this.addCommand({ id: 'open-root-thread', name: `Open ${ROOT_THREAD_ID} thread`, callback: () => void this.openRootThread(false) });
 		this.addCommand({ id: 'new-root-thread-file', name: `Create ${ROOT_THREAD_ID} thread file`, callback: () => void this.openRootThread(true) });
