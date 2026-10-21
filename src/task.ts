@@ -102,9 +102,10 @@ class TaskModal extends Modal {
 			attr: { type: 'button' },
 		});
 		const updatePin = (): void => {
+			pin.disabled = Boolean(this.data.scheduled);
 			pin.toggleClass('is-pinned', this.data.pinned);
 			pin.setAttribute('aria-pressed', String(this.data.pinned));
-			const label = this.data.pinned ? t('Unpin task') : t('Pin task');
+			const label = this.data.scheduled ? t('Scheduled tasks cannot be pinned.') : this.data.pinned ? t('Unpin task') : t('Pin task');
 			pin.setAttribute('aria-label', label);
 			pin.setAttribute('title', label);
 			pin.empty();
@@ -152,7 +153,7 @@ class TaskModal extends Modal {
 				dropdown.setValue(this.data.status).onChange(value => { this.data.status = value as TaskStatus; });
 			});
 		this.addWindowField(choiceFields);
-		this.renderRepeatFields();
+		this.renderScheduleFields();
 		renderHoldingFields(this.app, this.contentEl, this.data, () => this.render());
 
 		const actions = new Setting(this.contentEl).setClass('thread-journal-task-actions');
@@ -168,7 +169,7 @@ class TaskModal extends Modal {
 				const error = taskValidationError(this.data);
 				if (error === 'content') new Notice(t('Enter task content.'));
 				else if (error === 'window-order') new Notice(t('The window end must be on or after its start.'));
-				else if (error === 'repeat-current') new Notice(t('Choose the current repeat date.'));
+				else if (error === 'schedule-date') new Notice(t('Choose a valid scheduled date.'));
 				else if (error === 'repeat-interval') new Notice(t('Enter a positive whole-number repeat interval.'));
 				else if (error === 'holding-date') new Notice(t('Choose a valid review date.'));
 				if (error) return;
@@ -228,28 +229,67 @@ class TaskModal extends Modal {
 		});
 	}
 
-	private renderRepeatFields(): void {
-		const fields = this.contentEl.createDiv({
-			cls: `thread-journal-task-repeat-fields${this.data.repeat ? ' is-active' : ''}`,
-		});
-		new Setting(fields)
+	private renderScheduleFields(): void {
+		const fields = this.contentEl.createDiv({ cls: 'thread-journal-task-schedule-fields' });
+		new Setting(fields).setClass('thread-journal-task-form-field').setName(t('Schedule'))
+			.addToggle(toggle => toggle.setValue(Boolean(this.data.scheduled)).onChange(enabled => {
+				this.data.scheduled = enabled ? currentDate() : '';
+				if (enabled) this.data.pinned = false;
+				else this.data.repeat = false;
+				this.data.repeatMonthDay = dayOfMonth(this.data.scheduled);
+				this.data.repeatMonth = Number(this.data.scheduled.slice(5, 7)) || 1;
+				this.render();
+			}));
+		if (!this.data.scheduled) return;
+		const scheduled = new Setting(fields)
 			.setClass('thread-journal-task-form-field')
-			.setClass('is-repeat-toggle')
-			.setName(t('Repeat'))
-			.addToggle((toggle) => toggle
-				.setValue(this.data.repeat)
-				.onChange((value) => {
-					this.data.repeat = value;
-					if (value && !this.data.current) this.data.current = currentDate();
-					if (value) {
-						this.data.repeatMonthDay = dayOfMonth(this.data.current);
-						this.data.repeatMonth = Number(this.data.current.slice(5, 7));
+			.setClass('is-scheduled-date')
+			.setName(t('Scheduled date'));
+		const trigger = scheduled.controlEl.createEl('button', {
+			cls: 'thread-journal-task-schedule-trigger',
+			text: this.data.scheduled,
+			attr: {
+				type: 'button',
+				'aria-expanded': 'false',
+				'aria-label': t('Select scheduled date'),
+			},
+		});
+		trigger.addEventListener('click', () => {
+			if (this.closeWindowPicker) {
+				this.closeWindowPicker();
+				this.closeWindowPicker = undefined;
+				return;
+			}
+			trigger.setAttribute('aria-expanded', 'true');
+			this.closeWindowPicker = openTaskDatePicker(
+				trigger,
+				this.data.scheduled,
+				(value) => {
+					this.data.scheduled = value;
+					if (this.data.repeatFrequency === 'monthly' || this.data.repeatFrequency === 'yearly') {
+						this.data.repeatMonthDay = dayOfMonth(value);
+						this.data.repeatMonth = Number(value.slice(5, 7));
 					}
 					this.render();
-				}));
+				},
+				() => {
+					this.closeWindowPicker = undefined;
+					if (trigger.isConnected) trigger.setAttribute('aria-expanded', 'false');
+				},
+			);
+		});
+		new Setting(fields).setClass('thread-journal-task-form-field').setName(t('Repeat'))
+			.addToggle(toggle => toggle.setValue(this.data.repeat).onChange(enabled => {
+				this.data.repeat = enabled;
+				if (enabled) {
+					this.data.repeatMonthDay = dayOfMonth(this.data.scheduled);
+					this.data.repeatMonth = Number(this.data.scheduled.slice(5, 7));
+				}
+				this.render();
+			}));
 		if (!this.data.repeat) return;
 		new Setting(fields)
-			.setClass('thread-journal-task-form-field')
+			.setClass('thread-journal-task-form-field').setClass('is-repeat-rule')
 			.setName(t('Every'))
 			.addText((text) => {
 				text.inputEl.type = 'number';
@@ -271,49 +311,13 @@ class TaskModal extends Modal {
 					.onChange((value) => {
 						this.data.repeatFrequency = value as TaskRepeatFrequency;
 						if (value === 'monthly' || value === 'yearly') {
-							this.data.repeatMonthDay = dayOfMonth(this.data.current);
-							this.data.repeatMonth = Number(this.data.current.slice(5, 7));
+							this.data.repeatMonthDay = dayOfMonth(this.data.scheduled);
+							this.data.repeatMonth = Number(this.data.scheduled.slice(5, 7));
 						}
 						this.render();
 					});
 			});
-		const current = new Setting(fields)
-			.setClass('thread-journal-task-form-field')
-			.setClass('is-current-date')
-			.setName(t('Current'));
-		const trigger = current.controlEl.createEl('button', {
-			cls: 'thread-journal-task-current-trigger',
-			text: this.data.current,
-			attr: {
-				type: 'button',
-				'aria-expanded': 'false',
-				'aria-label': t('Select current date'),
-			},
-		});
-		trigger.addEventListener('click', () => {
-			if (this.closeWindowPicker) {
-				this.closeWindowPicker();
-				this.closeWindowPicker = undefined;
-				return;
-			}
-			trigger.setAttribute('aria-expanded', 'true');
-			this.closeWindowPicker = openTaskDatePicker(
-				trigger,
-				this.data.current,
-				(value) => {
-					this.data.current = value;
-					if (this.data.repeatFrequency === 'monthly' || this.data.repeatFrequency === 'yearly') {
-						this.data.repeatMonthDay = dayOfMonth(value);
-						this.data.repeatMonth = Number(value.slice(5, 7));
-					}
-					this.render();
-				},
-				() => {
-					this.closeWindowPicker = undefined;
-					if (trigger.isConnected) trigger.setAttribute('aria-expanded', 'false');
-				},
-			);
-		});
+
 	}
 
 	onClose(): void {
@@ -555,8 +559,8 @@ export class TaskManager {
 		line: number,
 		sourceLine: string,
 		onSaved?: () => void,
-	): void {
-		void this.app.vault.process(file, (content) => {
+	): Promise<void> {
+		return this.app.vault.process(file, (content) => {
 			const lines = content.split('\n');
 			const taskId = parseTaskLine(sourceLine)?.data.taskId ?? '';
 			const resolved = resolveSourceLine(lines, line, sourceLine, taskId);

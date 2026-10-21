@@ -1,3 +1,4 @@
+import { renderTaskSchedule } from './task-schedule-display';
 import {
 	Decoration,
 	ViewPlugin,
@@ -28,12 +29,9 @@ import {
 	TASK_EFFORT_LABELS,
 	taskDeadlineDisplay,
 	taskHoldingDisplay,
-	taskNextActionLabel,
-	taskRepeatRuleDisplay,
 } from './task-display';
 import {
 	parseTaskLine,
-	taskCurrentLabel,
 	type TaskData,
 } from './task-model';
 
@@ -49,7 +47,7 @@ class TaskSummaryWidget extends WidgetType {
 		private readonly line: number,
 		private readonly sourceLine: string,
 		private readonly data: TaskData,
-		private readonly onNext: (file: TFile, line: number, sourceLine: string) => void,
+		private readonly onNext: (file: TFile, line: number, sourceLine: string) => Promise<void>,
 		private readonly onPin: (
 			file: TFile,
 			line: number,
@@ -89,9 +87,10 @@ class TaskSummaryWidget extends WidgetType {
 			attr: { type: 'button' },
 		});
 		const updatePin = (): void => {
+			pin.disabled = Boolean(this.data.scheduled);
 			pin.toggleClass('is-pinned', pinned);
 			pin.setAttribute('aria-pressed', String(pinned));
-			const label = pinned ? t('Unpin task') : t('Pin task');
+			const label = this.data.scheduled ? t('Scheduled tasks cannot be pinned.') : pinned ? t('Unpin task') : t('Pin task');
 			pin.setAttribute('aria-label', label);
 			pin.setAttribute('title', label);
 			pin.empty();
@@ -136,39 +135,7 @@ class TaskSummaryWidget extends WidgetType {
 			});
 			setIcon(effort, 'gauge');
 		}
-		if (this.data.repeat) {
-			const rule = taskRepeatRuleDisplay(this.data);
-			const nextLabel = taskNextActionLabel(this.data, today);
-			const current = taskCurrentLabel(
-				this.data.current,
-				today,
-				t('Today'),
-			);
-			const repeat = container.createSpan({
-				cls: 'thread-journal-task-preview-chip is-repeat',
-				attr: { title: rule },
-			});
-			const next = repeat.createEl('button', {
-				cls: 'clickable-icon thread-journal-task-repeat-next',
-				attr: {
-					type: 'button',
-					'aria-label': `${rule} · ${nextLabel}`,
-					title: `${rule} · ${nextLabel}`,
-				},
-			});
-			setIcon(next, 'repeat-2');
-			if (current) repeat.createSpan({ text: current });
-			next.addEventListener('mousedown', (event) => {
-				event.preventDefault();
-				event.stopPropagation();
-			});
-			next.addEventListener('click', (event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				next.disabled = true;
-				this.onNext(this.file, this.line, this.sourceLine);
-			});
-		}
+		renderTaskSchedule(container, this.data, today, () => this.onNext(this.file, this.line, this.sourceLine));
 		const actions = container.createSpan({ cls: 'thread-journal-task-preview-actions' });
 		const commit = actions.createEl('button', {
 			cls: 'clickable-icon thread-journal-task-commit',
@@ -220,7 +187,7 @@ export function commitEditorExtension(
 		entry: ParsedInlineLogEntry,
 		registerChild: (child: MarkdownRenderChild) => void,
 	) => Promise<void>,
-	onTaskNext: (file: TFile, line: number, sourceLine: string) => void,
+	onTaskNext: (file: TFile, line: number, sourceLine: string) => Promise<void>,
 	onTaskPin: (
 		file: TFile,
 		line: number,

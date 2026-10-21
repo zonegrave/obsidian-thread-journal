@@ -1,3 +1,4 @@
+import { renderTaskSchedule } from './task-schedule-display';
 import {
 	App,
 	MarkdownRenderChild,
@@ -37,12 +38,9 @@ import {
 	TASK_EFFORT_LABELS,
 	taskDeadlineDisplay,
 	taskHoldingDisplay,
-	taskNextActionLabel,
-	taskRepeatRuleDisplay,
 } from './task-display';
 import {
 	parseTaskLine,
-	taskCurrentLabel,
 	taskStatusMarker,
 	type TaskData,
 } from './task-model';
@@ -194,9 +192,10 @@ export class ThreadRenderers {
 			attr: { type: 'button' },
 		});
 		const updatePin = (): void => {
+			pin.disabled = Boolean(data.scheduled);
 			pin.toggleClass('is-pinned', pinned);
 			pin.setAttribute('aria-pressed', String(pinned));
-			const label = pinned ? t('Unpin task') : t('Pin task');
+			const label = data.scheduled ? t('Scheduled tasks cannot be pinned.') : pinned ? t('Unpin task') : t('Pin task');
 			pin.setAttribute('aria-label', label);
 			pin.setAttribute('title', label);
 			pin.empty();
@@ -241,35 +240,7 @@ export class ThreadRenderers {
 			});
 			setIcon(effort, 'gauge');
 		}
-		if (data.repeat) {
-			const rule = taskRepeatRuleDisplay(data);
-			const nextLabel = taskNextActionLabel(data, today);
-			const current = taskCurrentLabel(
-				data.current,
-				today,
-				t('Today'),
-			);
-			const repeat = details.createSpan({
-				cls: 'thread-journal-source-task-chip is-repeat',
-				attr: { title: rule },
-			});
-			const next = repeat.createEl('button', {
-				cls: 'clickable-icon thread-journal-task-repeat-next',
-				attr: {
-					type: 'button',
-					'aria-label': `${rule} · ${nextLabel}`,
-					title: `${rule} · ${nextLabel}`,
-				},
-			});
-			setIcon(next, 'repeat-2');
-			if (current) repeat.createSpan({ text: current });
-			next.addEventListener('click', () => {
-				next.disabled = true;
-				this.taskManager.moveFileTaskToNext(file, line, sourceLine, () => {
-					next.disabled = false;
-				});
-			});
-		}
+		renderTaskSchedule(details, data, today, () => this.taskManager.moveFileTaskToNext(file, line, sourceLine));
 		if (!details.hasChildNodes()) details.remove();
 
 		const actions = card.createDiv({ cls: 'thread-journal-source-task-actions' });

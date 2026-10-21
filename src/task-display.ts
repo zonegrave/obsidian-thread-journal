@@ -45,7 +45,7 @@ export function taskRepeatRuleDisplay(data: TaskData): string {
 }
 
 export function taskNextActionLabel(data: TaskData, today: string): string {
-	const next = advanceTaskData(data, today)?.current;
+	const next = advanceTaskData(data, today)?.scheduled;
 	return next ? t('To next: {date}', { date: next }) : t('To next');
 }
 

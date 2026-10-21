@@ -1,4 +1,4 @@
-import { setIcon, type App } from 'obsidian';
+import { moment, setIcon, type App } from 'obsidian';
 import { t } from './i18n';
 import type { TaskManager } from './task';
 import { renderThreadTaskItem } from './thread-task-item';
@@ -28,7 +28,7 @@ export function renderTableTaskDetails(parent: HTMLElement, row: ThreadTableRow,
 		toggle.addEventListener('change', () => context.onShowEnded(toggle.checked));
 	}
 	const tasks = row.tasks.filter(task => (!selection.filePath || task.file.path === selection.filePath)
-		&& tableTaskMatches(task.data, selection.filter, context.showEnded))
+		&& tableTaskMatches(task.data, selection.filter, context.showEnded, moment().format('YYYY-MM-DD')))
 		.sort((a, b) => compareBoardTasks({ task: a, thread: row.thread }, { task: b, thread: row.thread }));
 	const list = panel.createDiv({ cls: 'thread-journal-table-details-list' });
 	if (!tasks.length) list.createDiv({ cls: 'thread-journal-empty', text: t('No tasks in this state.') });
@@ -50,7 +50,7 @@ export function renderTableTaskDetails(parent: HTMLElement, row: ThreadTableRow,
 			const item = section.createDiv({ cls: 'thread-journal-overview-task' });
 			renderThreadTaskItem(item, task, row.thread.file, {
 				app: context.app, taskManager: context.taskManager, onRefresh: context.onRefresh,
-				isFieldVisible: field => !historical || !['pin', 'actions', 'repeat'].includes(field),
+				isFieldVisible: field => !historical || !['pin', 'actions', 'schedule'].includes(field),
 			});
 		}
 	}

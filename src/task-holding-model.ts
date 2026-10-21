@@ -10,7 +10,7 @@ export function parseDependency(value: string): { id: string; occurrence: string
 }
 
 export function dependencyReference(data: TaskData): string {
-	return data.taskId + (data.repeat ? `@${data.current}` : '');
+	return data.taskId + (data.repeat ? `@${data.scheduled}` : '');
 }
 
 // This graph also validates edges entered by hand, not just the picker.
@@ -43,7 +43,7 @@ export function holdingResult(data: TaskData, tasks: TaskLookup): HoldingResult 
 		if (target.status === 'cancelled') return 'invalid';
 		const completed = dependency.occurrence
 			? target.completedOccurrences.includes(dependency.occurrence)
-				|| (target.status === 'completed' && target.current === dependency.occurrence)
+				|| (target.status === 'completed' && target.scheduled === dependency.occurrence)
 			: target.status === 'completed';
 		if (!completed) pending = true;
 	}

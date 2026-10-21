@@ -1500,7 +1500,7 @@
 .thread-journal-table-value.is-idea,
 .thread-journal-table-value.is-holding,
 .thread-journal-table-value.is-pinned { --thread-table-count-color: var(--text-warning); }
-.thread-journal-table-value.is-recurring { --thread-table-count-color: var(--color-cyan); }
+.thread-journal-table-value.is-scheduled { --thread-table-count-color: var(--color-cyan); }
 .thread-journal-table-value.is-commits { --thread-table-count-color: var(--color-green); }
 
 .thread-journal-table-value > .thread-journal-table-count {
@@ -1642,7 +1642,7 @@
 }
 
 .thread-journal-task-board-column.is-priority-pinned .thread-journal-task-board-column-icon,
-.thread-journal-task-board-column.is-priority-recurring .thread-journal-task-board-column-icon {
+.thread-journal-task-board-column.is-priority-scheduled .thread-journal-task-board-column-icon {
 	color: var(--text-accent);
 }
 
@@ -2217,7 +2217,7 @@
 
 .thread-journal-task-choice-fields,
 .thread-journal-task-date-fields,
-.thread-journal-task-repeat-fields {
+.thread-journal-task-schedule-fields {
 	display: grid;
 	gap: 0.75rem;
 	align-items: stretch;
@@ -2231,27 +2231,27 @@
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.thread-journal-task-repeat-fields {
+.thread-journal-task-schedule-fields {
 	grid-template-columns: minmax(6.5rem, 0.65fr) repeat(2, minmax(0, 1fr));
 }
 
 .thread-journal-task-modal .thread-journal-task-choice-fields .thread-journal-task-form-field,
 .thread-journal-task-modal .thread-journal-task-date-fields .thread-journal-task-form-field,
-.thread-journal-task-modal .thread-journal-task-repeat-fields .thread-journal-task-form-field {
+.thread-journal-task-modal .thread-journal-task-schedule-fields .thread-journal-task-form-field {
 	display: grid;
 	grid-template-rows: auto auto;
 	align-content: start;
 }
 
 .thread-journal-task-modal .thread-journal-task-date-fields .setting-item,
-.thread-journal-task-modal .thread-journal-task-repeat-fields .setting-item {
+.thread-journal-task-modal .thread-journal-task-schedule-fields .setting-item {
 	min-width: 0;
 }
 
 .thread-journal-task-modal .thread-journal-task-date-fields .setting-item-info,
 .thread-journal-task-modal .thread-journal-task-date-fields .setting-item-control,
-.thread-journal-task-modal .thread-journal-task-repeat-fields .setting-item-info,
-.thread-journal-task-modal .thread-journal-task-repeat-fields .setting-item-control {
+.thread-journal-task-modal .thread-journal-task-schedule-fields .setting-item-info,
+.thread-journal-task-modal .thread-journal-task-schedule-fields .setting-item-control {
 	width: 100%;
 	max-width: 100%;
 }
@@ -2266,13 +2266,13 @@
 }
 
 .thread-journal-task-form-field.is-window .setting-item-control,
-.thread-journal-task-form-field.is-current-date .setting-item-control {
+.thread-journal-task-form-field.is-scheduled-date .setting-item-control {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
 }
 
 .thread-journal-task-window-trigger,
-.thread-journal-task-current-trigger {
+.thread-journal-task-schedule-trigger {
 	justify-content: flex-start;
 	min-width: 0;
 	font-variant-numeric: tabular-nums;
@@ -2488,7 +2488,7 @@
 
 	.thread-journal-task-choice-fields,
 	.thread-journal-task-date-fields,
-	.thread-journal-task-repeat-fields {
+	.thread-journal-task-schedule-fields {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
@@ -2917,10 +2917,10 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.thread-journal-source-task .thread-journal-task-repeat-next,
-.thread-journal-task-preview .thread-journal-task-repeat-next,
-.thread-journal-overview-task .thread-journal-task-repeat-next,
-.thread-journal-task-reference .thread-journal-task-repeat-next {
+.thread-journal-source-task .thread-journal-task-schedule-next,
+.thread-journal-task-preview .thread-journal-task-schedule-next,
+.thread-journal-overview-task .thread-journal-task-schedule-next,
+.thread-journal-task-reference .thread-journal-task-schedule-next {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -2932,7 +2932,7 @@
 	padding: 0;
 }
 
-.thread-journal-task-repeat-next svg {
+.thread-journal-task-schedule-next svg {
 	width: 16px;
 	height: 16px;
 }
@@ -3096,14 +3096,14 @@
 	height: 13px;
 }
 
-.thread-journal-overview-task .thread-journal-task-repeat-next {
+.thread-journal-overview-task .thread-journal-task-schedule-next {
 	width: 1.1rem;
 	height: 1.1rem;
 	min-width: 1.1rem;
 	min-height: 1.1rem;
 }
 
-.thread-journal-overview-task .thread-journal-task-repeat-next svg {
+.thread-journal-overview-task .thread-journal-task-schedule-next svg {
 	width: 14px;
 	height: 14px;
 }
@@ -3245,3 +3245,9 @@
 .thread-journal-overview-file-icon svg { width: 14px; height: 14px; }
 .thread-journal-overview-file-icon.is-entry { color: var(--text-accent); }
 .thread-journal-overview-file.is-terminated { opacity: 0.6; }
+
+.thread-journal-task-schedule { display: inline-flex; align-items: center; gap: 4px; color: var(--text-accent); white-space: nowrap; }
+.thread-journal-task-schedule.is-overdue { color: var(--text-error); }
+.thread-journal-task-schedule-next { color: inherit; }
+.thread-journal-task-schedule-fields .is-repeat-rule { grid-column: 2 / -1; }
+@media (max-width: 650px) { .thread-journal-task-schedule-fields .is-repeat-rule { grid-column: 1 / -1; } }

@@ -122,7 +122,7 @@ export async function collectAttention(app: App, index: ThreadIndex): Promise<At
     sourceLine,
 				text,
 				disposition,
-				pinned: taskIsPinned(taskText),
+				pinned: parsed?.data.pinned ?? taskIsPinned(taskText),
 				data: parsed!.data,
 			});
   }

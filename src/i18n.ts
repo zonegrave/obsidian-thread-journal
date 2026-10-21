@@ -3,6 +3,14 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'Schedule': '执行安排',
+	'Scheduled date': '执行日',
+	'Select scheduled date': '选择执行日',
+	'Scheduled today': '今日已安排',
+	'Overdue': '逾期',
+	'Scheduled tasks cannot be pinned.': '已安排执行日的任务无需固定。',
+	'Choose a valid scheduled date.': '请选择有效的执行日。',
+	'Own files include historical members. Holding, scheduled today and pinned counts overlap task states.': '包含自身历史成员。挂起、今日已安排与固定数量可与任务状态重叠。',
 	'Task details': '任务明细',
 	'All tasks': '全部任务',
 	'External tasks': '外部任务',
@@ -14,7 +22,6 @@ const ZH_TRANSLATIONS = {
 	'Commits': 'Commits',
 	'Logs': 'Logs',
 	'Own counts': '仅统计自身',
-	'Own files include historical members. Holding, recurring and pinned counts overlap task states.': '统计自身文件，含历史成员。挂起、循环和固定数量可与任务状态重叠。',
 	'Expand child threads': '展开子线程',
 	'Collapse child threads': '收起子线程',
 	'Expand all threads': '展开全部线程',
@@ -75,7 +82,6 @@ const ZH_TRANSLATIONS = {
 	'Failed to open thread task board: {error}': '无法打开 thread task 看板：{error}',
 	'{count} tasks': '{count} 个 task',
 	'No tasks in this state.': '这个状态下没有 task。',
-	'Recurring tasks': '循环任务',
 	'Fields': '字段',
 	'Actions': '操作',
 	'Manage thread': '管理 thread',
@@ -176,7 +182,6 @@ const ZH_TRANSLATIONS = {
 	'Window': '时间窗口',
 	'Select dates': '选择日期',
 	'Select task window': '选择任务时间窗口',
-	'Select current date': '选择当前日期',
 	'Previous month': '上个月',
 	'Next month': '下个月',
 	'Start date': '开始日期',
@@ -217,7 +222,6 @@ const ZH_TRANSLATIONS = {
 	'To next: {date}': '到下一期：{date}',
 	'Enter task content.': '请填写任务内容。',
 	'The window end must be on or after its start.': '结束日期不能早于开始日期。',
-	'Choose the current repeat date.': '请选择当前循环日期。',
 	'Enter a positive whole-number repeat interval.': '循环间隔必须是大于等于 1 的整数。',
 	'The task changed; reopen the form and try again.': '任务已发生变化，请重新打开表单后再试。',
 	'Failed to update task: {error}': '无法更新任务：{error}',
@@ -350,7 +354,6 @@ const ZH_TRANSLATIONS = {
 	'Updated thread meta for {title}.': '已更新 {title} 的 thread meta。',
 
 	'Close': '关闭',
-	'Current': '当前',
 	'Manage files': '管理文件',
 
 	'Select a thread file template': '选择 thread 文件模板',

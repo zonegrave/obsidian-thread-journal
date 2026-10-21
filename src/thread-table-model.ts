@@ -1,7 +1,7 @@
 import { parseCommitEntries } from './commit-core';
 import { parseInlineLogEntries } from './inline-log';
 import { scanTaskLines } from './task-holding-model';
-import type { TaskData } from './task-model';
+import { taskIsScheduledToday, taskNeedsPinnedAttention, type TaskData } from './task-model';
 import type { ThreadOverviewNode } from './thread-overview-model';
 
 export interface ThreadTableCounts {
@@ -13,7 +13,7 @@ export interface ThreadTableCounts {
 	completed: number;
 	cancelled: number;
 	holding: number;
-	recurring: number;
+	scheduled: number;
 	pinned: number;
 	commits: number;
 	logs: number;
@@ -21,14 +21,14 @@ export interface ThreadTableCounts {
 
 export function emptyThreadTableCounts(): ThreadTableCounts {
 	return { files: 0, children: 0, open: 0, committed: 0, idea: 0, completed: 0,
-		cancelled: 0, holding: 0, recurring: 0, pinned: 0, commits: 0, logs: 0 };
+		cancelled: 0, holding: 0, scheduled: 0, pinned: 0, commits: 0, logs: 0 };
 }
 
-export function countTableTask(counts: ThreadTableCounts, data: TaskData): void {
+export function countTableTask(counts: ThreadTableCounts, data: TaskData, today: string): void {
 	counts[data.status]++;
 	if (data.holding) counts.holding++;
-	if (data.repeat) counts.recurring++;
-	if (data.pinned) counts.pinned++;
+	if (taskIsScheduledToday(data, today)) counts.scheduled++;
+	if (taskNeedsPinnedAttention(data)) counts.pinned++;
 }
 
 // Keep original line numbers while removing YAML and code examples from record parsing.
@@ -94,14 +94,14 @@ export function flattenThreadTableTree(
 	return result;
 }
 
-export type ThreadTableTaskFilter = 'all' | 'open' | 'committed' | 'idea' | 'completed' | 'cancelled' | 'holding' | 'recurring' | 'pinned';
+export type ThreadTableTaskFilter = 'all' | 'open' | 'committed' | 'idea' | 'completed' | 'cancelled' | 'holding' | 'scheduled' | 'pinned';
 
-export function tableTaskMatches(data: TaskData, filter: ThreadTableTaskFilter, showEnded: boolean): boolean {
+export function tableTaskMatches(data: TaskData, filter: ThreadTableTaskFilter, showEnded: boolean, today: string): boolean {
 	if (filter === 'completed' || filter === 'cancelled') return data.status === filter;
 	if (filter === 'all' && !showEnded && (data.status === 'completed' || data.status === 'cancelled')) return false;
 	if (filter === 'all') return true;
 	if (filter === 'holding') return data.holding;
-	if (filter === 'recurring') return Boolean(data.repeat);
-	if (filter === 'pinned') return data.pinned;
+	if (filter === 'scheduled') return taskIsScheduledToday(data, today);
+	if (filter === 'pinned') return taskNeedsPinnedAttention(data);
 	return data.status === filter;
 }

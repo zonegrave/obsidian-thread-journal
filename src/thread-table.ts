@@ -1,4 +1,4 @@
-import { App, ItemView, Notice, setIcon, type ViewStateResult, type WorkspaceLeaf } from 'obsidian';
+import { App, ItemView, Notice, moment, setIcon, type ViewStateResult, type WorkspaceLeaf } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
 import type { TaskManager } from './task';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
@@ -41,7 +41,7 @@ export class ThreadTableView extends ItemView {
 			const value = state as Record<string, unknown>;
 			if (Array.isArray(value.expandedFiles)) this.expandedFiles = new Set(value.expandedFiles.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.collapsed)) this.collapsed = new Set(value.collapsed.filter((id): id is string => typeof id === 'string'));
-			if (Array.isArray(value.fields)) this.fields = new Set(THREAD_TABLE_COLUMNS.filter(column =>
+			if (Array.isArray(value.fields) && value.fields.every(key => THREAD_TABLE_COLUMNS.some(column => column.key === key))) this.fields = new Set(THREAD_TABLE_COLUMNS.filter(column =>
 				(value.fields as unknown[]).includes(column.key)).map(column => column.key));
 		}
 		if (this.opened) this.render();
@@ -53,6 +53,7 @@ export class ThreadTableView extends ItemView {
 		this.registerEvent(this.app.metadataCache.on('changed', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('delete', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('rename', () => this.scheduleRefresh()));
+		this.registerInterval(window.setInterval(() => this.scheduleRefresh(), 60000));
 		const languageChanged = (): void => this.render();
 		window.addEventListener(LANGUAGE_CHANGE_EVENT, languageChanged);
 		this.register(() => window.removeEventListener(LANGUAGE_CHANGE_EVENT, languageChanged));
@@ -76,7 +77,7 @@ export class ThreadTableView extends ItemView {
 	private async refresh(): Promise<void> {
 		const request = ++this.request;
 		try {
-			const rows = await collectThreadTable(this.app, this.index);
+			const rows = await collectThreadTable(this.app, this.index, moment().format('YYYY-MM-DD'));
 			if (!this.opened || request !== this.request) return;
 			this.rows = rows;
 			if (this.selection) {
@@ -168,7 +169,7 @@ export class ThreadTableView extends ItemView {
 
 	private renderFooter(branchIds: string[]): void {
 		const footer = this.contentEl.createDiv({ cls: 'thread-journal-view-bottom-bar thread-journal-table-footer' });
-		footer.createSpan({ text: t('Own counts'), attr: { title: t('Own files include historical members. Holding, recurring and pinned counts overlap task states.') } });
+		footer.createSpan({ text: t('Own counts'), attr: { title: t('Own files include historical members. Holding, scheduled today and pinned counts overlap task states.') } });
 		for (const expand of [true, false]) {
 			const button = footer.createEl('button', { text: t(expand ? 'Expand all threads' : 'Collapse all threads') });
 			button.addEventListener('click', () => {

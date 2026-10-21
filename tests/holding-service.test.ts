@@ -94,7 +94,7 @@ void test('missing and duplicated IDs cannot trigger release and code samples do
 });
 
 void test('an external completed recurring occurrence is recorded before advancing or restart', async () => {
-	const f = fixture({ 'b.md': '- [x] B [task_id:: task-bbbbbbbbbbbb] [current:: 2026-09-23] [repeat:: FREQ=DAILY]' });
+	const f = fixture({ 'b.md': '- [x] B [task_id:: task-bbbbbbbbbbbb] [scheduled:: 2026-09-23] [repeat:: FREQ=DAILY]' });
 	await f.service.reconcile();
 	assert.deepEqual(parseTaskLine(f.sources.get('b.md')!)!.data.completedOccurrences, ['2026-09-23']);
 	await f.service.reconcile();

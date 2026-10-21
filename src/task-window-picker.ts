@@ -293,16 +293,16 @@ class TaskDatePopover {
 		this.popover.empty();
 		this.popover.createDiv({
 			cls: 'thread-journal-task-window-popover-title',
-			text: t('Select current date'),
+			text: t('Select scheduled date'),
 		});
 		const calendars = this.popover.createDiv({
 			cls: 'thread-journal-task-window-calendars',
 		});
 		const pane = calendars.createDiv({
-			cls: 'thread-journal-task-window-pane is-current',
+			cls: 'thread-journal-task-window-pane is-scheduled',
 		});
 		const paneTitle = pane.createDiv({ cls: 'thread-journal-task-window-pane-title' });
-		paneTitle.createSpan({ text: t('Current') });
+		paneTitle.createSpan({ text: t('Scheduled date') });
 		paneTitle.createSpan({
 			cls: 'thread-journal-task-window-value',
 			text: this.draftValue,

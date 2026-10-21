@@ -1,3 +1,4 @@
+import { renderTaskSchedule } from './task-schedule-display';
 import {
 	Notice,
 	moment,
@@ -16,10 +17,7 @@ import {
 	TASK_STATUS_LABELS,
 	taskDeadlineDisplay,
 	taskHoldingDisplay,
-	taskNextActionLabel,
-	taskRepeatRuleDisplay,
 } from './task-display';
-import { taskCurrentLabel } from './task-model';
 import type { TaskManager } from './task';
 import { t } from './i18n';
 
@@ -36,7 +34,7 @@ export type ThreadTaskItemField =
 	| 'holding'
 	| 'window'
 	| 'effort'
-	| 'repeat'
+	| 'schedule'
 	| 'actions';
 
 export function renderThreadTaskItem(
@@ -120,35 +118,10 @@ function renderTaskDetails(
 		});
 		setIcon(effort, 'gauge');
 	}
-	if (visible('repeat') && data.repeat) {
-		const current = taskCurrentLabel(data.current, today, t('Today'));
-		const rule = taskRepeatRuleDisplay(data);
-		const nextLabel = taskNextActionLabel(data, today);
-		const repeat = details.createSpan({
-			cls: 'thread-journal-overview-task-repeat',
-			attr: { title: rule },
-		});
-		const next = repeat.createEl('button', {
-			cls: 'clickable-icon thread-journal-task-repeat-next',
-			attr: {
-				type: 'button',
-				'aria-label': `${rule} · ${nextLabel}`,
-				title: `${rule} · ${nextLabel}`,
-			},
-		});
-		setIcon(next, 'repeat-2');
-		if (current) repeat.createSpan({ text: current });
-		next.addEventListener('click', () => {
-			next.disabled = true;
-			void moveAttentionTaskToNext(context.app, task)
-				.then(() => context.onRefresh())
-				.catch((error: unknown) => {
-					next.disabled = false;
-					console.error('Thread Journal failed to move task to next occurrence', error);
-					new Notice(t('Failed to move task to next: {error}', { error: String(error) }));
-				});
-		});
-	}
+	if (visible('schedule')) renderTaskSchedule(details, data, today, async () => {
+		await moveAttentionTaskToNext(context.app, task);
+		await context.onRefresh();
+	});
 	if (!details.hasChildNodes()) details.remove();
 }
 
@@ -207,6 +180,8 @@ function renderTaskPinButton(
 			'aria-pressed': String(task.pinned),
 		},
 	});
+	button.disabled = Boolean(task.data.scheduled);
+	if (task.data.scheduled) button.setAttribute('title', t('Scheduled tasks cannot be pinned.'));
 	setIcon(button, task.pinned ? 'pin-off' : 'pin');
 	button.addEventListener('click', () => {
 		button.disabled = true;

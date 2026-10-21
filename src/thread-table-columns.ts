@@ -13,7 +13,7 @@ export const THREAD_TABLE_COLUMNS: { key: ThreadTableColumn; label: TranslationK
 	{ key: 'completed', label: 'Completed', icon: 'circle-check' },
 	{ key: 'cancelled', label: 'Cancelled', icon: 'circle-minus' },
 	{ key: 'holding', label: 'Holding', icon: 'pause' },
-	{ key: 'recurring', label: 'Recurring tasks', icon: 'repeat' },
+	{ key: 'scheduled', label: 'Scheduled today', icon: 'calendar-check' },
 	{ key: 'pinned', label: 'Pinned tasks', icon: 'pin' },
 	{ key: 'commits', label: 'Commits', icon: 'git-commit-horizontal' },
 	{ key: 'logs', label: 'Logs', icon: 'notebook-pen' },

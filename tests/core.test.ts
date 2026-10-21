@@ -1,6 +1,7 @@
+import { migrateTaskSchedule } from '../scripts/task-schedule-migration';
 import { migrateTaskStates } from '../scripts/task-state-migration';
 import { EMPTY_TASK, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
-import { compareBoardTasks, groupBoardTasks, taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
+import { boardTaskLane, compareBoardTasks, groupBoardTasks, taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
 import { dependencyReference, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
 	attentionHint,
@@ -108,7 +109,7 @@ import {
 	buildTaskLine,
 	createTaskId,
 	parseTaskLine,
-	taskCurrentLabel,
+	taskScheduledLabel,
 	taskDraftFromTextLine,
 	taskValidationError,
 	taskWindowLabel,
@@ -126,7 +127,7 @@ void test('board puts deadlines first and retains default ordering for remaining
 		item('Undated Z'),
 		item('Early start', { windowStart: '2026-01-01' }),
 		item('Later deadline', { windowEnd: '2026-10-20' }),
-		item('Current', { current: '2026-10-10' }),
+		item('Current', { scheduled: '2026-10-10' }),
 		item('Today deadline', { windowEnd: '2026-10-14' }),
 		item('Undated A'),
 		item('Overdue', { windowEnd: '2026-10-12' }),
@@ -161,7 +162,7 @@ void test('due holding reviews precede actionable deadlines and held deadlines r
 });
 
 void test('moving a board task changes only its state marker and preserves metadata exactly', () => {
-	const body = '重复任务 [task_id:: task-123456789abc] [thread_pin:: true] [holding:: true] [holding_for:: task-abcdefghijkl] [window_start:: 2026-10-14] [repeat:: daily] [current:: 2026-10-14] [effort:: light] [custom:: value] ^task-block';
+	const body = '重复任务 [task_id:: task-123456789abc] [thread_pin:: true] [holding:: true] [holding_for:: task-abcdefghijkl] [window_start:: 2026-10-14] [repeat:: daily] [scheduled:: 2026-10-14] [effort:: light] [custom:: value] ^task-block';
 	for (const from of ['open', 'committed', 'idea'] as const) {
 		const line = `  > - [${taskStatusMarker(from)}] ${body}  `;
 		for (const to of ['open', 'committed', 'idea'] as const) {
@@ -189,16 +190,49 @@ void test('task board shows tasks whose start has arrived, including overdue tas
 	}
 });
 
-void test('task board hides future recurring occurrences even when pinned', () => {
-	const today = '2026-10-14';
-	for (const pinned of [false, true]) {
-		const data = { ...EMPTY_TASK, repeat: true, pinned };
-		assert.equal(taskIsActiveOnBoard({ ...data, current: '2026-10-15' }, today), false);
-		assert.equal(taskIsActiveOnBoard({ ...data, current: today }, today), true);
-		assert.equal(taskIsActiveOnBoard({ ...data, current: '2026-10-13' }, today), true);
-		assert.equal(taskIsActiveOnBoard(data, today), false);
-		assert.equal(taskIsActiveOnBoard({ ...data, current: today, windowStart: '2026-10-15' }, today), false);
+void test('scheduled tasks leave decision queues and include single and repeating overdue work', () => {
+	const today = '2026-10-21';
+	for (const repeat of [false, true]) {
+		const base = { ...EMPTY_TASK, repeat };
+		assert.equal(boardTaskLane({ ...base, scheduled: today }, today), 'scheduled');
+		assert.equal(boardTaskLane({ ...base, scheduled: '2026-10-20' }, today), 'scheduled');
+		assert.equal(boardTaskLane({ ...base, scheduled: '2026-10-22' }, today), undefined);
+		assert.equal(boardTaskLane({ ...base, scheduled: today, windowStart: '2026-10-22' }, today), 'scheduled');
+		assert.equal(boardTaskLane({ ...base, scheduled: today, status: 'completed' }, today), undefined);
 	}
+	assert.equal(boardTaskLane(EMPTY_TASK, today), 'decision');
+	assert.equal(boardTaskLane({ ...EMPTY_TASK, pinned: true }, today), 'pinned');
+	assert.equal(boardTaskLane({ ...EMPTY_TASK, pinned: true, windowStart: '2026-11-01' }, today), 'pinned');
+});
+
+void test('a single scheduled date round-trips; scheduling and pinning are mutually exclusive', () => {
+	const source = '- [ ] 准备材料 [task_id:: task-123456789abc] [scheduled:: 2026-10-21] [thread_pin:: true]';
+	const parsed = parseTaskLine(source)!;
+	assert.equal(parsed.data.scheduled, '2026-10-21');
+	assert.equal(parsed.data.repeat, false);
+	assert.equal(parsed.data.pinned, false);
+	assert.match(buildTaskLine(parsed.data, parsed), /\[scheduled:: 2026-10-21\]/u);
+	assert.doesNotMatch(buildTaskLine(parsed.data, parsed), /thread_pin|repeat::/u);
+	assert.throws(() => taskLineWithPin(source, true));
+	const cleared = { ...parsed.data, scheduled: '', repeat: false };
+	assert.doesNotMatch(buildTaskLine(cleared, parsed), /scheduled::/u);
+	assert.equal(boardTaskLane(cleared, '2026-10-21'), 'decision');
+	assert.equal(completeTaskData(parsed.data).status, 'completed');
+});
+
+void test('one-time schedule migration preserves source, task references, fences and occurrence identities', () => {
+	const source = [
+		'- [ ] 记录 [current:: 2026-10-21] [repeat:: FREQ=WEEKLY;INTERVAL=2] [thread_pin:: true] ^task-a',
+		'- [ ] 后续 [holding_for:: task-123456789abc@2026-10-21]',
+		'```md', '- [ ] 示例 [current:: 2026-10-21]', '```',
+	].join('\n');
+	const result = migrateTaskSchedule(source);
+	assert.deepEqual(result.changedLines, [1]);
+	assert.match(result.content, /记录 \[scheduled:: 2026-10-21\] \[repeat:: FREQ=WEEKLY;INTERVAL=2\] \^task-a/u);
+	assert.match(result.content, /holding_for:: task-123456789abc@2026-10-21/u);
+	assert.match(result.content, /示例 \[current:: 2026-10-21\]/u);
+	assert.equal(migrateTaskSchedule(result.content).content, result.content);
+	assert.throws(() => migrateTaskSchedule('- [ ] 冲突 [current:: 2026-10-20] [scheduled:: 2026-10-21]'));
 });
 
 void test('resolves automatic language and translates interpolated UI text', () => {
@@ -610,7 +644,7 @@ void test('table counts every action state and skips code samples and task refer
 		'---', 'sample: |', '  - [ ] YAML example', '---',
 		'- [ ] open [holding:: true] [thread_pin:: true]',
 		'- [+] committed', '- [!] idea', '- [x] completed', '- [-] cancelled',
-		'- [/] recurring [repeat:: FREQ=DAILY] [current:: 2026-10-20]',
+		'- [/] recurring [repeat:: FREQ=DAILY] [scheduled:: 2026-10-20]',
 		'- [ ] [reference_task_id:: task-123456789abc]',
 		'```md', '- [ ] fenced task', '- [commit:: true]',
 		'> [!thread-log]', '> - (thread_log:: 2026-10-20T09:00) fake', '```',
@@ -620,11 +654,26 @@ void test('table counts every action state and skips code samples and task refer
 	].join('\n');
 	const result = threadTableContent(source);
 	const counts = emptyThreadTableCounts();
-	for (const task of result.tasks) countTableTask(counts, task.parsed.data);
+	for (const task of result.tasks) countTableTask(counts, task.parsed.data, '2026-10-20');
 	assert.deepEqual({ ...counts, commits: result.commits, logs: result.logs }, {
 		files: 0, children: 0, open: 2, committed: 1, idea: 1, completed: 1, cancelled: 1,
-		holding: 1, recurring: 1, pinned: 1, commits: 1, logs: 1,
+		holding: 1, scheduled: 1, pinned: 1, commits: 1, logs: 1,
 	});
+});
+
+void test('table attention counts include single scheduled work and exclude future and completed schedules', () => {
+	const counts = emptyThreadTableCounts();
+	for (const data of [
+		{ ...EMPTY_TASK, scheduled: '2026-10-20' },
+		{ ...EMPTY_TASK, scheduled: '2026-10-21', repeat: true },
+		{ ...EMPTY_TASK, scheduled: '2026-10-22' },
+		{ ...EMPTY_TASK, scheduled: '2026-10-20', status: 'completed' as const },
+		{ ...EMPTY_TASK, pinned: true },
+	]) countTableTask(counts, data, '2026-10-21');
+	assert.equal(counts.scheduled, 2);
+	assert.equal(counts.pinned, 1);
+	assert.equal(tableTaskMatches({ ...EMPTY_TASK, scheduled: '2026-10-20' }, 'scheduled', false, '2026-10-21'), true);
+	assert.equal(tableTaskMatches({ ...EMPTY_TASK, scheduled: '2026-10-22' }, 'scheduled', false, '2026-10-21'), false);
 });
 
 void test('table collapse hides descendants without losing their hierarchy or sibling guides', () => {
@@ -677,7 +726,7 @@ void test('table totals stay with each owner including history; external links c
 			getFirstLinkpathDest: (link: string) => link === 'parent' ? parent : link === '工作' ? work : null,
 		},
 	};
-	const rows = await collectThreadTable(app as never, new ThreadIndex(app as never, () => root.path));
+	const rows = await collectThreadTable(app as never, new ThreadIndex(app as never, () => root.path), '2026-10-20');
 	const totals = new Map(rows.map(row => [row.thread.id, row.counts]));
 	assert.equal(totals.get('ROOT')?.children, 1);
 	assert.equal(totals.get('ROOT')?.files, 1);
@@ -710,15 +759,15 @@ void test('table totals stay with each owner including history; external links c
 
 void test('table task details hide ended tasks by default and honor explicit count filters', () => {
 	const completed = { ...EMPTY_TASK, status: 'completed' as const, pinned: true, holding: true };
-	assert.equal(tableTaskMatches(completed, 'all', false), false);
-	assert.equal(tableTaskMatches(completed, 'all', true), true);
-	assert.equal(tableTaskMatches(completed, 'completed', false), true);
-	assert.equal(tableTaskMatches(completed, 'cancelled', true), false);
-	assert.equal(tableTaskMatches(completed, 'pinned', false), true);
-	assert.equal(tableTaskMatches(completed, 'holding', false), true);
-	assert.equal(tableTaskMatches(EMPTY_TASK, 'open', false), true);
-	assert.equal(tableTaskMatches(EMPTY_TASK, 'committed', false), false);
-	assert.equal(tableTaskMatches(EMPTY_TASK, 'recurring', true), false);
+	assert.equal(tableTaskMatches(completed, 'all', false, '2026-10-20'), false);
+	assert.equal(tableTaskMatches(completed, 'all', true, '2026-10-20'), true);
+	assert.equal(tableTaskMatches(completed, 'completed', false, '2026-10-20'), true);
+	assert.equal(tableTaskMatches(completed, 'cancelled', true, '2026-10-20'), false);
+	assert.equal(tableTaskMatches(completed, 'pinned', false, '2026-10-20'), false);
+	assert.equal(tableTaskMatches(completed, 'holding', false, '2026-10-20'), true);
+	assert.equal(tableTaskMatches(EMPTY_TASK, 'open', false, '2026-10-20'), true);
+	assert.equal(tableTaskMatches(EMPTY_TASK, 'committed', false, '2026-10-20'), false);
+	assert.equal(tableTaskMatches(EMPTY_TASK, 'scheduled', true, '2026-10-20'), false);
 });
 
 void test('ROOT has one canonical meta, fixed identity, and ordinary member and entry resolution', () => {
@@ -1313,7 +1362,7 @@ void test('task readiness respects date windows and the current repeat occurrenc
 		todoDisposition(' ', '记录恢复 [window_start:: 2026-09-18]', '2026-09-18'),
 		'ready',
 	);
-	assert.equal(todoDisposition(' ', '记录恢复 [current:: 2026-09-19]', '2026-09-18'), 'future');
+	assert.equal(todoDisposition(' ', '记录恢复 [scheduled:: 2026-09-19]', '2026-09-18'), 'future');
 });
 
 void test('accepts only explicit 24-hour HH:mm values', () => {
@@ -1341,8 +1390,8 @@ void test('parses task references only through the distinct reference_task_id fi
 void test('task form fields round-trip without losing markdown task state or other metadata', () => {
 	const source = '  > - [+] 记录恢复 [task_id:: task-123456789abc] '
 		+ '[window_start:: 2026-09-18] [window_end:: 2026-09-20] '
-		+ '[effort:: quick] [current:: 2026-09-18] [repeat:: FREQ=WEEKLY] '
-		+ '[thread_pin:: true] ^task-recovery';
+		+ '[effort:: quick] [scheduled:: 2026-09-18] [repeat:: FREQ=WEEKLY] '
+		+ '^task-recovery';
 	const parsed = parseTaskLine(source);
 	assert.ok(parsed);
 	assert.deepEqual(parsed.data, {
@@ -1350,19 +1399,19 @@ void test('task form fields round-trip without losing markdown task state or oth
 		status: 'committed',
 		taskId: 'task-123456789abc',
 		content: '记录恢复',
-		pinned: true,
+		pinned: false,
 		windowStart: '2026-09-18',
 		windowEnd: '2026-09-20',
 		effort: 'quick',
 		repeat: true,
-		current: '2026-09-18',
+		scheduled: '2026-09-18',
 		repeatFrequency: 'weekly',
 		repeatInterval: 1,
 		repeatMonthDay: 1,
 	});
 	const rebuilt = buildTaskLine(parsed.data, parsed);
 	assert.match(rebuilt, /^ {2}> - \[\+\] 记录恢复/u);
-	assert.match(rebuilt, /\[thread_pin:: true\]/u);
+	assert.doesNotMatch(rebuilt, /\[thread_pin::/u);
 	assert.match(rebuilt, /\^task-recovery$/u);
 	assert.deepEqual(parseTaskLine(rebuilt)?.data, parsed.data);
 });
@@ -1377,7 +1426,7 @@ void test('task validation keeps date bounds optional and validates repeat state
 		windowEnd: '',
 		effort: 'normal',
 		repeat: false,
-		current: '',
+		scheduled: '',
 		repeatFrequency: 'daily',
 		repeatInterval: 2,
 		repeatMonthDay: 1,
@@ -1390,11 +1439,11 @@ void test('task validation keeps date bounds optional and validates repeat state
 		windowStart: '2026-09-19',
 		windowEnd: '2026-09-18',
 	}), 'window-order');
-	assert.equal(taskValidationError({ ...base, repeat: true }), 'repeat-current');
+	assert.equal(taskValidationError({ ...base, repeat: true }), 'schedule-date');
 	assert.equal(taskValidationError({
 		...base,
 		repeat: true,
-		current: '2026-09-18',
+		scheduled: '2026-09-18',
 		repeatFrequency: 'daily',
 		repeatInterval: 0,
 	}), 'repeat-interval');
@@ -1410,9 +1459,9 @@ void test('formats task windows as one compact boundary range', () => {
 });
 
 void test('formats recurring task current dates for compact rendering', () => {
-	assert.equal(taskCurrentLabel('2026-09-21', '2026-09-21', 'Today'), 'Today');
-	assert.equal(taskCurrentLabel('2026-10-02', '2026-09-21', 'Today'), '10/2');
-	assert.equal(taskCurrentLabel('2027-01-03', '2026-09-21', 'Today'), '2027/1/3');
+	assert.equal(taskScheduledLabel('2026-09-21', '2026-09-21', 'Today'), 'Today');
+	assert.equal(taskScheduledLabel('2026-10-02', '2026-09-21', 'Today'), '10/2');
+	assert.equal(taskScheduledLabel('2027-01-03', '2026-09-21', 'Today'), '2027/1/3');
 });
 
 void test('classifies task windows before, during and after their date range', () => {
@@ -1436,7 +1485,7 @@ void test('advances one repeating task in place and preserves its relative date 
 		windowEnd: '2026-02-01',
 		effort: 'light',
 		repeat: true,
-		current: '2026-01-31',
+		scheduled: '2026-01-31',
 		repeatFrequency: 'monthly',
 		repeatInterval: 1,
 		repeatMonthDay: 31,
@@ -1445,16 +1494,16 @@ void test('advances one repeating task in place and preserves its relative date 
 	assert.ok(february);
 	assert.deepEqual(february, {
 		...monthly,
-		current: '2026-02-28',
+		scheduled: '2026-02-28',
 		windowStart: '2026-02-27',
 		windowEnd: '2026-03-01',
 	});
-	assert.equal(advanceTaskData(february)?.current, '2026-03-31');
+	assert.equal(advanceTaskData(february)?.scheduled, '2026-03-31');
 	assert.equal(
 		advanceTaskLine('- [x] 每日记录 [task_id:: task-123456789abc] '
-			+ '[current:: 2026-09-18] [repeat:: FREQ=DAILY]'),
+			+ '[scheduled:: 2026-09-18] [repeat:: FREQ=DAILY]'),
 		'- [ ] 每日记录 [task_id:: task-123456789abc] '
-			+ '[completed_occurrences:: 2026-09-18] [current:: 2026-09-19] [repeat:: FREQ=DAILY]',
+			+ '[completed_occurrences:: 2026-09-18] [scheduled:: 2026-09-19] [repeat:: FREQ=DAILY]',
 	);
 });
 
@@ -1468,29 +1517,29 @@ void test('skips past repeat occurrences when advancing while preserving the win
 		windowEnd: '2026-09-18',
 		effort: 'quick',
 		repeat: true,
-		current: '2026-09-18',
+		scheduled: '2026-09-18',
 		repeatFrequency: 'daily',
 		repeatInterval: 1,
 		repeatMonthDay: 1,
 	};
 	assert.deepEqual(advanceTaskData(daily, '2026-09-21'), {
 		...daily,
-		current: '2026-09-21',
+		scheduled: '2026-09-21',
 		windowStart: '2026-09-20',
 		windowEnd: '2026-09-21',
 	});
-	assert.equal(advanceTaskData({ ...daily, current: '2026-09-21' }, '2026-09-21')?.current, '2026-09-22');
+	assert.equal(advanceTaskData({ ...daily, scheduled: '2026-09-21' }, '2026-09-21')?.scheduled, '2026-09-22');
 	assert.equal(advanceTaskData({
 		...daily,
-		current: '2026-09-01',
+		scheduled: '2026-09-01',
 		repeatFrequency: 'weekly',
-	}, '2026-09-21')?.current, '2026-09-22');
+	}, '2026-09-21')?.scheduled, '2026-09-22');
 	assert.equal(advanceTaskData({
 		...daily,
-		current: '2026-01-31',
+		scheduled: '2026-01-31',
 		repeatFrequency: 'monthly',
 		repeatMonthDay: 31,
-	}, '2026-03-01')?.current, '2026-03-31');
+	}, '2026-03-01')?.scheduled, '2026-03-31');
 });
 
 void test('every N day, week, month and year rules round-trip and advance by calendar units', () => {
@@ -1500,9 +1549,9 @@ void test('every N day, week, month and year rules round-trip and advance by cal
 		['monthly', 'FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=31', '2024-04-30'],
 		['yearly', 'FREQ=YEARLY;INTERVAL=2;BYMONTH=1;BYMONTHDAY=31', '2026-01-31'],
 	] as const) {
-		const parsed = parseTaskLine(`- [ ] 定期检查 [task_id:: task-123456789abc] [current:: 2024-01-31] [repeat:: ${rule}]`)!;
+		const parsed = parseTaskLine(`- [ ] 定期检查 [task_id:: task-123456789abc] [scheduled:: 2024-01-31] [repeat:: ${rule}]`)!;
 		assert.equal(parsed.data.repeatFrequency, freq);
-		assert.equal(advanceTaskData(parsed.data)?.current, next);
+		assert.equal(advanceTaskData(parsed.data)?.scheduled, next);
 		assert.deepEqual(parseTaskLine(buildTaskLine(parsed.data, parsed))?.data, parsed.data);
 		for (const interval of [0, -1, 1.5, NaN, Infinity]) {
 			assert.equal(taskValidationError({ ...parsed.data, repeatInterval: interval }), 'repeat-interval');
@@ -1512,23 +1561,23 @@ void test('every N day, week, month and year rules round-trip and advance by cal
 });
 
 void test('calendar recurrence preserves leap-day and month-end anchors while skipping old periods', () => {
-	const yearly = parseTaskLine('- [ ] 年度检查 [current:: 2024-02-29] [repeat:: FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29]')!.data;
+	const yearly = parseTaskLine('- [ ] 年度检查 [scheduled:: 2024-02-29] [repeat:: FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29]')!.data;
 	const next = advanceTaskData(yearly)!;
-	assert.equal(next.current, '2025-02-28');
+	assert.equal(next.scheduled, '2025-02-28');
 	assert.equal(next.repeatMonthDay, 29);
-	assert.equal(advanceTaskData(next, '2028-01-01')?.current, '2028-02-29');
-	assert.equal(advanceTaskData({ ...yearly, repeatInterval: 2 }, '2027-01-01')?.current, '2028-02-29');
-	const quarterly = parseTaskLine('- [ ] 季度检查 [current:: 2026-01-31] [window_start:: 2026-01-30] [window_end:: 2026-02-01] [repeat:: FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=31]')!.data;
+	assert.equal(advanceTaskData(next, '2028-01-01')?.scheduled, '2028-02-29');
+	assert.equal(advanceTaskData({ ...yearly, repeatInterval: 2 }, '2027-01-01')?.scheduled, '2028-02-29');
+	const quarterly = parseTaskLine('- [ ] 季度检查 [scheduled:: 2026-01-31] [window_start:: 2026-01-30] [window_end:: 2026-02-01] [repeat:: FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=31]')!.data;
 	const advanced = advanceTaskData(quarterly, '2026-08-01')!;
-	assert.equal(advanced.current, '2026-10-31');
+	assert.equal(advanced.scheduled, '2026-10-31');
 	assert.equal(advanced.windowStart, '2026-10-30');
 	assert.equal(advanced.windowEnd, '2026-11-01');
-	const weekly = parseTaskLine('- [ ] 双周检查 [current:: 2026-10-01] [repeat:: FREQ=WEEKLY;INTERVAL=2]')!.data;
-	assert.equal(advanceTaskData(weekly, '2026-10-21')?.current, '2026-10-29');
-	const days = parseTaskLine('- [ ] 三天一次 [current:: 2026-10-01] [repeat:: FREQ=DAILY;INTERVAL=3]')!.data;
+	const weekly = parseTaskLine('- [ ] 双周检查 [scheduled:: 2026-10-01] [repeat:: FREQ=WEEKLY;INTERVAL=2]')!.data;
+	assert.equal(advanceTaskData(weekly, '2026-10-21')?.scheduled, '2026-10-29');
+	const days = parseTaskLine('- [ ] 三天一次 [scheduled:: 2026-10-01] [repeat:: FREQ=DAILY;INTERVAL=3]')!.data;
 	assert.equal(days.repeatFrequency, 'daily');
 	assert.equal(days.repeatInterval, 3);
-	assert.equal(advanceTaskData(days, '2026-10-21')?.current, '2026-10-22');
+	assert.equal(advanceTaskData(days, '2026-10-21')?.scheduled, '2026-10-22');
 });
 
 void test('converts the current text line into an editable task draft', () => {
@@ -1758,7 +1807,7 @@ void test('holding prevents self dependency, indirect cycles and malformed refer
 });
 
 void test('recurring dependency requires completion of the selected occurrence, not skipping it', () => {
-	const recurring = holdingTask('b', { repeat: true, current: '2026-09-20' });
+	const recurring = holdingTask('b', { repeat: true, scheduled: '2026-09-20' });
 	const data = holdingTask('a', { holding: true, holdingFor: [dependencyReference(recurring)] });
 	const skipped = advanceTaskData(recurring, '2026-09-23')!;
 	assert.equal(holdingResult(data, new Map([[recurring.taskId, [skipped]]])), 'pending');

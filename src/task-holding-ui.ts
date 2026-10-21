@@ -13,7 +13,7 @@ class DependencyPicker extends FuzzySuggestModal<FileTaskLocation> {
 	}
 	getItems(): FileTaskLocation[] { return this.items; }
 	getItemText(item: FileTaskLocation): string {
-		return `${item.parsed.data.content} · ${item.file.basename} · ${item.parsed.data.current || item.parsed.data.taskId}`;
+		return `${item.parsed.data.content} · ${item.file.basename} · ${item.parsed.data.scheduled || item.parsed.data.taskId}`;
 	}
 	onChooseItem(item: FileTaskLocation): void { this.choose(item); }
 }

@@ -18,7 +18,7 @@ import {
 	TASK_STATUS_ICONS,
 	TASK_STATUS_LABELS,
 } from './task-display';
-import { compareBoardTasks, groupBoardTasks, taskIsActiveOnBoard, type BoardGroup, type BoardTaskStatus } from './thread-task-board-model';
+import { boardTaskLane, compareBoardTasks, groupBoardTasks, taskIsActiveOnBoard, type BoardGroup, type BoardTaskStatus } from './thread-task-board-model';
 import {
 	renderThreadTaskItem,
 	type ThreadTaskItemField,
@@ -40,7 +40,7 @@ const BOARD_FIELD_CHOICES: { field: TaskBoardField; label: TranslationKey }[] = 
 	{ field: 'holding', label: 'Holding' },
 	{ field: 'window', label: 'Window' },
 	{ field: 'effort', label: 'Estimated effort' },
-	{ field: 'repeat', label: 'Repeat' },
+	{ field: 'schedule', label: 'Schedule' },
 	{ field: 'actions', label: 'Actions' },
 ];
 
@@ -49,7 +49,7 @@ const BOARD_FIELDS = new Set<TaskBoardField>(BOARD_FIELD_CHOICES.map(({ field })
 function boardFieldsFromState(state: unknown): Set<TaskBoardField> | undefined {
 	if (typeof state !== 'object' || state === null) return undefined;
 	const fields = (state as Record<string, unknown>).fields;
-	if (!Array.isArray(fields)) return undefined;
+	if (!Array.isArray(fields) || !fields.every(field => typeof field === 'string' && BOARD_FIELDS.has(field as TaskBoardField))) return undefined;
 	return new Set(fields.filter((field): field is TaskBoardField => (
 		typeof field === 'string' && BOARD_FIELDS.has(field as TaskBoardField)
 	)));
@@ -199,16 +199,16 @@ export class ThreadTaskBoardView extends ItemView {
 
 	private renderBoard(board: HTMLElement, tasks: BoardTask[]): void {
 		board.empty();
-		const pinned = tasks.filter((item) => item.task.pinned);
-		const recurring = tasks.filter((item) => !item.task.pinned && item.task.data.repeat);
-		this.renderPriorityColumn(board, pinned, recurring);
+		const today = moment().format('YYYY-MM-DD');
+		const pinned = tasks.filter(item => boardTaskLane(item.task.data, today) === 'pinned');
+		const scheduled = tasks.filter(item => boardTaskLane(item.task.data, today) === 'scheduled');
+		this.renderPriorityColumn(board, pinned, scheduled);
 		for (const status of BOARD_STATUSES) {
 			this.renderColumn(
 				board,
 				status,
 				tasks.filter((item) => (
-					!item.task.pinned
-					&& !item.task.data.repeat
+					boardTaskLane(item.task.data, today) === 'decision'
 					&& item.task.data.status === status
 				)),
 			);
@@ -319,19 +319,19 @@ export class ThreadTaskBoardView extends ItemView {
 	private renderPriorityColumn(
 		parent: HTMLElement,
 		pinned: BoardTask[],
-		recurring: BoardTask[],
+		scheduled: BoardTask[],
 	): void {
 		const stack = parent.createDiv({ cls: 'thread-journal-task-board-priority-stack' });
 		this.renderPrioritySection(stack, pinned, 'Pinned tasks', 'pin', 'pinned');
-		this.renderPrioritySection(stack, recurring, 'Recurring tasks', 'repeat-2', 'recurring');
+		this.renderPrioritySection(stack, scheduled, 'Scheduled today', 'calendar-check', 'scheduled');
 	}
 
 	private renderPrioritySection(
 		parent: HTMLElement,
 		tasks: BoardTask[],
-		label: 'Pinned tasks' | 'Recurring tasks',
-		icon: 'pin' | 'repeat-2',
-		kind: 'pinned' | 'recurring',
+		label: 'Pinned tasks' | 'Scheduled today',
+		icon: 'pin' | 'calendar-check',
+		kind: 'pinned' | 'scheduled',
 	): void {
 		const section = parent.createEl('section', {
 			cls: `thread-journal-task-board-column is-priority-${kind}`,

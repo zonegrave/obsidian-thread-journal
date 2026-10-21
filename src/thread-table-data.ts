@@ -18,7 +18,7 @@ export interface ThreadTableRow {
 	tasks: AttentionRowTask[];
 }
 
-export async function collectThreadTable(app: App, index: ThreadIndex): Promise<ThreadTableRow[]> {
+export async function collectThreadTable(app: App, index: ThreadIndex, today: string): Promise<ThreadTableRow[]> {
 	const threads = index.getAllThreads();
 	const members = index.getAllMembers();
 	const rows = new Map<string, ThreadTableRow>(threads.map(thread => [thread.id, {
@@ -54,7 +54,7 @@ export async function collectThreadTable(app: App, index: ThreadIndex): Promise<
 		if (fileRow) {
 			fileRow.counts.commits = content.commits;
 			fileRow.counts.logs = content.logs;
-			for (const task of content.tasks) countTableTask(fileRow.counts, task.parsed.data);
+			for (const task of content.tasks) countTableTask(fileRow.counts, task.parsed.data, today);
 		}
 		const links = app.metadataCache.getFileCache(file)?.links ?? [];
 		for (const task of content.tasks) {
@@ -70,7 +70,7 @@ export async function collectThreadTable(app: App, index: ThreadIndex): Promise<
 				const target = rows.get(id);
 				if (!target) continue;
 				const data = task.parsed.data;
-				countTableTask(target.counts, data);
+				countTableTask(target.counts, data, today);
 				target.tasks.push({
 					key: `${file.path}:${task.line}`, file, line: task.line, sourceLine: task.sourceLine,
 					text: data.content, data, pinned: data.pinned,

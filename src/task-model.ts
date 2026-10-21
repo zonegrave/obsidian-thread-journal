@@ -16,7 +16,7 @@ export interface TaskData {
 	windowEnd: string;
 	effort: TaskEffort;
 	repeat: boolean;
-	current: string;
+	scheduled: string;
 	repeatFrequency: TaskRepeatFrequency;
 	repeatInterval: number;
 	repeatMonthDay: number;
@@ -37,7 +37,7 @@ const INLINE_FIELD = /\[([^\]:]+)::\s*([^\]]*)\]/gu;
 const TASK_FIELDS = new Set([
 	'task_id',
 	'thread_pin',
-	'current',
+	'scheduled',
 	'repeat',
 	'window_start',
 	'window_end',
@@ -62,7 +62,7 @@ export const EMPTY_TASK: TaskData = {
 	windowEnd: '',
 	effort: '',
 	repeat: false,
-	current: '',
+	scheduled: '',
 	repeatFrequency: 'daily',
 	repeatInterval: 1,
 	repeatMonthDay: 1,
@@ -116,8 +116,8 @@ export function completeTaskData(data: TaskData): TaskData {
 	return {
 		...releaseTaskHolding(data),
 		status: 'completed',
-		completedOccurrences: data.repeat && validDate(data.current)
-			? [...new Set([...data.completedOccurrences, data.current])].sort()
+		completedOccurrences: data.repeat && validDate(data.scheduled)
+			? [...new Set([...data.completedOccurrences, data.scheduled])].sort()
 			: data.completedOccurrences,
 	};
 }
@@ -187,12 +187,12 @@ export function parseTaskLine(line: string): ParsedTaskLine | undefined {
 			holdingFor: (fields.get('holding_for') ?? '').split(',').map(value => value.trim()).filter(Boolean),
 			completedOccurrences: (fields.get('completed_occurrences') ?? '').split(',').map(value => value.trim()).filter(validDate),
 			content: body.replace(/\s+/gu, ' ').trim(),
-			pinned: fields.get('thread_pin')?.trim().toLowerCase() === 'true',
+			pinned: !inputDate(fields.get('scheduled')) && fields.get('thread_pin')?.trim().toLowerCase() === 'true',
 			windowStart: inputDate(fields.get('window_start')),
 			windowEnd: inputDate(fields.get('window_end')),
 			effort: taskEffort(fields.get('effort')),
 			...repeat,
-			current: inputDate(fields.get('current')),
+			scheduled: inputDate(fields.get('scheduled')),
 		},
 		preservedFields,
 		blockId: block?.[1],
@@ -208,14 +208,12 @@ export function buildTaskLine(data: TaskData, original?: ParsedTaskLine): string
 		if (data.holdingFor.length) fields.push(`[holding_for:: ${data.holdingFor.join(', ')}]`);
 	}
 	if (data.completedOccurrences.length) fields.push(`[completed_occurrences:: ${data.completedOccurrences.join(', ')}]`);
-	if (data.pinned) fields.push('[thread_pin:: true]');
+	if (data.pinned && !data.scheduled) fields.push('[thread_pin:: true]');
 	if (data.windowStart) fields.push(`[window_start:: ${data.windowStart}]`);
 	if (data.windowEnd) fields.push(`[window_end:: ${data.windowEnd}]`);
 	if (data.effort) fields.push(`[effort:: ${data.effort}]`);
-	if (data.repeat) {
-		fields.push(`[current:: ${data.current}]`);
-		fields.push(`[repeat:: ${repeatRule(data)}]`);
-	}
+	if (data.scheduled) fields.push(`[scheduled:: ${data.scheduled}]`);
+	if (data.scheduled && data.repeat) fields.push(`[repeat:: ${repeatRule(data)}]`);
 	fields.push(...(original?.preservedFields ?? []));
 	const body = [data.content.trim(), ...fields, original?.blockId]
 		.filter((part): part is string => Boolean(part))
@@ -225,13 +223,13 @@ export function buildTaskLine(data: TaskData, original?: ParsedTaskLine): string
 
 export function taskValidationError(
 	data: TaskData,
-): 'task-id' | 'content' | 'window-order' | 'repeat-current' | 'repeat-interval' | 'holding-date' | undefined {
+): 'task-id' | 'content' | 'window-order' | 'schedule-date' | 'repeat-interval' | 'holding-date' | undefined {
 	if (data.holdingReview && !validDate(data.holdingReview)) return 'holding-date';
 	if (!inputTaskId(data.taskId)) return 'task-id';
 	if (!data.content.trim()) return 'content';
 	if (data.windowStart && data.windowEnd && data.windowEnd < data.windowStart) return 'window-order';
-	if (data.repeat && !inputDate(data.current)) return 'repeat-current';
-	if (data.repeat && (!Number.isSafeInteger(data.repeatInterval) || data.repeatInterval < 1)) {
+	if ((data.scheduled && !inputDate(data.scheduled)) || (data.repeat && !data.scheduled)) return 'schedule-date';
+	if (data.scheduled && data.repeat && (!Number.isSafeInteger(data.repeatInterval) || data.repeatInterval < 1)) {
 		return 'repeat-interval';
 	}
 	return undefined;
@@ -274,51 +272,51 @@ function addMonths(value: string, months: number, monthDay: number): string {
 	return calendarDate(target.getUTCFullYear(), target.getUTCMonth() + 1, monthDay);
 }
 
-export function nextTaskCurrent(data: TaskData): string {
-	if (!data.repeat || !validDate(data.current) || !Number.isSafeInteger(data.repeatInterval) || data.repeatInterval < 1) return '';
+export function nextTaskScheduled(data: TaskData): string {
+	if (!data.repeat || !validDate(data.scheduled) || !Number.isSafeInteger(data.repeatInterval) || data.repeatInterval < 1) return '';
 	let next: string;
 	if (data.repeatFrequency === 'yearly') {
-		const [year] = dateParts(data.current);
+		const [year] = dateParts(data.scheduled);
 		next = calendarDate(year + data.repeatInterval, data.repeatMonth, data.repeatMonthDay);
 	} else if (data.repeatFrequency === 'monthly') {
-		next = addMonths(data.current, data.repeatInterval, data.repeatMonthDay);
-	} else next = addDays(data.current, data.repeatInterval * (data.repeatFrequency === 'weekly' ? 7 : 1));
-	return validDate(next) && next > data.current ? next : '';
+		next = addMonths(data.scheduled, data.repeatInterval, data.repeatMonthDay);
+	} else next = addDays(data.scheduled, data.repeatInterval * (data.repeatFrequency === 'weekly' ? 7 : 1));
+	return validDate(next) && next > data.scheduled ? next : '';
 }
 
-function nextTaskCurrentOnOrAfter(data: TaskData, minimumCurrent: string): string {
-	let current = nextTaskCurrent(data);
-	if (!current || !validDate(minimumCurrent) || current >= minimumCurrent) return current;
+function nextTaskScheduledOnOrAfter(data: TaskData, minimumDate: string): string {
+	let scheduled = nextTaskScheduled(data);
+	if (!scheduled || !validDate(minimumDate) || scheduled >= minimumDate) return scheduled;
 	if (data.repeatFrequency === 'daily' || data.repeatFrequency === 'weekly') {
 		const step = data.repeatInterval * (data.repeatFrequency === 'weekly' ? 7 : 1);
-		const remaining = daysBetween(current, minimumCurrent);
-		const next = addDays(current, Math.ceil(remaining / step) * step);
+		const remaining = daysBetween(scheduled, minimumDate);
+		const next = addDays(scheduled, Math.ceil(remaining / step) * step);
 		return validDate(next) ? next : '';
 	}
-	while (current < minimumCurrent) {
-		current = nextTaskCurrent({ ...data, current });
-		if (!current) return '';
+	while (scheduled < minimumDate) {
+		scheduled = nextTaskScheduled({ ...data, scheduled });
+		if (!scheduled) return '';
 	}
-	return current;
+	return scheduled;
 }
 
-export function advanceTaskData(data: TaskData, minimumCurrent = ''): TaskData | undefined {
-	const current = nextTaskCurrentOnOrAfter(data, minimumCurrent);
-	if (!current) return undefined;
-	const shift = daysBetween(data.current, current);
+export function advanceTaskData(data: TaskData, minimumDate = ''): TaskData | undefined {
+	const scheduled = nextTaskScheduledOnOrAfter(data, minimumDate);
+	if (!scheduled) return undefined;
+	const shift = daysBetween(data.scheduled, scheduled);
 	return {
 		...(data.status === 'completed' ? completeTaskData(data) : data),
 		status: 'open',
-		current,
+		scheduled,
 		windowStart: data.windowStart ? addDays(data.windowStart, shift) : '',
 		windowEnd: data.windowEnd ? addDays(data.windowEnd, shift) : '',
 	};
 }
 
-export function advanceTaskLine(line: string, minimumCurrent = ''): string | undefined {
+export function advanceTaskLine(line: string, minimumDate = ''): string | undefined {
 	const parsed = parseTaskLine(line);
 	if (!parsed) return undefined;
-	const advanced = advanceTaskData(parsed.data, minimumCurrent);
+	const advanced = advanceTaskData(parsed.data, minimumDate);
 	if (!advanced) return undefined;
 	return buildTaskLine(advanced, parsed);
 }
@@ -337,7 +335,7 @@ export function taskWindowLabel(data: Pick<TaskData, 'windowStart' | 'windowEnd'
 	return '';
 }
 
-export function taskCurrentLabel(value: string, today: string, todayLabel: string): string {
+export function taskScheduledLabel(value: string, today: string, todayLabel: string): string {
 	if (!value) return '';
 	if (value === today) return todayLabel;
 	if (!validDate(value) || !validDate(today)) return value;
@@ -376,4 +374,12 @@ export function taskDraftFromTextLine(line: string): ParsedTaskLine {
 		preservedFields: [],
 		blockId: block?.[1],
 	};
+}
+
+export function taskIsScheduledToday(data: Pick<TaskData, 'scheduled' | 'status'>, today: string): boolean {
+	return Boolean(data.scheduled && data.scheduled <= today && !['completed', 'cancelled'].includes(data.status));
+}
+
+export function taskNeedsPinnedAttention(data: Pick<TaskData, 'scheduled' | 'pinned' | 'status'>): boolean {
+	return Boolean(data.pinned && !data.scheduled && !['completed', 'cancelled'].includes(data.status));
 }
