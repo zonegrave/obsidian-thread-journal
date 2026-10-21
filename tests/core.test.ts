@@ -1395,8 +1395,8 @@ void test('task validation keeps date bounds optional and validates repeat state
 		...base,
 		repeat: true,
 		current: '2026-09-18',
-		repeatFrequency: 'custom',
-		repeatInterval: 1,
+		repeatFrequency: 'daily',
+		repeatInterval: 0,
 	}), 'repeat-interval');
 });
 
@@ -1491,6 +1491,44 @@ void test('skips past repeat occurrences when advancing while preserving the win
 		repeatFrequency: 'monthly',
 		repeatMonthDay: 31,
 	}, '2026-03-01')?.current, '2026-03-31');
+});
+
+void test('every N day, week, month and year rules round-trip and advance by calendar units', () => {
+	for (const [freq, rule, next] of [
+		['daily', 'FREQ=DAILY;INTERVAL=3', '2024-02-03'],
+		['weekly', 'FREQ=WEEKLY;INTERVAL=2', '2024-02-14'],
+		['monthly', 'FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=31', '2024-04-30'],
+		['yearly', 'FREQ=YEARLY;INTERVAL=2;BYMONTH=1;BYMONTHDAY=31', '2026-01-31'],
+	] as const) {
+		const parsed = parseTaskLine(`- [ ] 定期检查 [task_id:: task-123456789abc] [current:: 2024-01-31] [repeat:: ${rule}]`)!;
+		assert.equal(parsed.data.repeatFrequency, freq);
+		assert.equal(advanceTaskData(parsed.data)?.current, next);
+		assert.deepEqual(parseTaskLine(buildTaskLine(parsed.data, parsed))?.data, parsed.data);
+		for (const interval of [0, -1, 1.5, NaN, Infinity]) {
+			assert.equal(taskValidationError({ ...parsed.data, repeatInterval: interval }), 'repeat-interval');
+		}
+		assert.equal(taskValidationError({ ...parsed.data, repeatInterval: 1 }), undefined);
+	}
+});
+
+void test('calendar recurrence preserves leap-day and month-end anchors while skipping old periods', () => {
+	const yearly = parseTaskLine('- [ ] 年度检查 [current:: 2024-02-29] [repeat:: FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29]')!.data;
+	const next = advanceTaskData(yearly)!;
+	assert.equal(next.current, '2025-02-28');
+	assert.equal(next.repeatMonthDay, 29);
+	assert.equal(advanceTaskData(next, '2028-01-01')?.current, '2028-02-29');
+	assert.equal(advanceTaskData({ ...yearly, repeatInterval: 2 }, '2027-01-01')?.current, '2028-02-29');
+	const quarterly = parseTaskLine('- [ ] 季度检查 [current:: 2026-01-31] [window_start:: 2026-01-30] [window_end:: 2026-02-01] [repeat:: FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=31]')!.data;
+	const advanced = advanceTaskData(quarterly, '2026-08-01')!;
+	assert.equal(advanced.current, '2026-10-31');
+	assert.equal(advanced.windowStart, '2026-10-30');
+	assert.equal(advanced.windowEnd, '2026-11-01');
+	const weekly = parseTaskLine('- [ ] 双周检查 [current:: 2026-10-01] [repeat:: FREQ=WEEKLY;INTERVAL=2]')!.data;
+	assert.equal(advanceTaskData(weekly, '2026-10-21')?.current, '2026-10-29');
+	const days = parseTaskLine('- [ ] 三天一次 [current:: 2026-10-01] [repeat:: FREQ=DAILY;INTERVAL=3]')!.data;
+	assert.equal(days.repeatFrequency, 'daily');
+	assert.equal(days.repeatInterval, 3);
+	assert.equal(advanceTaskData(days, '2026-10-21')?.current, '2026-10-22');
 });
 
 void test('converts the current text line into an editable task draft', () => {

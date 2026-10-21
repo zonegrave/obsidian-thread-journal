@@ -169,7 +169,7 @@ class TaskModal extends Modal {
 				if (error === 'content') new Notice(t('Enter task content.'));
 				else if (error === 'window-order') new Notice(t('The window end must be on or after its start.'));
 				else if (error === 'repeat-current') new Notice(t('Choose the current repeat date.'));
-				else if (error === 'repeat-interval') new Notice(t('Enter a repeat interval of at least 2 days.'));
+				else if (error === 'repeat-interval') new Notice(t('Enter a positive whole-number repeat interval.'));
 				else if (error === 'holding-date') new Notice(t('Choose a valid review date.'));
 				if (error) return;
 				this.saving = true;
@@ -241,37 +241,42 @@ class TaskModal extends Modal {
 				.onChange((value) => {
 					this.data.repeat = value;
 					if (value && !this.data.current) this.data.current = currentDate();
-					if (value) this.data.repeatMonthDay = dayOfMonth(this.data.current);
+					if (value) {
+						this.data.repeatMonthDay = dayOfMonth(this.data.current);
+						this.data.repeatMonth = Number(this.data.current.slice(5, 7));
+					}
 					this.render();
 				}));
 		if (!this.data.repeat) return;
-		const frequency = new Setting(fields)
+		new Setting(fields)
 			.setClass('thread-journal-task-form-field')
-			.setName(t('Frequency'))
-			.addDropdown((dropdown) => dropdown
-				.addOption('daily', t('Daily'))
-				.addOption('weekly', t('Weekly'))
-				.addOption('monthly', t('Monthly'))
-				.addOption('custom', t('Every N days'))
-				.setValue(this.data.repeatFrequency)
-				.onChange((value) => {
-					this.data.repeatFrequency = value as TaskRepeatFrequency;
-					if (value === 'monthly') this.data.repeatMonthDay = dayOfMonth(this.data.current);
-					this.render();
-				}));
-		if (this.data.repeatFrequency === 'custom') {
-			frequency.addText((text) => {
+			.setName(t('Every'))
+			.addText((text) => {
 				text.inputEl.type = 'number';
-				text.inputEl.min = '2';
+				text.inputEl.min = '1';
 				text.inputEl.step = '1';
 				text.inputEl.addClass('thread-journal-task-repeat-interval');
-				text.inputEl.setAttribute('aria-label', t('Interval days'));
-				text.setPlaceholder(t('Interval days'));
+				text.inputEl.setAttribute('aria-label', t('Repeat interval'));
 				text.setValue(String(this.data.repeatInterval)).onChange((value) => {
 					this.data.repeatInterval = Number(value);
 				});
+			})
+			.addDropdown((dropdown) => {
+				dropdown.selectEl.setAttribute('aria-label', t('Repeat unit'));
+				dropdown.addOption('daily', t('Days'))
+					.addOption('weekly', t('Weeks'))
+					.addOption('monthly', t('Months'))
+					.addOption('yearly', t('Years'))
+					.setValue(this.data.repeatFrequency)
+					.onChange((value) => {
+						this.data.repeatFrequency = value as TaskRepeatFrequency;
+						if (value === 'monthly' || value === 'yearly') {
+							this.data.repeatMonthDay = dayOfMonth(this.data.current);
+							this.data.repeatMonth = Number(this.data.current.slice(5, 7));
+						}
+						this.render();
+					});
 			});
-		}
 		const current = new Setting(fields)
 			.setClass('thread-journal-task-form-field')
 			.setClass('is-current-date')
@@ -297,8 +302,9 @@ class TaskModal extends Modal {
 				this.data.current,
 				(value) => {
 					this.data.current = value;
-					if (this.data.repeatFrequency === 'monthly') {
+					if (this.data.repeatFrequency === 'monthly' || this.data.repeatFrequency === 'yearly') {
 						this.data.repeatMonthDay = dayOfMonth(value);
+						this.data.repeatMonth = Number(value.slice(5, 7));
 					}
 					this.render();
 				},

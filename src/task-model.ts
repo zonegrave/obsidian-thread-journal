@@ -1,6 +1,6 @@
 export type TaskStatus = 'idea' | 'committed' | 'open' | 'completed' | 'cancelled';
 export type TaskEffort = '' | 'quick' | 'light' | 'normal' | 'deep';
-export type TaskRepeatFrequency = 'daily' | 'weekly' | 'monthly' | 'custom';
+export type TaskRepeatFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 export type TaskWindowState = 'upcoming' | 'current' | 'overdue';
 
 export interface TaskData {
@@ -20,6 +20,7 @@ export interface TaskData {
 	repeatFrequency: TaskRepeatFrequency;
 	repeatInterval: number;
 	repeatMonthDay: number;
+	repeatMonth: number;
 }
 
 export interface ParsedTaskLine {
@@ -63,8 +64,9 @@ export const EMPTY_TASK: TaskData = {
 	repeat: false,
 	current: '',
 	repeatFrequency: 'daily',
-	repeatInterval: 2,
+	repeatInterval: 1,
 	repeatMonthDay: 1,
+	repeatMonth: 1,
 };
 
 function decodeInlineValue(value: string): string {
@@ -134,46 +136,28 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 
 function parseRepeatRule(value: string | undefined): Pick<
 	TaskData,
-	'repeat' | 'repeatFrequency' | 'repeatInterval' | 'repeatMonthDay'
+	'repeat' | 'repeatFrequency' | 'repeatInterval' | 'repeatMonthDay' | 'repeatMonth'
 > {
 	const fields = new Map((value ?? '').split(';').flatMap((part) => {
 		const [rawKey, rawValue] = part.split('=', 2);
 		return rawKey && rawValue ? [[rawKey.trim().toUpperCase(), rawValue.trim().toUpperCase()]] : [];
 	}));
-	const frequency = fields.get('FREQ');
-	if (!['DAILY', 'WEEKLY', 'MONTHLY'].includes(frequency ?? '')) {
-		return { repeat: false, repeatFrequency: 'daily', repeatInterval: 2, repeatMonthDay: 1 };
-	}
-	const interval = positiveInteger(fields.get('INTERVAL'), 1);
-	if (frequency === 'WEEKLY') {
-		return { repeat: true, repeatFrequency: 'weekly', repeatInterval: 1, repeatMonthDay: 1 };
-	}
-	if (frequency === 'MONTHLY') {
-		return {
-			repeat: true,
-			repeatFrequency: 'monthly',
-			repeatInterval: 1,
-			repeatMonthDay: Math.min(31, positiveInteger(fields.get('BYMONTHDAY'), 1)),
-		};
-	}
+	const frequencies: Record<string, TaskRepeatFrequency> = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly', YEARLY: 'yearly' };
+	const frequency = frequencies[fields.get('FREQ') ?? ''];
 	return {
-		repeat: true,
-		repeatFrequency: interval === 1 ? 'daily' : 'custom',
-		repeatInterval: Math.max(2, interval),
-		repeatMonthDay: 1,
+		repeat: Boolean(frequency), repeatFrequency: frequency ?? 'daily',
+		repeatInterval: positiveInteger(fields.get('INTERVAL'), 1),
+		repeatMonthDay: Math.min(31, positiveInteger(fields.get('BYMONTHDAY'), 1)),
+		repeatMonth: Math.min(12, positiveInteger(fields.get('BYMONTH'), 1)),
 	};
 }
 
 function repeatRule(data: TaskData): string {
-	if (data.repeatFrequency === 'weekly') return 'FREQ=WEEKLY';
-	if (data.repeatFrequency === 'monthly') {
-		const monthDay = Math.min(31, Math.max(1, Math.trunc(data.repeatMonthDay)));
-		return `FREQ=MONTHLY;BYMONTHDAY=${monthDay}`;
-	}
-	if (data.repeatFrequency === 'custom') {
-		return `FREQ=DAILY;INTERVAL=${Math.max(2, Math.trunc(data.repeatInterval))}`;
-	}
-	return 'FREQ=DAILY';
+	const rule = [`FREQ=${data.repeatFrequency.toUpperCase()}`];
+	if (data.repeatInterval > 1) rule.push(`INTERVAL=${data.repeatInterval}`);
+	if (data.repeatFrequency === 'yearly') rule.push(`BYMONTH=${data.repeatMonth}`);
+	if (data.repeatFrequency === 'monthly' || data.repeatFrequency === 'yearly') rule.push(`BYMONTHDAY=${data.repeatMonthDay}`);
+	return rule.join(';');
 }
 
 export function parseTaskLine(line: string): ParsedTaskLine | undefined {
@@ -247,8 +231,7 @@ export function taskValidationError(
 	if (!data.content.trim()) return 'content';
 	if (data.windowStart && data.windowEnd && data.windowEnd < data.windowStart) return 'window-order';
 	if (data.repeat && !inputDate(data.current)) return 'repeat-current';
-	if (data.repeat && data.repeatFrequency === 'custom'
-		&& (!Number.isInteger(data.repeatInterval) || data.repeatInterval < 2)) {
+	if (data.repeat && (!Number.isSafeInteger(data.repeatInterval) || data.repeatInterval < 1)) {
 		return 'repeat-interval';
 	}
 	return undefined;
@@ -280,41 +263,41 @@ function daysBetween(from: string, to: string): number {
 	) / 86_400_000);
 }
 
-function addMonth(value: string, monthDay: number): string {
+function calendarDate(year: number, month: number, day: number): string {
+	const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+	return formatDate(new Date(Date.UTC(year, month - 1, Math.min(day, lastDay))));
+}
+
+function addMonths(value: string, months: number, monthDay: number): string {
 	const [year, month] = dateParts(value);
-	const target = new Date(Date.UTC(year, month, 1));
-	const targetYear = target.getUTCFullYear();
-	const targetMonth = target.getUTCMonth();
-	const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
-	return formatDate(new Date(Date.UTC(targetYear, targetMonth, Math.min(monthDay, lastDay))));
+	const target = new Date(Date.UTC(year, month - 1 + months, 1));
+	return calendarDate(target.getUTCFullYear(), target.getUTCMonth() + 1, monthDay);
 }
 
 export function nextTaskCurrent(data: TaskData): string {
-	if (!data.repeat || !validDate(data.current)) return '';
-	if (data.repeatFrequency === 'weekly') return addDays(data.current, 7);
-	if (data.repeatFrequency === 'monthly') {
-		return addMonth(data.current, Math.min(31, Math.max(1, Math.trunc(data.repeatMonthDay))));
-	}
-	return addDays(
-		data.current,
-		data.repeatFrequency === 'custom' ? Math.max(2, Math.trunc(data.repeatInterval)) : 1,
-	);
+	if (!data.repeat || !validDate(data.current) || !Number.isSafeInteger(data.repeatInterval) || data.repeatInterval < 1) return '';
+	let next: string;
+	if (data.repeatFrequency === 'yearly') {
+		const [year] = dateParts(data.current);
+		next = calendarDate(year + data.repeatInterval, data.repeatMonth, data.repeatMonthDay);
+	} else if (data.repeatFrequency === 'monthly') {
+		next = addMonths(data.current, data.repeatInterval, data.repeatMonthDay);
+	} else next = addDays(data.current, data.repeatInterval * (data.repeatFrequency === 'weekly' ? 7 : 1));
+	return validDate(next) && next > data.current ? next : '';
 }
 
 function nextTaskCurrentOnOrAfter(data: TaskData, minimumCurrent: string): string {
 	let current = nextTaskCurrent(data);
 	if (!current || !validDate(minimumCurrent) || current >= minimumCurrent) return current;
-	if (data.repeatFrequency !== 'monthly') {
-		const step = data.repeatFrequency === 'weekly'
-			? 7
-			: data.repeatFrequency === 'custom'
-				? Math.max(2, Math.trunc(data.repeatInterval))
-				: 1;
+	if (data.repeatFrequency === 'daily' || data.repeatFrequency === 'weekly') {
+		const step = data.repeatInterval * (data.repeatFrequency === 'weekly' ? 7 : 1);
 		const remaining = daysBetween(current, minimumCurrent);
-		return addDays(current, Math.ceil(remaining / step) * step);
+		const next = addDays(current, Math.ceil(remaining / step) * step);
+		return validDate(next) ? next : '';
 	}
 	while (current < minimumCurrent) {
-		current = addMonth(current, Math.min(31, Math.max(1, Math.trunc(data.repeatMonthDay))));
+		current = nextTaskCurrent({ ...data, current });
+		if (!current) return '';
 	}
 	return current;
 }
@@ -342,10 +325,9 @@ export function advanceTaskLine(line: string, minimumCurrent = ''): string | und
 
 export function taskRepeatLabel(data: TaskData): string {
 	if (!data.repeat) return '';
-	if (data.repeatFrequency === 'weekly') return 'Weekly';
-	if (data.repeatFrequency === 'monthly') return 'Monthly';
-	if (data.repeatFrequency === 'custom') return `Every ${data.repeatInterval} days`;
-	return 'Daily';
+	if (data.repeatInterval === 1) return { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' }[data.repeatFrequency];
+	const unit = { daily: 'days', weekly: 'weeks', monthly: 'months', yearly: 'years' }[data.repeatFrequency];
+	return `Every ${data.repeatInterval} ${unit}`;
 }
 
 export function taskWindowLabel(data: Pick<TaskData, 'windowStart' | 'windowEnd'>): string {

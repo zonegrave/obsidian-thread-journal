@@ -37,6 +37,10 @@ export function taskRepeatRuleDisplay(data: TaskData): string {
 	if (label === 'Daily') return t('Daily');
 	if (label === 'Weekly') return t('Weekly');
 	if (label === 'Monthly') return t('Monthly');
+	if (label === 'Yearly') return t('Yearly');
+	if (data.repeatFrequency === 'weekly') return t('Every {count} weeks', { count: data.repeatInterval });
+	if (data.repeatFrequency === 'monthly') return t('Every {count} months', { count: data.repeatInterval });
+	if (data.repeatFrequency === 'yearly') return t('Every {count} years', { count: data.repeatInterval });
 	return t('Every {count} days', { count: data.repeatInterval });
 }
 
