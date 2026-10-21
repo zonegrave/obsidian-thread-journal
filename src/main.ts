@@ -74,7 +74,7 @@ export default class ThreadJournalPlugin extends Plugin {
 		this.tasks = new TaskManager(this.app, this.index);
 		new TaskHoldingService(this.app, () => this.tasks.invalidateTaskIndex()).register(this);
 		this.files = new ThreadFileManager(this.app, this.index, getSettings);
-		this.registerView(THREAD_TABLE_VIEW_TYPE, leaf => new ThreadTableView(leaf, this.index, this.files));
+		this.registerView(THREAD_TABLE_VIEW_TYPE, leaf => new ThreadTableView(leaf, this.index, this.tasks));
 		this.registerView(
 			THREAD_OVERVIEW_VIEW_TYPE,
 			(leaf) => new ThreadOverviewView(leaf, this.index, this.files),

@@ -56,7 +56,7 @@ import {
 import { ThreadIndex } from '../src/thread-index';
 import { RootThreadManager } from '../src/thread-root';
 import { collectThreadTable } from '../src/thread-table-data';
-import { countTableTask, emptyThreadTableCounts, flattenThreadTableTree, threadTableContent } from '../src/thread-table-model';
+import { countTableTask, emptyThreadTableCounts, flattenThreadTableTree, tableTaskMatches, threadTableContent } from '../src/thread-table-model';
 import { ROOT_THREAD_ID, rootThreadContent, rootThreadPath, rootThreadSettingsValid } from '../src/thread-root-model';
 import {
 	buildInlineLogEdit,
@@ -692,6 +692,33 @@ void test('table totals stay with each owner including history; external links c
 	assert.equal(totals.get('parent')?.logs, 0);
 	assert.equal(totals.get('child')?.open, 1);
 	assert.equal(totals.get('child')?.logs, 1);
+	const parentRow = rows.find(row => row.thread.id === 'parent')!;
+	assert.equal(parentRow.files.length, 2);
+	assert.equal(parentRow.tasks.length, 4);
+	const workRow = parentRow.files.find(file => file.member.file.path === work.path)!;
+	assert.equal(workRow.counts.open, 1);
+	assert.equal(workRow.counts.commits, 1);
+	assert.equal(workRow.counts.committed, 0); // External links do not become member-file tasks.
+	const historical = parentRow.files.find(file => file.member.file.path === history.path)!;
+	assert.equal(historical.member.roleStatus, 'terminated');
+	assert.equal(historical.counts.completed, 1);
+	assert.equal(historical.counts.cancelled, 1);
+	assert.equal(parentRow.tasks.filter(task => task.file.path === external.path).length, 1);
+	assert.equal(parentRow.tasks.find(task => task.file.path === external.path)?.sourceLine, '- [+] external [[parent]] [[工作]]');
+	assert.equal(rows.find(row => row.thread.id === 'child')?.files[0]?.counts.logs, 1);
+});
+
+void test('table task details hide ended tasks by default and honor explicit count filters', () => {
+	const completed = { ...EMPTY_TASK, status: 'completed' as const, pinned: true, holding: true };
+	assert.equal(tableTaskMatches(completed, 'all', false), false);
+	assert.equal(tableTaskMatches(completed, 'all', true), true);
+	assert.equal(tableTaskMatches(completed, 'completed', false), true);
+	assert.equal(tableTaskMatches(completed, 'cancelled', true), false);
+	assert.equal(tableTaskMatches(completed, 'pinned', false), true);
+	assert.equal(tableTaskMatches(completed, 'holding', false), true);
+	assert.equal(tableTaskMatches(EMPTY_TASK, 'open', false), true);
+	assert.equal(tableTaskMatches(EMPTY_TASK, 'committed', false), false);
+	assert.equal(tableTaskMatches(EMPTY_TASK, 'recurring', true), false);
 });
 
 void test('ROOT has one canonical meta, fixed identity, and ordinary member and entry resolution', () => {

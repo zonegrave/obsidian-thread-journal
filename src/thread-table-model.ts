@@ -93,3 +93,15 @@ export function flattenThreadTableTree(
 	visit(tree, 0, []);
 	return result;
 }
+
+export type ThreadTableTaskFilter = 'all' | 'open' | 'committed' | 'idea' | 'completed' | 'cancelled' | 'holding' | 'recurring' | 'pinned';
+
+export function tableTaskMatches(data: TaskData, filter: ThreadTableTaskFilter, showEnded: boolean): boolean {
+	if (filter === 'completed' || filter === 'cancelled') return data.status === filter;
+	if (filter === 'all' && !showEnded && (data.status === 'completed' || data.status === 'cancelled')) return false;
+	if (filter === 'all') return true;
+	if (filter === 'holding') return data.holding;
+	if (filter === 'recurring') return Boolean(data.repeat);
+	if (filter === 'pinned') return data.pinned;
+	return data.status === filter;
+}

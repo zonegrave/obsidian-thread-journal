@@ -3,6 +3,10 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'Task details': '任务明细',
+	'All tasks': '全部任务',
+	'External tasks': '外部任务',
+	'Show completed and cancelled tasks': '显示已完成和取消的任务',
 	'Thread overview table': 'Thread 总览表格',
 	'Loading thread table…': '正在加载 Thread 表格…',
 	'Failed to read thread table: {error}': '无法读取 Thread 表格：{error}',

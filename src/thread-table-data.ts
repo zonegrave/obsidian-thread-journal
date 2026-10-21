@@ -1,29 +1,41 @@
 import type { App } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
-import type { ThreadInfo } from './types';
+import type { ThreadInfo, ThreadMemberInfo } from './types';
+import type { AttentionRowTask } from './thread-attention';
 import { buildRootedThreadOverviewTree } from './thread-overview-model';
 import { countTableTask, emptyThreadTableCounts, threadTableContent, type ThreadTableCounts } from './thread-table-model';
+
+export interface ThreadTableFileRow {
+	member: ThreadMemberInfo;
+	counts: ThreadTableCounts;
+}
 
 export interface ThreadTableRow {
 	thread: ThreadInfo;
 	parent?: string;
 	counts: ThreadTableCounts;
+	files: ThreadTableFileRow[];
+	tasks: AttentionRowTask[];
 }
 
 export async function collectThreadTable(app: App, index: ThreadIndex): Promise<ThreadTableRow[]> {
 	const threads = index.getAllThreads();
 	const members = index.getAllMembers();
-	const rows = new Map(threads.map(thread => [thread.id, {
+	const rows = new Map<string, ThreadTableRow>(threads.map(thread => [thread.id, {
 		thread,
 		parent: index.getParentFile(thread.file)
 			? index.getThread(index.getParentFile(thread.file)!)?.id : undefined,
-		counts: emptyThreadTableCounts(),
+		counts: emptyThreadTableCounts(), files: [], tasks: [],
 	}]));
+	const fileRows = new Map<string, ThreadTableFileRow>();
 	const owners = new Map(threads.map(thread => [thread.file.path, thread.id]));
 	for (const member of members) {
 		const row = rows.get(member.threadId);
 		if (!row) continue;
 		row.counts.files++;
+		const fileRow = { member, counts: emptyThreadTableCounts() };
+		row.files.push(fileRow);
+		fileRows.set(member.file.path, fileRow);
 		owners.set(member.file.path, member.threadId);
 	}
 	const candidates = app.vault.getMarkdownFiles().filter(file => owners.has(file.path)
@@ -38,6 +50,12 @@ export async function collectThreadTable(app: App, index: ThreadIndex): Promise<
 			row.counts.commits += content.commits;
 			row.counts.logs += content.logs;
 		}
+		const fileRow = fileRows.get(file.path);
+		if (fileRow) {
+			fileRow.counts.commits = content.commits;
+			fileRow.counts.logs = content.logs;
+			for (const task of content.tasks) countTableTask(fileRow.counts, task.parsed.data);
+		}
 		const links = app.metadataCache.getFileCache(file)?.links ?? [];
 		for (const task of content.tasks) {
 			const taskOwners = new Set(owner ? [owner] : []);
@@ -49,8 +67,16 @@ export async function collectThreadTable(app: App, index: ThreadIndex): Promise<
 				if (id) taskOwners.add(id);
 			}
 			for (const id of taskOwners) {
-				const counts = rows.get(id)?.counts;
-				if (counts) countTableTask(counts, task.parsed.data);
+				const target = rows.get(id);
+				if (!target) continue;
+				const data = task.parsed.data;
+				countTableTask(target.counts, data);
+				target.tasks.push({
+					key: `${file.path}:${task.line}`, file, line: task.line, sourceLine: task.sourceLine,
+					text: data.content, data, pinned: data.pinned,
+					disposition: data.holding ? 'holding' : data.status === 'idea' ? 'idea'
+						: data.status === 'committed' ? 'committed' : 'ready',
+				});
 			}
 		}
 	}
@@ -65,5 +91,6 @@ export async function collectThreadTable(app: App, index: ThreadIndex): Promise<
 		}
 	};
 	visit(tree);
+	for (const row of rows.values()) row.files.sort((a, b) => a.member.file.basename.localeCompare(b.member.file.basename));
 	return [...rows.values()];
 }

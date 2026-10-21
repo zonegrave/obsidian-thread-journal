@@ -1,18 +1,21 @@
 import { App, ItemView, Notice, setIcon, type ViewStateResult, type WorkspaceLeaf } from 'obsidian';
 import type { ThreadIndex } from './thread-index';
-import type { ThreadFileManager } from './thread-files';
+import type { TaskManager } from './task';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
-import { threadStatusLabel } from './thread-status-model';
 import { buildRootedThreadOverviewTree } from './thread-overview-model';
-import { ROOT_THREAD_ID } from './thread-root-model';
-import { flattenThreadTableTree, type ThreadTableTreeRow } from './thread-table-model';
+import { flattenThreadTableTree } from './thread-table-model';
 import { collectThreadTable, type ThreadTableRow } from './thread-table-data';
+import { renderTableThreadRow, renderTableFileRows, type TableSelection } from './thread-table-rows';
+import { renderTableTaskDetails } from './thread-table-details';
 import { THREAD_TABLE_COLUMNS, type ThreadTableColumn } from './thread-table-columns';
 
 export const THREAD_TABLE_VIEW_TYPE = 'thread-journal-overview-table';
 
 export class ThreadTableView extends ItemView {
 	private rows: ThreadTableRow[] = [];
+	private expandedFiles = new Set<string>();
+	private selection?: TableSelection;
+	private showEnded = false;
 	private collapsed = new Set<string>();
 	private fields = new Set<ThreadTableColumn>(THREAD_TABLE_COLUMNS.map(column => column.key));
 	private timer?: number;
@@ -20,7 +23,7 @@ export class ThreadTableView extends ItemView {
 	private opened = false;
 	private fieldsOpen = false;
 
-	constructor(leaf: WorkspaceLeaf, private readonly index: ThreadIndex, private readonly files: ThreadFileManager) {
+	constructor(leaf: WorkspaceLeaf, private readonly index: ThreadIndex, private readonly taskManager: TaskManager) {
 		super(leaf);
 	}
 
@@ -29,13 +32,14 @@ export class ThreadTableView extends ItemView {
 	getIcon(): string { return 'table-properties'; }
 
 	getState(): Record<string, unknown> {
-		return { collapsed: [...this.collapsed], fields: [...this.fields] };
+		return { expandedFiles: [...this.expandedFiles], collapsed: [...this.collapsed], fields: [...this.fields] };
 	}
 
 	async setState(state: unknown, result: ViewStateResult): Promise<void> {
 		await super.setState(state, result);
 		if (typeof state === 'object' && state !== null) {
 			const value = state as Record<string, unknown>;
+			if (Array.isArray(value.expandedFiles)) this.expandedFiles = new Set(value.expandedFiles.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.collapsed)) this.collapsed = new Set(value.collapsed.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.fields)) this.fields = new Set(THREAD_TABLE_COLUMNS.filter(column =>
 				(value.fields as unknown[]).includes(column.key)).map(column => column.key));
@@ -75,6 +79,10 @@ export class ThreadTableView extends ItemView {
 			const rows = await collectThreadTable(this.app, this.index);
 			if (!this.opened || request !== this.request) return;
 			this.rows = rows;
+			if (this.selection) {
+				const selected = rows.find(row => row.thread.id === this.selection?.threadId);
+				if (!selected || (this.selection.filePath && !selected.files.some(file => file.member.file.path === this.selection?.filePath))) this.selection = undefined;
+			}
 			this.render();
 		} catch (error) {
 			if (!this.opened || request !== this.request) return;
@@ -93,13 +101,15 @@ export class ThreadTableView extends ItemView {
 		const oldScroll = this.contentEl.querySelector('.thread-journal-table-scroll');
 		const scrollTop = oldScroll?.scrollTop ?? 0;
 		const scrollLeft = oldScroll?.scrollLeft ?? 0;
+		const detailScroll = this.contentEl.querySelector('.thread-journal-table-details-list')?.scrollTop ?? 0;
 		this.contentEl.empty();
 		const tree = buildRootedThreadOverviewTree(this.rows.map(row => ({
 			id: row.thread.id, title: row.thread.title, status: row.thread.status, parent: row.parent,
 		})), new Set(this.rows.map(row => row.thread.status)));
 		const visible = flattenThreadTableTree(tree, this.collapsed);
 		const byId = new Map(this.rows.map(row => [row.thread.id, row]));
-		const scroll = this.contentEl.createDiv({ cls: 'thread-journal-table-scroll' });
+		const main = this.contentEl.createDiv({ cls: 'thread-journal-table-main' });
+		const scroll = main.createDiv({ cls: 'thread-journal-table-scroll' });
 		const table = scroll.createEl('table', {
 			cls: 'thread-journal-thread-table', attr: { role: 'treegrid', 'aria-label': t('Thread overview table') },
 		});
@@ -110,12 +120,36 @@ export class ThreadTableView extends ItemView {
 		const body = table.createEl('tbody');
 		for (const item of visible) {
 			const data = byId.get(item.node.item.id);
-			if (data) this.renderRow(body, item, data, columns.map(column => column.key));
+			if (!data) continue;
+			const context = {
+				app: this.app, columns: columns.map(column => column.key), selection: this.selection,
+				filesExpanded: this.expandedFiles.has(data.thread.id), childrenCollapsed: this.collapsed.has(data.thread.id),
+				entry: this.index.getEntry(data.thread.file),
+				toggleChildren: () => this.toggle(data.thread.id),
+				toggleFiles: () => this.toggleFiles(data.thread.id),
+				select: (selection: TableSelection) => {
+					this.selection = selection;
+					const list = this.contentEl.querySelector('.thread-journal-table-details-list');
+					if (list) list.scrollTop = 0;
+					this.render();
+				},
+			};
+			renderTableThreadRow(body, item, data, context);
+			if (context.filesExpanded) renderTableFileRows(body, item, data, context);
 		}
 		if (!visible.length) scroll.createDiv({ cls: 'thread-journal-empty', text: t('No threads match the selected statuses.') });
+		const selected = this.selection ? byId.get(this.selection.threadId) : undefined;
+		if (selected && this.selection) renderTableTaskDetails(main, selected, this.selection, {
+			app: this.app, taskManager: this.taskManager, showEnded: this.showEnded,
+			onShowEnded: value => { this.showEnded = value; this.render(); },
+			onClose: () => { this.selection = undefined; this.render(); },
+			onRefresh: () => this.refresh(),
+		});
 		this.renderFooter(flattenThreadTableTree(tree, new Set()).filter(item => item.node.children.length).map(item => item.node.item.id));
 		scroll.scrollTop = scrollTop;
 		scroll.scrollLeft = scrollLeft;
+		const details = this.contentEl.querySelector('.thread-journal-table-details-list');
+		if (details) details.scrollTop = detailScroll;
 	}
 
 	private toggle(id: string): void {
@@ -125,49 +159,11 @@ export class ThreadTableView extends ItemView {
 		this.saveLayout();
 	}
 
-	private renderRow(parent: HTMLElement, item: ThreadTableTreeRow, data: ThreadTableRow, columns: ThreadTableColumn[]): void {
-		const { node } = item;
-		const row = parent.createEl('tr', { attr: { 'aria-level': String(item.depth + 1), 'data-thread-id': data.thread.id } });
-		row.toggleClass('is-root', data.thread.id === ROOT_THREAD_ID);
-		if (node.children.length) row.setAttribute('aria-expanded', String(!this.collapsed.has(data.thread.id)));
-		const name = row.createEl('td').createDiv({ cls: 'thread-journal-table-name' });
-		for (const continues of item.guides) name.createSpan({ cls: `thread-journal-table-guide${continues ? ' is-continuing' : ''}` });
-		if (item.depth) name.createSpan({ cls: `thread-journal-table-branch${item.last ? ' is-last' : ''}` });
-		const toggle = name.createEl('button', {
-			cls: 'clickable-icon thread-journal-table-toggle',
-			attr: { type: 'button', 'aria-label': t(this.collapsed.has(data.thread.id) ? 'Expand child threads' : 'Collapse child threads') },
-		});
-		toggle.disabled = !node.children.length;
-		if (node.children.length) setIcon(toggle, this.collapsed.has(data.thread.id) ? 'chevron-right' : 'chevron-down');
-		toggle.addEventListener('click', () => this.toggle(data.thread.id));
-		const target = this.index.getEntry(data.thread.file) ?? data.thread.file;
-		const link = name.createEl('a', { text: data.thread.title, href: target.path, attr: { title: data.thread.title } });
-		link.addEventListener('click', event => {
-			event.preventDefault();
-			void this.app.workspace.openLinkText(target.path, '', event.metaKey || event.ctrlKey);
-		});
-		for (const key of columns) {
-			const cell = row.createEl('td', { cls: `thread-journal-table-value is-${key}` });
-			if (key === 'status') { cell.setText(threadStatusLabel(data.thread.status)); continue; }
-			const value = data.counts[key];
-			cell.toggleClass('is-zero', !value);
-			const column = THREAD_TABLE_COLUMNS.find(column => column.key === key)!;
-			cell.setAttribute('title', `${t(column.label)} · ${value}`);
-			const count: HTMLElement = cell.createEl(key === 'files' || (key === 'children' && node.children.length) ? 'button' : 'span', {
-				cls: 'thread-journal-table-count',
-				attr: { 'aria-label': `${t(column.label)}: ${value}` },
-			});
-			if (column.icon) setIcon(count.createSpan({ cls: 'thread-journal-table-count-icon', attr: { 'aria-hidden': 'true' } }), column.icon);
-			count.createSpan({ text: value ? String(value) : '–' });
-			if (key === 'files') {
-				count.setAttribute('type', 'button');
-				count.setAttribute('aria-label', t('Manage thread files ({count})', { count: value }));
-				count.addEventListener('click', event => this.files.openActiveThreadFilesMenu(data.thread.file, event));
-			} else if (key === 'children' && node.children.length) {
-				count.setAttribute('type', 'button');
-				count.addEventListener('click', () => this.toggle(data.thread.id));
-			}
-		}
+	private toggleFiles(id: string): void {
+		if (this.expandedFiles.has(id)) this.expandedFiles.delete(id);
+		else this.expandedFiles.add(id);
+		this.render();
+		this.saveLayout();
 	}
 
 	private renderFooter(branchIds: string[]): void {
@@ -177,6 +173,7 @@ export class ThreadTableView extends ItemView {
 			const button = footer.createEl('button', { text: t(expand ? 'Expand all threads' : 'Collapse all threads') });
 			button.addEventListener('click', () => {
 				this.collapsed = new Set(expand ? [] : branchIds);
+				if (!expand) this.expandedFiles.clear();
 				this.render();
 				this.saveLayout();
 			});
