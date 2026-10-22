@@ -8,21 +8,23 @@ export interface TableFilters {
 	root: string;
 	query: string;
 	statuses: string[] | null;
+	fileStatuses: ('active' | 'terminated')[] | null;
 	present: TablePresenceColumn[];
 }
-export const DEFAULT_TABLE_FILTERS: TableFilters = { root: '', query: '', statuses: null, present: [] };
+export const DEFAULT_TABLE_FILTERS: TableFilters = { root: '', query: '', statuses: null, fileStatuses: null, present: [] };
 
 export function tableFiltersFromState(value: unknown): TableFilters {
 	const data = typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
 	return {
 		root: typeof data.root === 'string' ? data.root : '', query: typeof data.query === 'string' ? data.query : '',
 		statuses: Array.isArray(data.statuses) ? data.statuses.filter((s): s is string => typeof s === 'string') : null,
+		fileStatuses: Array.isArray(data.fileStatuses) ? (['active', 'terminated'] as const).filter(status => (data.fileStatuses as unknown[]).includes(status)) : null,
 		present: Array.isArray(data.present) ? TABLE_PRESENCE_COLUMNS.filter(key => (data.present as unknown[]).includes(key)) : [],
 	};
 }
 
 export function tableHasConditions(filters: TableFilters): boolean {
-	return Boolean(filters.query.trim() || filters.statuses !== null || filters.present.length > 0);
+	return Boolean(filters.query.trim() || filters.statuses !== null || filters.fileStatuses !== null || filters.present.length > 0);
 }
 
 export function filterThreadTable(rows: readonly ThreadTableRow[], filters: TableFilters): {
@@ -48,8 +50,10 @@ export function filterThreadTable(rows: readonly ThreadTableRow[], filters: Tabl
 		if (!allowed.has(row.thread.id)) return false;
 		if (filters.statuses !== null && !filters.statuses.includes(row.thread.status)) return false;
 		if (filters.present.some(key => row.counts[key] === 0)) return false;
+		const eligible = row.files.filter(file => filters.fileStatuses === null || filters.fileStatuses.includes(file.member.roleStatus));
+		if (filters.fileStatuses !== null) fileMatches.set(row.thread.id, new Set(eligible.map(file => file.member.file.path)));
 		if (!query || row.thread.title.toLocaleLowerCase().includes(query)) return true;
-		const files = row.files.filter(file => file.member.file.basename.toLocaleLowerCase().includes(query));
+		const files = eligible.filter(file => file.member.file.basename.toLocaleLowerCase().includes(query));
 		if (!files.length) return false;
 		fileMatches.set(row.thread.id, new Set(files.map(file => file.member.file.path)));
 		return true;

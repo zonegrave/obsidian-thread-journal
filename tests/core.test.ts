@@ -1924,3 +1924,22 @@ void test('indented examples inside lists are excluded from the dependency graph
 	const source = ['- Parent', '', '        - [x] Code example', '', '    - [ ] Nested task', '        - [ ] Deep task'].join('\n');
 	assert.deepEqual(scanTaskLines(source).map(task => task.parsed.data.content), ['Nested task', 'Deep task']);
 });
+
+void test('file status filters scope file rows and name search without changing thread statistics', () => {
+ const row = tableFixtureRow('Alpha'); row.counts.open = 3; row.counts.files = 2;
+ for (const [name, roleStatus] of [['Current', 'active'], ['Archive', 'terminated']] as const) row.files.push({ member: {
+  file: { path: `${name}.md`, basename: name } as never, threadId: 'Alpha', role: 'workspace', roleStatus, icon: '', attentionFallback: false,
+ }, counts: emptyThreadTableCounts() });
+ const empty = tableFixtureRow('Empty');
+ const filters = { ...DEFAULT_TABLE_FILTERS, fileStatuses: ['active'] as ('active' | 'terminated')[] };
+ const result = filterThreadTable([row, empty], filters);
+ assert.deepEqual(result.matchedRows.map(row => row.thread.id), ['Alpha', 'Empty']);
+ assert.deepEqual([...result.fileMatches.get('Alpha')!], ['Current.md']);
+ assert.equal(result.matchedRows[0]?.counts.open, 3);
+ assert.equal(result.matchedRows[0]?.counts.files, 2);
+ assert.equal(filterThreadTable([row], { ...filters, query: 'archive' }).matchedRows.length, 0);
+ assert.deepEqual([...filterThreadTable([row], { ...filters, query: 'alpha' }).fileMatches.get('Alpha')!], ['Current.md']);
+ assert.equal(filterThreadTable([row], { ...filters, statuses: ['paused'] }).matchedRows.length, 0);
+ assert.equal(filterThreadTable([row], { ...filters, fileStatuses: [] }).fileMatches.get('Alpha')?.size, 0);
+ assert.deepEqual(tableFiltersFromState({ fileStatuses: ['active', 'unknown', 'active'] }).fileStatuses, ['active']);
+});

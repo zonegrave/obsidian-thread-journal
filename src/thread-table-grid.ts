@@ -16,7 +16,7 @@ export function createThreadTableGrid(parent: HTMLElement, columns: ThreadTableC
 	if (canvas) canvas.font = `${font.fontSize} ${font.fontFamily}`;
 	const widths = [320, ...columns.map(key => {
 		const label = t(THREAD_TABLE_COLUMNS.find(column => column.key === key)!.label);
-		return Math.max(key === 'status' ? 116 : 64, Math.ceil(canvas?.measureText(label).width ?? label.length * 8) + (key === 'status' || TABLE_PRESENCE_COLUMNS.some(column => column === key) ? 50 : 24));
+		return Math.max(key === 'status' ? 116 : 64, Math.ceil(canvas?.measureText(label).width ?? label.length * 8) + (key === 'status' || key === 'files' || TABLE_PRESENCE_COLUMNS.some(column => column === key) ? 50 : 24));
 	})];
 	const table = (host: HTMLElement): HTMLTableElement => {
 		const element = host.createEl('table', { cls: 'thread-journal-thread-table' });

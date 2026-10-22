@@ -153,10 +153,11 @@ export class ThreadTableView extends ItemView {
 				toggleFiles: () => this.toggleFiles(data.thread.id),
 				select: (selection: TableSelection) => this.select(selection),
 			};
-			renderTableThreadRow(body, item, data, context);
+			const files = projection.fileMatches.get(data.thread.id);
+			const display = files ? { ...data, files: data.files.filter(file => files.has(file.member.file.path)) } : data;
+			renderTableThreadRow(body, item, { ...data, counts: { ...data.counts, files: this.filters.fileStatuses === null ? data.counts.files : data.files.filter(file => this.filters.fileStatuses!.includes(file.member.roleStatus)).length } }, context);
 			if (context.filesExpanded) {
-				const matches = projection.fileMatches.get(data.thread.id);
-				renderTableFileRows(body, item, matches ? { ...data, files: data.files.filter(file => matches.has(file.member.file.path)) } : data, context);
+				renderTableFileRows(body, item, display, context);
 			}
 		}
 		if (!visible.length) body.createEl('tr').createEl('td', { cls: 'thread-journal-empty', text: t('No threads match the filters.'), attr: { colspan: String(columns.length + 1) } });

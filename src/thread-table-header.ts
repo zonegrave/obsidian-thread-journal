@@ -5,13 +5,13 @@ import type { ThreadTableRow } from './thread-table-data';
 import { DEFAULT_TABLE_FILTERS, TABLE_PRESENCE_COLUMNS, type TableFilters } from './thread-table-filter-model';
 import { THREAD_TABLE_COLUMNS, type ThreadTableColumn } from './thread-table-columns';
 
-export interface TableFilterUI { menu?: 'query' | 'status' }
+export interface TableFilterUI { menu?: 'query' | 'status' | 'files' }
 
 export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: ThreadTableRow[], columns: ThreadTableColumn[], filters: TableFilters,
 	ui: TableFilterUI, change: (filters: TableFilters) => void, render: () => void): () => void {
 	const head = table.createEl('thead');
 	const top = head.createEl('tr');
-	const cells: Partial<Record<'query' | 'status', HTMLElement>> = {};
+	const cells: Partial<Record<'query' | 'status' | 'files', HTMLElement>> = {};
 	const name = top.createEl('th', { attr: { scope: 'col' } });
 	const nameTitle = name.createDiv({ cls: 'thread-journal-table-heading-label' });
 	nameTitle.createSpan({ text: t('Thread') }); cells.query = nameTitle;
@@ -20,7 +20,7 @@ export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: T
 		const cell = top.createEl('th', { attr: { scope: 'col' } });
 		const title = cell.createDiv({ cls: 'thread-journal-table-heading-label' });
 		title.createSpan({ text: label });
-		if (key === 'status') cells.status = title;
+		if (key === 'status' || key === 'files') cells[key] = title;
 		const presence = TABLE_PRESENCE_COLUMNS.find(column => column === key);
 		if (!presence) continue;
 		const enabled = filters.present.includes(presence);
@@ -30,11 +30,11 @@ export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: T
 		setIcon(button, 'list-filter');
 		button.addEventListener('click', () => change({ ...filters, present: enabled ? filters.present.filter(column => column !== presence) : [...filters.present, presence] }));
 	}
-	const triggers: Partial<Record<'query' | 'status', HTMLButtonElement>> = {};
-	for (const key of ['query', 'status'] as const) {
+	const triggers: Partial<Record<'query' | 'status' | 'files', HTMLButtonElement>> = {};
+	for (const key of ['query', 'status', 'files'] as const) {
 		if (!cells[key]) continue;
-		const active = key === 'query' ? Boolean(filters.query.trim()) : filters.statuses !== null;
-		const label = key === 'query' ? `${t('Search thread or file name…')} ${filters.query}` : `${t('Status')} ${filters.statuses?.map(threadStatusLabel).join(', ') ?? ''}`;
+		const active = key === 'query' ? Boolean(filters.query.trim()) : key === 'files' ? filters.fileStatuses !== null : filters.statuses !== null;
+		const label = key === 'query' ? `${t('Search thread or file name…')} ${filters.query}` : key === 'files' ? `${t('Thread files')} · ${filters.fileStatuses?.map(value => t(value === 'active' ? 'Active' : 'Terminated')).join(', ') ?? t('All statuses')}` : `${t('Status')} ${filters.statuses?.map(threadStatusLabel).join(', ') ?? ''}`;
 		const button = cells[key].createEl('button', { cls: `clickable-icon thread-journal-table-header-filter${active ? ' is-active' : ''}`, attr: { type: 'button', title: label, 'aria-label': label, 'aria-expanded': String(ui.menu === key) } });
 		setIcon(button, key === 'query' ? 'search' : 'list-filter');
 		button.addEventListener('click', () => { ui.menu = ui.menu === key ? undefined : key; render(); });
@@ -70,6 +70,21 @@ export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: T
 		});
 	}
 
+	}
+	if (ui.menu === 'files') {
+		const all = panel.createEl('button', { text: t('All statuses'), attr: { type: 'button' } });
+		all.addEventListener('click', () => change({ ...filters, fileStatuses: null }));
+		for (const value of ['active', 'terminated'] as const) {
+			const item = panel.createEl('label');
+			const check = item.createEl('input', { type: 'checkbox' });
+			check.checked = filters.fileStatuses === null || filters.fileStatuses.includes(value);
+			item.createSpan({ text: t(value === 'active' ? 'Active' : 'Terminated') });
+			check.addEventListener('change', () => {
+				const next = new Set(filters.fileStatuses ?? ['active', 'terminated'] as const);
+				if (check.checked) next.add(value); else next.delete(value);
+				change({ ...filters, fileStatuses: [...next] });
+			});
+		}
 	}
 	const position = (): void => {
 		const bounds = host.getBoundingClientRect(); const anchor = trigger.getBoundingClientRect();

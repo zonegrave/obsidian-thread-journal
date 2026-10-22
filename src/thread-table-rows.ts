@@ -30,7 +30,8 @@ function values(row: HTMLElement, counts: ThreadTableCounts, status: string, con
 	for (const key of context.columns) {
 		const cell = row.createEl('td', { cls: `thread-journal-table-value is-${key}` });
 		if (context.contextOnly && key !== 'status') continue;
-		if (key === 'status') { cell.setText(status); continue; }
+		if (key === 'status') { cell.setText(isFile ? '' : status); continue; }
+		if (isFile && key === 'files' && !total) { cell.setText(status); continue; }
 		if (isFile && (key === 'files' || key === 'children')) { cell.setText(total ? '' : '–'); cell.addClass('is-zero'); continue; }
 		const value = counts[key];
 		cell.toggleClass('is-zero', !value);
