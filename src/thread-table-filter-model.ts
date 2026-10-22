@@ -1,29 +1,28 @@
 import type { ThreadTableRow } from './thread-table-data';
 import { buildRootedThreadOverviewTree, filterThreadOverviewTree, type ThreadOverviewNode } from './thread-overview-model';
 
+export const TABLE_PRESENCE_COLUMNS = ['open', 'committed', 'idea', 'completed', 'cancelled', 'holding', 'scheduled', 'pinned'] as const;
+export type TablePresenceColumn = typeof TABLE_PRESENCE_COLUMNS[number];
+
 export interface TableFilters {
 	root: string;
 	query: string;
 	statuses: string[] | null;
-	tasks: 'any' | 'with' | 'without' | 'range';
-	min: number | null;
-	max: number | null;
+	present: TablePresenceColumn[];
 }
-export const DEFAULT_TABLE_FILTERS: TableFilters = { root: '', query: '', statuses: null, tasks: 'any', min: null, max: null };
+export const DEFAULT_TABLE_FILTERS: TableFilters = { root: '', query: '', statuses: null, present: [] };
 
 export function tableFiltersFromState(value: unknown): TableFilters {
 	const data = typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
-	const number = (v: unknown): number | null => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : null;
 	return {
 		root: typeof data.root === 'string' ? data.root : '', query: typeof data.query === 'string' ? data.query : '',
 		statuses: Array.isArray(data.statuses) ? data.statuses.filter((s): s is string => typeof s === 'string') : null,
-		tasks: ['with', 'without', 'range'].includes(String(data.tasks)) ? data.tasks as TableFilters['tasks'] : 'any',
-		min: number(data.min), max: number(data.max),
+		present: Array.isArray(data.present) ? TABLE_PRESENCE_COLUMNS.filter(key => (data.present as unknown[]).includes(key)) : [],
 	};
 }
 
 export function tableHasConditions(filters: TableFilters): boolean {
-	return Boolean(filters.query.trim() || filters.statuses !== null || filters.tasks !== 'any');
+	return Boolean(filters.query.trim() || filters.statuses !== null || filters.present.length > 0);
 }
 
 export function filterThreadTable(rows: readonly ThreadTableRow[], filters: TableFilters): {
@@ -48,10 +47,7 @@ export function filterThreadTable(rows: readonly ThreadTableRow[], filters: Tabl
 	const matchedRows = rows.filter(row => {
 		if (!allowed.has(row.thread.id)) return false;
 		if (filters.statuses !== null && !filters.statuses.includes(row.thread.status)) return false;
-		const count = row.counts.open + row.counts.committed + row.counts.idea;
-		if (filters.tasks === 'with' && count === 0) return false;
-		if (filters.tasks === 'without' && count !== 0) return false;
-		if (filters.tasks === 'range' && ((filters.min !== null && count < filters.min) || (filters.max !== null && count > filters.max))) return false;
+		if (filters.present.some(key => row.counts[key] === 0)) return false;
 		if (!query || row.thread.title.toLocaleLowerCase().includes(query)) return true;
 		const files = row.files.filter(file => file.member.file.basename.toLocaleLowerCase().includes(query));
 		if (!files.length) return false;

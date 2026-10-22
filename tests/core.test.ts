@@ -793,7 +793,7 @@ void test('table filters intersect within the selected root and keep only necess
 	child.files.push({ member: { file: { path: 'Needle.md', basename: 'Needle' } as never, threadId: 'Child', role: 'workspace', roleStatus: 'active', icon: '', attentionFallback: false }, counts: emptyThreadTableCounts() });
 	const other = tableFixtureRow('Other'); other.counts.open = 3;
 	const rows = [root, parent, child, other];
-	const result = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'Alpha', query: 'needle', statuses: ['active'], tasks: 'without' });
+	const result = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'Alpha', query: 'needle', statuses: ['active'], present: ['completed'] });
 	assert.deepEqual(result.matchedRows.map(row => row.thread.id), ['Child']);
 	assert.deepEqual(flattenThreadTableTree(result.tree, new Set()).map(row => row.node.item.id), ['Alpha', 'Child']);
 	assert.equal(result.tree[0]?.contextOnly, true);
@@ -804,8 +804,11 @@ void test('table filters intersect within the selected root and keep only necess
 	const named = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, query: 'alpha' });
 	assert.deepEqual(named.matchedRows.map(row => row.thread.id), ['Alpha']);
 	assert.equal(named.fileMatches.size, 0);
-	assert.deepEqual(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, tasks: 'range', min: 1, max: 2 }).matchedRows.map(row => row.thread.id), ['Alpha']);
-	assert.deepEqual(tableFiltersFromState({ statuses: [], min: -1, max: 2.5, tasks: 'invalid' }), { ...DEFAULT_TABLE_FILTERS, statuses: [] });
+	assert.deepEqual(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, present: ['open'] }).matchedRows.map(row => row.thread.id), ['Alpha', 'Other']);
+	assert.deepEqual(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, present: ['open', 'completed'] }).matchedRows, []);
+	parent.counts.holding = 1;
+	assert.deepEqual(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, present: ['open', 'holding'] }).matchedRows.map(row => row.thread.id), ['Alpha']);
+	assert.deepEqual(tableFiltersFromState({ statuses: [], present: ['open', 'invalid', 'open', 'status'] }), { ...DEFAULT_TABLE_FILTERS, statuses: [], present: ['open'] });
 });
 
 void test('table root breadcrumb follows the canonical tree and exposes direct children', () => {

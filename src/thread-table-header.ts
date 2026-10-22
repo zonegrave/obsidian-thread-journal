@@ -2,44 +2,39 @@ import { setIcon } from 'obsidian';
 import { t } from './i18n';
 import { THREAD_STATUS_CHOICES, threadStatusLabel } from './thread-status-model';
 import type { ThreadTableRow } from './thread-table-data';
-import { DEFAULT_TABLE_FILTERS, type TableFilters } from './thread-table-filter-model';
+import { DEFAULT_TABLE_FILTERS, TABLE_PRESENCE_COLUMNS, type TableFilters } from './thread-table-filter-model';
 import { THREAD_TABLE_COLUMNS, type ThreadTableColumn } from './thread-table-columns';
 
-export interface TableFilterUI { menu?: 'query' | 'status' | 'tasks' }
+export interface TableFilterUI { menu?: 'query' | 'status' }
 
 export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: ThreadTableRow[], columns: ThreadTableColumn[], filters: TableFilters,
 	ui: TableFilterUI, change: (filters: TableFilters) => void, render: () => void): () => void {
 	const head = table.createEl('thead');
 	const top = head.createEl('tr');
-	const taskKeys = new Set(['open', 'committed', 'idea', 'completed', 'cancelled', 'holding', 'scheduled', 'pinned']);
-	const taskColumns = columns.filter(key => taskKeys.has(key));
-	const lower = taskColumns.length ? head.createEl('tr', { cls: 'thread-journal-table-task-headings' }) : undefined;
-	const cells: Partial<Record<'query' | 'status' | 'tasks', HTMLElement>> = {};
-	const name = top.createEl('th', { attr: { scope: 'col', rowspan: lower ? '2' : '1' } });
+	const cells: Partial<Record<'query' | 'status', HTMLElement>> = {};
+	const name = top.createEl('th', { attr: { scope: 'col' } });
 	const nameTitle = name.createDiv({ cls: 'thread-journal-table-heading-label' });
 	nameTitle.createSpan({ text: t('Thread') }); cells.query = nameTitle;
-	let taskGroup = false;
 	for (const key of columns) {
 		const label = t(THREAD_TABLE_COLUMNS.find(column => column.key === key)!.label);
-		if (taskKeys.has(key)) {
-			if (!taskGroup) {
-				const group = top.createEl('th', { attr: { colspan: String(taskColumns.length), scope: 'colgroup' } });
-				const title = group.createDiv({ cls: 'thread-journal-table-heading-label' });
-				title.createSpan({ text: t('Tasks') }); cells.tasks = title; taskGroup = true;
-			}
-			lower!.createEl('th', { text: label, attr: { scope: 'col' } });
-		} else {
-			const cell = top.createEl('th', { attr: { scope: 'col', rowspan: lower ? '2' : '1' } });
-			const title = cell.createDiv({ cls: 'thread-journal-table-heading-label' });
-			title.createSpan({ text: label });
-			if (key === 'status') cells.status = title;
-		}
+		const cell = top.createEl('th', { attr: { scope: 'col' } });
+		const title = cell.createDiv({ cls: 'thread-journal-table-heading-label' });
+		title.createSpan({ text: label });
+		if (key === 'status') cells.status = title;
+		const presence = TABLE_PRESENCE_COLUMNS.find(column => column === key);
+		if (!presence) continue;
+		const enabled = filters.present.includes(presence);
+		const description = `${label} · ${t(enabled ? 'Has items' : 'Any quantity')}`;
+		const button = title.createEl('button', { cls: `clickable-icon thread-journal-table-header-filter${enabled ? ' is-active' : ''}`,
+			attr: { type: 'button', title: description, 'aria-label': description, 'aria-pressed': String(enabled) } });
+		setIcon(button, 'list-filter');
+		button.addEventListener('click', () => change({ ...filters, present: enabled ? filters.present.filter(column => column !== presence) : [...filters.present, presence] }));
 	}
-	const triggers: Partial<Record<'query' | 'status' | 'tasks', HTMLButtonElement>> = {};
-	for (const key of ['query', 'status', 'tasks'] as const) {
+	const triggers: Partial<Record<'query' | 'status', HTMLButtonElement>> = {};
+	for (const key of ['query', 'status'] as const) {
 		if (!cells[key]) continue;
-		const active = key === 'query' ? Boolean(filters.query.trim()) : key === 'status' ? filters.statuses !== null : filters.tasks !== 'any';
-		const label = key === 'query' ? `${t('Search thread or file name…')} ${filters.query}` : key === 'status' ? `${t('Status')} ${filters.statuses?.map(threadStatusLabel).join(', ') ?? ''}` : `${t('Unfinished tasks')} ${filters.tasks === 'with' ? '≥ 1' : filters.tasks === 'without' ? '= 0' : filters.tasks === 'range' ? `${filters.min ?? 0}–${filters.max ?? '∞'}` : ''}`;
+		const active = key === 'query' ? Boolean(filters.query.trim()) : filters.statuses !== null;
+		const label = key === 'query' ? `${t('Search thread or file name…')} ${filters.query}` : `${t('Status')} ${filters.statuses?.map(threadStatusLabel).join(', ') ?? ''}`;
 		const button = cells[key].createEl('button', { cls: `clickable-icon thread-journal-table-header-filter${active ? ' is-active' : ''}`, attr: { type: 'button', title: label, 'aria-label': label, 'aria-expanded': String(ui.menu === key) } });
 		setIcon(button, key === 'query' ? 'search' : 'list-filter');
 		button.addEventListener('click', () => { ui.menu = ui.menu === key ? undefined : key; render(); });
@@ -72,26 +67,6 @@ export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: T
 			const next = new Set(filters.statuses ?? statuses);
 			if (check.checked) next.add(value); else next.delete(value);
 			change({ ...filters, statuses: [...next] });
-		});
-	}
-
-	} else {
-	const taskPanel = panel;
-	taskPanel.createSpan({ text: t('Unfinished tasks'), cls: 'thread-journal-table-filter-hint' });
-	const mode = taskPanel.createEl('select', { attr: { 'aria-label': t('Task count') } });
-	for (const [value, text] of [['any', t('Any count')], ['with', t('With unfinished tasks')], ['without', t('Without unfinished tasks')], ['range', t('Count range')]]) {
-		mode.createEl('option', { text, attr: { value: value! } });
-	}
-	mode.value = filters.tasks;
-	mode.addEventListener('change', () => change({ ...filters, tasks: mode.value as TableFilters['tasks'] }));
-	if (filters.tasks === 'range') for (const key of ['min', 'max'] as const) {
-		const item = taskPanel.createEl('label');
-		item.createSpan({ text: t(key === 'min' ? 'Minimum' : 'Maximum') });
-		const input = item.createEl('input', { type: 'number', attr: { min: '0', step: '1', 'aria-label': t(key === 'min' ? 'Minimum' : 'Maximum'), 'data-table-filter': key } });
-		input.value = filters[key] === null ? '' : String(filters[key]);
-		input.addEventListener('input', () => {
-			if (input.value && !input.validity.valid) return;
-			change({ ...filters, [key]: input.value === '' ? null : Number(input.value) });
 		});
 	}
 
