@@ -3,7 +3,9 @@ import type { ThreadIndex } from './thread-index';
 import type { TaskManager } from './task';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
 import { filterThreadTable, tableFiltersFromState, tableHasConditions, DEFAULT_TABLE_FILTERS } from './thread-table-filter-model';
-import { renderTableFilterBar, type TableFilterUI } from './thread-table-filter-bar';
+import { renderTableHeader, type TableFilterUI } from './thread-table-header';
+import { createThreadTableGrid } from './thread-table-grid';
+import { renderTableRootBreadcrumb } from './thread-table-breadcrumb';
 import { totalThreadTable } from './thread-table-total-model';
 import { flattenThreadTableTree } from './thread-table-model';
 import { collectThreadTable, type ThreadTableRow } from './thread-table-data';
@@ -15,7 +17,9 @@ export const THREAD_TABLE_VIEW_TYPE = 'thread-journal-overview-table';
 
 export class ThreadTableView extends ItemView {
 	private filters = { ...DEFAULT_TABLE_FILTERS };
-	private filterUI: TableFilterUI = { status: false, tasks: false, mobile: false };
+	private filterUI: TableFilterUI = {};
+	private disposeGrid?: () => void;
+	private disposeHeader?: () => void;
 	private filterCollapsed = new Set<string>();
 	private filterFilesCollapsed = new Set<string>();
 	private rows: ThreadTableRow[] = [];
@@ -70,6 +74,7 @@ export class ThreadTableView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.opened = false;
+		this.disposeGrid?.(); this.disposeHeader?.();
 		this.request++;
 		if (this.timer !== undefined) window.clearTimeout(this.timer);
 		this.contentEl.empty();
@@ -115,10 +120,8 @@ export class ThreadTableView extends ItemView {
 		const focus = active instanceof HTMLInputElement && this.contentEl.contains(active) ? {
 			key: active.getAttribute('data-table-filter'), start: active.selectionStart, end: active.selectionEnd,
 		} : undefined;
+		this.disposeGrid?.(); this.disposeHeader?.();
 		this.contentEl.empty();
-		renderTableFilterBar(this.contentEl, this.rows, this.filters, this.filterUI, filters => {
-			this.filters = filters; this.filterCollapsed.clear(); this.filterFilesCollapsed.clear(); this.render(); this.saveLayout();
-		});
 		const projection = filterThreadTable(this.rows, this.filters);
 		const tree = projection.tree;
 		const matchingIds = new Set(projection.matchedRows.map(row => row.thread.id));
@@ -132,15 +135,13 @@ export class ThreadTableView extends ItemView {
 		}
 		const byId = new Map(this.rows.map(row => [row.thread.id, row]));
 		const main = this.contentEl.createDiv({ cls: 'thread-journal-table-main' });
-		const scroll = main.createDiv({ cls: 'thread-journal-table-scroll' });
-		const table = scroll.createEl('table', {
-			cls: 'thread-journal-thread-table', attr: { role: 'treegrid', 'aria-label': t('Thread overview table') },
-		});
 		const columns = THREAD_TABLE_COLUMNS.filter(column => this.fields.has(column.key));
-		const header = table.createEl('thead').createEl('tr');
-		header.createEl('th', { text: t('Thread'), attr: { scope: 'col' } });
-		for (const column of columns) header.createEl('th', { text: t(column.label), attr: { scope: 'col' } });
-		const body = table.createEl('tbody');
+		const keys = columns.map(column => column.key);
+		const grid = createThreadTableGrid(main, keys);
+		this.disposeGrid = grid.dispose;
+		const { scroll, body } = grid;
+		this.disposeHeader = renderTableHeader(grid.header, this.contentEl, this.rows, keys, this.filters, this.filterUI,
+			filters => this.changeFilters(filters), () => this.render());
 		for (const item of visible) {
 			const data = byId.get(item.node.item.id);
 			if (!data) continue;
@@ -159,7 +160,7 @@ export class ThreadTableView extends ItemView {
 			}
 		}
 		if (!visible.length) body.createEl('tr').createEl('td', { cls: 'thread-journal-empty', text: t('No threads match the filters.'), attr: { colspan: String(columns.length + 1) } });
-		renderTableTotalRow(table.createEl('tfoot'), totalThreadTable(projection.matchedRows, moment().format('YYYY-MM-DD')), columns.map(column => column.key), selection => this.select(selection));
+		renderTableTotalRow(grid.total, totalThreadTable(projection.matchedRows, moment().format('YYYY-MM-DD')), columns.map(column => column.key), selection => this.select(selection));
 		if (this.selection) renderTableTaskDetails(main, projection.matchedRows, this.selection, {
 			app: this.app, taskManager: this.taskManager, showEnded: this.showEnded,
 			onShowEnded: value => { this.showEnded = value; this.render(); },
@@ -169,6 +170,7 @@ export class ThreadTableView extends ItemView {
 		this.renderFooter(flattenThreadTableTree(tree, new Set()).filter(item => item.node.children.length).map(item => item.node.item.id));
 		scroll.scrollTop = scrollTop;
 		scroll.scrollLeft = scrollLeft;
+		grid.sync();
 		const details = this.contentEl.querySelector('.thread-journal-table-details-list');
 		if (details) details.scrollTop = detailScroll;
 		if (focus?.key) {
@@ -176,6 +178,12 @@ export class ThreadTableView extends ItemView {
 			input?.focus();
 			if (input && focus.start !== null && focus.end !== null) input.setSelectionRange(focus.start, focus.end);
 		}
+	}
+
+	private changeFilters(filters: typeof this.filters): void {
+		this.filters = filters;
+		this.filterCollapsed.clear(); this.filterFilesCollapsed.clear();
+		this.render(); this.saveLayout();
 	}
 
 	private select(selection: TableSelection): void {
@@ -206,7 +214,7 @@ export class ThreadTableView extends ItemView {
 
 	private renderFooter(branchIds: string[]): void {
 		const footer = this.contentEl.createDiv({ cls: 'thread-journal-view-bottom-bar thread-journal-table-footer' });
-		footer.createSpan({ text: t('Own counts'), attr: { title: t('Own files include historical members. Holding, scheduled today and pinned counts overlap task states.') } });
+		renderTableRootBreadcrumb(footer, this.rows, this.filters.root, root => this.changeFilters({ ...this.filters, root }));
 		for (const expand of [true, false]) {
 			const button = footer.createEl('button', { text: t(expand ? 'Expand all threads' : 'Collapse all threads') });
 			button.addEventListener('click', () => {

@@ -56,6 +56,7 @@ import {
 } from '../src/thread-template';
 import { ThreadIndex } from '../src/thread-index';
 import { RootThreadManager } from '../src/thread-root';
+import { tableRootTrail } from '../src/thread-table-breadcrumb-model';
 import { filterThreadTable, DEFAULT_TABLE_FILTERS, tableFiltersFromState } from '../src/thread-table-filter-model';
 import { totalThreadTable, uniqueTableTasks } from '../src/thread-table-total-model';
 import { collectThreadTable, type ThreadTableRow } from '../src/thread-table-data';
@@ -805,6 +806,17 @@ void test('table filters intersect within the selected root and keep only necess
 	assert.equal(named.fileMatches.size, 0);
 	assert.deepEqual(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, tasks: 'range', min: 1, max: 2 }).matchedRows.map(row => row.thread.id), ['Alpha']);
 	assert.deepEqual(tableFiltersFromState({ statuses: [], min: -1, max: 2.5, tasks: 'invalid' }), { ...DEFAULT_TABLE_FILTERS, statuses: [] });
+});
+
+void test('table root breadcrumb follows the canonical tree and exposes direct children', () => {
+	const rows = [tableFixtureRow('ROOT'), tableFixtureRow('Alpha'), tableFixtureRow('Child', 'Alpha'), tableFixtureRow('Other')];
+	const trail = tableRootTrail(rows, 'Child');
+	assert.deepEqual(trail.map(crumb => crumb.id), ['', 'Alpha', 'Child']);
+	assert.deepEqual(trail[0]?.children.map(child => child.id), ['Alpha', 'Other']);
+	assert.deepEqual(trail[1]?.children.map(child => child.id), ['Child']);
+	assert.equal(tableRootTrail(rows, '').length, 1);
+	assert.equal(tableRootTrail(rows, 'ROOT').length, 1);
+	assert.equal(tableRootTrail(rows, 'missing').length, 1);
 });
 
 void test('table totals ignore expansion and deduplicate physical tasks across matched threads', () => {
