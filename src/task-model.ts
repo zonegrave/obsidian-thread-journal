@@ -381,5 +381,5 @@ export function taskIsScheduledToday(data: Pick<TaskData, 'scheduled' | 'status'
 }
 
 export function taskNeedsPinnedAttention(data: Pick<TaskData, 'scheduled' | 'pinned' | 'status'>): boolean {
-	return Boolean(data.pinned && !data.scheduled && !['completed', 'cancelled'].includes(data.status));
+	return Boolean(data.pinned && !data.scheduled && data.status === 'open');
 }

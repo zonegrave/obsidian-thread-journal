@@ -203,6 +203,14 @@ void test('scheduled tasks leave decision queues and include single and repeatin
 	assert.equal(boardTaskLane(EMPTY_TASK, today), 'decision');
 	assert.equal(boardTaskLane({ ...EMPTY_TASK, pinned: true }, today), 'pinned');
 	assert.equal(boardTaskLane({ ...EMPTY_TASK, pinned: true, windowStart: '2026-11-01' }, today), 'pinned');
+	for (const status of ['idea', 'committed'] as const) {
+		const task = { ...EMPTY_TASK, pinned: true, status };
+		assert.equal(boardTaskLane(task, today), 'decision');
+		const counts = emptyThreadTableCounts();
+		countTableTask(counts, task, today);
+		assert.equal(counts.pinned, 0);
+		assert.equal(tableTaskMatches(task, 'pinned', false, today), false);
+	}
 });
 
 void test('a single scheduled date round-trips; scheduling and pinning are mutually exclusive', () => {
