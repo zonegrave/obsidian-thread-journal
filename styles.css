@@ -1450,7 +1450,7 @@
 	top: -1px;
 	bottom: -1px;
 	left: 9px;
-	border-left: 1px solid var(--background-modifier-border-hover);
+	border-left: 2px solid var(--thread-branch-color, var(--text-muted));
 	content: '';
 }
 
@@ -1461,7 +1461,7 @@
 	top: 50%;
 	right: 0;
 	left: 9px;
-	border-top: 1px solid var(--background-modifier-border-hover);
+	border-top: 2px solid var(--thread-branch-color, var(--text-muted));
 	content: '';
 }
 
@@ -3283,3 +3283,12 @@
 
 .thread-journal-table-pane .thread-journal-thread-table th:first-child,
 .thread-journal-table-pane .thread-journal-thread-table td:first-child { width: auto; min-width: 0; max-width: none; }
+
+/* Match each thread expander to the color of its outgoing tree branches. */
+.thread-journal-table-name > .thread-journal-table-toggle.is-thread-toggle:not(:disabled) {
+ color: var(--thread-branch-color, var(--text-muted));
+}
+.thread-journal-table-name > .thread-journal-table-toggle.is-thread-toggle:not(:disabled) {
+ background: color-mix(in srgb, var(--thread-branch-color) 12%, transparent);
+ border-radius: 5px;
+}

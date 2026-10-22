@@ -697,6 +697,8 @@ void test('table collapse hides descendants without losing their hierarchy or si
 	const flat = flattenThreadTableTree(tree, new Set());
 	assert.deepEqual(flat.map(row => [row.node.item.id, row.depth]), [['ROOT', 0], ['a', 1], ['c', 2], ['b', 1]]);
 	assert.deepEqual(flat.find(row => row.node.item.id === 'c')?.guides, [true]);
+	assert.deepEqual(flat.find(row => row.node.item.id === 'c')?.ancestors, ['ROOT', 'a']);
+	assert.deepEqual(flattenThreadTableTree(tree, new Set(['a'])).find(row => row.node.item.id === 'b')?.ancestors, ['ROOT']);
 	assert.equal(flat.find(row => row.node.item.id === 'b')?.last, true);
 	assert.deepEqual(flattenThreadTableTree(tree, new Set(['a'])).map(row => row.node.item.id), ['ROOT', 'a', 'b']);
 	assert.deepEqual(flattenThreadTableTree(tree, new Set(['ROOT'])).map(row => row.node.item.id), ['ROOT']);

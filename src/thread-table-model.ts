@@ -73,6 +73,7 @@ export interface ThreadTableTreeRow {
 	node: ThreadOverviewNode;
 	depth: number;
 	guides: boolean[];
+	ancestors: string[];
 	last: boolean;
 }
 
@@ -81,16 +82,16 @@ export function flattenThreadTableTree(
 	collapsed: ReadonlySet<string>,
 ): ThreadTableTreeRow[] {
 	const result: ThreadTableTreeRow[] = [];
-	const visit = (nodes: readonly ThreadOverviewNode[], depth: number, guides: boolean[]): void => {
+	const visit = (nodes: readonly ThreadOverviewNode[], depth: number, guides: boolean[], ancestors: string[]): void => {
 		for (const [index, node] of nodes.entries()) {
 			const last = index === nodes.length - 1;
-			result.push({ node, depth, guides, last });
+			result.push({ node, depth, guides, ancestors, last });
 			if (!collapsed.has(node.item.id)) {
-				visit(node.children, depth + 1, depth ? [...guides, !last] : []);
+				visit(node.children, depth + 1, depth ? [...guides, !last] : [], [...ancestors, node.item.id]);
 			}
 		}
 	};
-	visit(tree, 0, []);
+	visit(tree, 0, [], []);
 	return result;
 }
 
