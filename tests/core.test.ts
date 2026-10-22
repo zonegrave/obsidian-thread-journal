@@ -56,7 +56,9 @@ import {
 } from '../src/thread-template';
 import { ThreadIndex } from '../src/thread-index';
 import { RootThreadManager } from '../src/thread-root';
-import { collectThreadTable } from '../src/thread-table-data';
+import { filterThreadTable, DEFAULT_TABLE_FILTERS, tableFiltersFromState } from '../src/thread-table-filter-model';
+import { totalThreadTable, uniqueTableTasks } from '../src/thread-table-total-model';
+import { collectThreadTable, type ThreadTableRow } from '../src/thread-table-data';
 import { countTableTask, emptyThreadTableCounts, flattenThreadTableTree, tableTaskMatches, threadTableContent } from '../src/thread-table-model';
 import { ROOT_THREAD_ID, rootThreadContent, rootThreadPath, rootThreadSettingsValid } from '../src/thread-root-model';
 import {
@@ -776,6 +778,50 @@ void test('table task details hide ended tasks by default and honor explicit cou
 	assert.equal(tableTaskMatches(EMPTY_TASK, 'open', false, '2026-10-20'), true);
 	assert.equal(tableTaskMatches(EMPTY_TASK, 'committed', false, '2026-10-20'), false);
 	assert.equal(tableTaskMatches(EMPTY_TASK, 'scheduled', true, '2026-10-20'), false);
+});
+
+function tableFixtureRow(id: string, parent?: string): ThreadTableRow {
+	return { thread: { id, title: id, status: 'active', file: { path: `Meta/${id}.md`, basename: id } as never }, parent,
+		counts: emptyThreadTableCounts(), files: [], tasks: [] };
+}
+
+void test('table filters intersect within the selected root and keep only necessary ancestors', () => {
+	const root = tableFixtureRow('ROOT');
+	const parent = tableFixtureRow('Alpha'); parent.thread.status = 'paused'; parent.counts.open = 2;
+	const child = tableFixtureRow('Child', 'Alpha'); child.counts.completed = 7;
+	child.files.push({ member: { file: { path: 'Needle.md', basename: 'Needle' } as never, threadId: 'Child', role: 'workspace', roleStatus: 'active', icon: '', attentionFallback: false }, counts: emptyThreadTableCounts() });
+	const other = tableFixtureRow('Other'); other.counts.open = 3;
+	const rows = [root, parent, child, other];
+	const result = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'Alpha', query: 'needle', statuses: ['active'], tasks: 'without' });
+	assert.deepEqual(result.matchedRows.map(row => row.thread.id), ['Child']);
+	assert.deepEqual(flattenThreadTableTree(result.tree, new Set()).map(row => row.node.item.id), ['Alpha', 'Child']);
+	assert.equal(result.tree[0]?.contextOnly, true);
+	assert.deepEqual([...result.fileMatches.get('Child')!], ['Needle.md']);
+	assert.equal(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'Other', query: 'needle' }).tree.length, 0);
+	assert.equal(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, statuses: [] }).tree.length, 0);
+	assert.equal(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'missing' }).tree.length, 0);
+	const named = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, query: 'alpha' });
+	assert.deepEqual(named.matchedRows.map(row => row.thread.id), ['Alpha']);
+	assert.equal(named.fileMatches.size, 0);
+	assert.deepEqual(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, tasks: 'range', min: 1, max: 2 }).matchedRows.map(row => row.thread.id), ['Alpha']);
+	assert.deepEqual(tableFiltersFromState({ statuses: [], min: -1, max: 2.5, tasks: 'invalid' }), { ...DEFAULT_TABLE_FILTERS, statuses: [] });
+});
+
+void test('table totals ignore expansion and deduplicate physical tasks across matched threads', () => {
+	const parent = tableFixtureRow('Parent'); const child = tableFixtureRow('Child', 'Parent');
+	const shared = { key: 'External.md:0', file: { path: 'External.md', basename: 'External' } as never, line: 0,
+		sourceLine: '- [ ] shared', text: 'shared', disposition: 'ready' as const, pinned: false, data: { ...EMPTY_TASK, scheduled: '2026-10-22' } };
+	parent.tasks.push(shared); child.tasks.push(shared);
+	child.tasks.push({ ...shared, key: 'Child.md:1', file: { path: 'Child.md', basename: 'Child' } as never, line: 1, data: { ...EMPTY_TASK, status: 'completed' } });
+	parent.counts.commits = 2; child.counts.commits = 3; child.counts.logs = 4;
+	const total = totalThreadTable([parent, child], '2026-10-22');
+	assert.equal(total.open, 1); assert.equal(total.completed, 1); assert.equal(total.scheduled, 1);
+	assert.equal(total.commits, 5); assert.equal(total.logs, 4); assert.equal(total.files, 0); assert.equal(total.children, 0);
+	assert.equal(uniqueTableTasks([parent, child]).length, 2);
+	assert.deepEqual(uniqueTableTasks([parent, child])[0]?.owners, ['Parent', 'Child']);
+	assert.equal(totalThreadTable([child], '2026-10-22').commits, 3);
+	assert.equal(totalThreadTable([parent, parent, child], '2026-10-22').commits, 5);
+	assert.deepEqual(totalThreadTable([], '2026-10-22'), emptyThreadTableCounts());
 });
 
 void test('ROOT has one canonical meta, fixed identity, and ordinary member and entry resolution', () => {

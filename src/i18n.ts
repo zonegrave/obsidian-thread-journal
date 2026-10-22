@@ -3,6 +3,21 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'No threads match the filters.': '没有符合筛选条件的 Thread。',
+	'Total': '总计',
+	'Clear filters': '清除筛选',
+	'Maximum': '最多',
+	'Minimum': '最少',
+	'Count range': '数量范围',
+	'Without unfinished tasks': '无未完成任务',
+	'With unfinished tasks': '有未完成任务',
+	'Any count': '不限数量',
+	'Task count': '任务数量',
+	'Unfinished tasks': '未完成任务',
+	'All statuses': '全部状态',
+	'Filters': '筛选',
+	'Search thread or file name…': '搜索 Thread／文件名称…',
+	'Root thread': '根 Thread',
 	'Schedule': '执行安排',
 	'Scheduled date': '执行日',
 	'Select scheduled date': '选择执行日',

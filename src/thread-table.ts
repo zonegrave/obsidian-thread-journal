@@ -2,16 +2,22 @@ import { App, ItemView, Notice, moment, setIcon, type ViewStateResult, type Work
 import type { ThreadIndex } from './thread-index';
 import type { TaskManager } from './task';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
-import { buildRootedThreadOverviewTree } from './thread-overview-model';
+import { filterThreadTable, tableFiltersFromState, tableHasConditions, DEFAULT_TABLE_FILTERS } from './thread-table-filter-model';
+import { renderTableFilterBar, type TableFilterUI } from './thread-table-filter-bar';
+import { totalThreadTable } from './thread-table-total-model';
 import { flattenThreadTableTree } from './thread-table-model';
 import { collectThreadTable, type ThreadTableRow } from './thread-table-data';
-import { renderTableThreadRow, renderTableFileRows, type TableSelection } from './thread-table-rows';
+import { renderTableThreadRow, renderTableFileRows, renderTableTotalRow, type TableSelection } from './thread-table-rows';
 import { renderTableTaskDetails } from './thread-table-details';
 import { THREAD_TABLE_COLUMNS, type ThreadTableColumn } from './thread-table-columns';
 
 export const THREAD_TABLE_VIEW_TYPE = 'thread-journal-overview-table';
 
 export class ThreadTableView extends ItemView {
+	private filters = { ...DEFAULT_TABLE_FILTERS };
+	private filterUI: TableFilterUI = { status: false, tasks: false, mobile: false };
+	private filterCollapsed = new Set<string>();
+	private filterFilesCollapsed = new Set<string>();
 	private rows: ThreadTableRow[] = [];
 	private expandedFiles = new Set<string>();
 	private selection?: TableSelection;
@@ -32,13 +38,14 @@ export class ThreadTableView extends ItemView {
 	getIcon(): string { return 'table-properties'; }
 
 	getState(): Record<string, unknown> {
-		return { expandedFiles: [...this.expandedFiles], collapsed: [...this.collapsed], fields: [...this.fields] };
+		return { filters: this.filters, expandedFiles: [...this.expandedFiles], collapsed: [...this.collapsed], fields: [...this.fields] };
 	}
 
 	async setState(state: unknown, result: ViewStateResult): Promise<void> {
 		await super.setState(state, result);
 		if (typeof state === 'object' && state !== null) {
 			const value = state as Record<string, unknown>;
+			this.filters = tableFiltersFromState(value.filters);
 			if (Array.isArray(value.expandedFiles)) this.expandedFiles = new Set(value.expandedFiles.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.collapsed)) this.collapsed = new Set(value.collapsed.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.fields) && value.fields.every(key => THREAD_TABLE_COLUMNS.some(column => column.key === key))) this.fields = new Set(THREAD_TABLE_COLUMNS.filter(column =>
@@ -80,7 +87,8 @@ export class ThreadTableView extends ItemView {
 			const rows = await collectThreadTable(this.app, this.index, moment().format('YYYY-MM-DD'));
 			if (!this.opened || request !== this.request) return;
 			this.rows = rows;
-			if (this.selection) {
+			if (this.filters.root && !rows.some(row => row.thread.id === this.filters.root)) this.filters.root = '';
+			if (this.selection?.threadId) {
 				const selected = rows.find(row => row.thread.id === this.selection?.threadId);
 				if (!selected || (this.selection.filePath && !selected.files.some(file => file.member.file.path === this.selection?.filePath))) this.selection = undefined;
 			}
@@ -103,11 +111,25 @@ export class ThreadTableView extends ItemView {
 		const scrollTop = oldScroll?.scrollTop ?? 0;
 		const scrollLeft = oldScroll?.scrollLeft ?? 0;
 		const detailScroll = this.contentEl.querySelector('.thread-journal-table-details-list')?.scrollTop ?? 0;
+		const active = this.contentEl.ownerDocument.activeElement;
+		const focus = active instanceof HTMLInputElement && this.contentEl.contains(active) ? {
+			key: active.getAttribute('data-table-filter'), start: active.selectionStart, end: active.selectionEnd,
+		} : undefined;
 		this.contentEl.empty();
-		const tree = buildRootedThreadOverviewTree(this.rows.map(row => ({
-			id: row.thread.id, title: row.thread.title, status: row.thread.status, parent: row.parent,
-		})), new Set(this.rows.map(row => row.thread.status)));
-		const visible = flattenThreadTableTree(tree, this.collapsed);
+		renderTableFilterBar(this.contentEl, this.rows, this.filters, this.filterUI, filters => {
+			this.filters = filters; this.filterCollapsed.clear(); this.filterFilesCollapsed.clear(); this.render(); this.saveLayout();
+		});
+		const projection = filterThreadTable(this.rows, this.filters);
+		const tree = projection.tree;
+		const matchingIds = new Set(projection.matchedRows.map(row => row.thread.id));
+		const searching = tableHasConditions(this.filters);
+		const effectiveCollapsed = searching ? this.filterCollapsed : new Set(this.collapsed);
+		const visible = flattenThreadTableTree(tree, effectiveCollapsed);
+		if (this.selection?.threadId && !matchingIds.has(this.selection.threadId)) this.selection = undefined;
+		if (this.selection?.threadId && this.selection.filePath) {
+			const files = projection.fileMatches.get(this.selection.threadId);
+			if (files && !files.has(this.selection.filePath)) this.selection = undefined;
+		}
 		const byId = new Map(this.rows.map(row => [row.thread.id, row]));
 		const main = this.contentEl.createDiv({ cls: 'thread-journal-table-main' });
 		const scroll = main.createDiv({ cls: 'thread-journal-table-scroll' });
@@ -123,24 +145,22 @@ export class ThreadTableView extends ItemView {
 			const data = byId.get(item.node.item.id);
 			if (!data) continue;
 			const context = {
-				app: this.app, columns: columns.map(column => column.key), selection: this.selection,
-				filesExpanded: this.expandedFiles.has(data.thread.id), childrenCollapsed: this.collapsed.has(data.thread.id),
+				contextOnly: item.node.contextOnly, app: this.app, columns: columns.map(column => column.key), selection: this.selection,
+				filesExpanded: !item.node.contextOnly && (projection.fileMatches.has(data.thread.id) ? !this.filterFilesCollapsed.has(data.thread.id) : this.expandedFiles.has(data.thread.id)), childrenCollapsed: effectiveCollapsed.has(data.thread.id),
 				entry: this.index.getEntry(data.thread.file),
 				toggleChildren: () => this.toggle(data.thread.id),
 				toggleFiles: () => this.toggleFiles(data.thread.id),
-				select: (selection: TableSelection) => {
-					this.selection = selection;
-					const list = this.contentEl.querySelector('.thread-journal-table-details-list');
-					if (list) list.scrollTop = 0;
-					this.render();
-				},
+				select: (selection: TableSelection) => this.select(selection),
 			};
 			renderTableThreadRow(body, item, data, context);
-			if (context.filesExpanded) renderTableFileRows(body, item, data, context);
+			if (context.filesExpanded) {
+				const matches = projection.fileMatches.get(data.thread.id);
+				renderTableFileRows(body, item, matches ? { ...data, files: data.files.filter(file => matches.has(file.member.file.path)) } : data, context);
+			}
 		}
-		if (!visible.length) scroll.createDiv({ cls: 'thread-journal-empty', text: t('No threads match the selected statuses.') });
-		const selected = this.selection ? byId.get(this.selection.threadId) : undefined;
-		if (selected && this.selection) renderTableTaskDetails(main, selected, this.selection, {
+		if (!visible.length) body.createEl('tr').createEl('td', { cls: 'thread-journal-empty', text: t('No threads match the filters.'), attr: { colspan: String(columns.length + 1) } });
+		renderTableTotalRow(table.createEl('tfoot'), totalThreadTable(projection.matchedRows, moment().format('YYYY-MM-DD')), columns.map(column => column.key), selection => this.select(selection));
+		if (this.selection) renderTableTaskDetails(main, projection.matchedRows, this.selection, {
 			app: this.app, taskManager: this.taskManager, showEnded: this.showEnded,
 			onShowEnded: value => { this.showEnded = value; this.render(); },
 			onClose: () => { this.selection = undefined; this.render(); },
@@ -151,17 +171,34 @@ export class ThreadTableView extends ItemView {
 		scroll.scrollLeft = scrollLeft;
 		const details = this.contentEl.querySelector('.thread-journal-table-details-list');
 		if (details) details.scrollTop = detailScroll;
+		if (focus?.key) {
+			const input = this.contentEl.querySelector<HTMLInputElement>(`input[data-table-filter="${focus.key}"]`);
+			input?.focus();
+			if (input && focus.start !== null && focus.end !== null) input.setSelectionRange(focus.start, focus.end);
+		}
+	}
+
+	private select(selection: TableSelection): void {
+		this.selection = selection;
+		const list = this.contentEl.querySelector('.thread-journal-table-details-list');
+		if (list) list.scrollTop = 0;
+		this.render();
 	}
 
 	private toggle(id: string): void {
-		if (this.collapsed.has(id)) this.collapsed.delete(id);
-		else this.collapsed.add(id);
+		const collapsed = tableHasConditions(this.filters) ? this.filterCollapsed : this.collapsed;
+		if (collapsed.has(id)) collapsed.delete(id);
+		else collapsed.add(id);
 		this.render();
 		this.saveLayout();
 	}
 
 	private toggleFiles(id: string): void {
-		if (this.expandedFiles.has(id)) this.expandedFiles.delete(id);
+		const automatic = filterThreadTable(this.rows, this.filters).fileMatches.has(id);
+		if (automatic) {
+			if (this.filterFilesCollapsed.has(id)) this.filterFilesCollapsed.delete(id);
+			else this.filterFilesCollapsed.add(id);
+		} else if (this.expandedFiles.has(id)) this.expandedFiles.delete(id);
 		else this.expandedFiles.add(id);
 		this.render();
 		this.saveLayout();
@@ -173,8 +210,10 @@ export class ThreadTableView extends ItemView {
 		for (const expand of [true, false]) {
 			const button = footer.createEl('button', { text: t(expand ? 'Expand all threads' : 'Collapse all threads') });
 			button.addEventListener('click', () => {
-				this.collapsed = new Set(expand ? [] : branchIds);
-				if (!expand) this.expandedFiles.clear();
+				if (tableHasConditions(this.filters)) this.filterCollapsed = new Set(expand ? [] : branchIds);
+				else this.collapsed = new Set(expand ? [] : branchIds);
+				if (!expand && !tableHasConditions(this.filters)) this.expandedFiles.clear();
+				if (!expand && tableHasConditions(this.filters)) this.filterFilesCollapsed = new Set(this.rows.map(row => row.thread.id));
 				this.render();
 				this.saveLayout();
 			});

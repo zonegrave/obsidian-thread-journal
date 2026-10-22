@@ -6,8 +6,9 @@ import type { ThreadTableTreeRow, ThreadTableTaskFilter, ThreadTableCounts } fro
 import type { ThreadTableRow } from './thread-table-data';
 import { THREAD_TABLE_COLUMNS, type ThreadTableColumn } from './thread-table-columns';
 
-export interface TableSelection { threadId: string; filePath?: string; filter: ThreadTableTaskFilter }
+export interface TableSelection { threadId?: string; filePath?: string; filter: ThreadTableTaskFilter }
 export interface TableRowContext {
+	contextOnly?: boolean;
 	app: App;
 	columns: ThreadTableColumn[];
 	selection?: TableSelection;
@@ -24,12 +25,13 @@ function guides(name: HTMLElement, item: Pick<ThreadTableTreeRow, 'guides' | 'de
 	if (item.depth) name.createSpan({ cls: `thread-journal-table-branch${item.last ? ' is-last' : ''}` });
 }
 
-function values(row: HTMLElement, counts: ThreadTableCounts, status: string, context: TableRowContext,
-	select: (filter: ThreadTableTaskFilter) => void, isFile = false): void {
+function values(row: HTMLElement, counts: ThreadTableCounts, status: string, context: Pick<TableRowContext, 'columns' | 'contextOnly' | 'toggleFiles' | 'toggleChildren' | 'filesExpanded'>,
+	select: (filter: ThreadTableTaskFilter) => void, isFile = false, total = false): void {
 	for (const key of context.columns) {
 		const cell = row.createEl('td', { cls: `thread-journal-table-value is-${key}` });
+		if (context.contextOnly && key !== 'status') continue;
 		if (key === 'status') { cell.setText(status); continue; }
-		if (isFile && (key === 'files' || key === 'children')) { cell.setText('–'); cell.addClass('is-zero'); continue; }
+		if (isFile && (key === 'files' || key === 'children')) { cell.setText(total ? '' : '–'); cell.addClass('is-zero'); continue; }
 		const value = counts[key];
 		cell.toggleClass('is-zero', !value);
 		const column = THREAD_TABLE_COLUMNS.find(column => column.key === key)!;
@@ -52,10 +54,11 @@ function values(row: HTMLElement, counts: ThreadTableCounts, status: string, con
 
 export function renderTableThreadRow(parent: HTMLElement, item: ThreadTableTreeRow, data: ThreadTableRow, context: TableRowContext): void {
 	const row = parent.createEl('tr', { attr: { 'aria-level': String(item.depth + 1), 'data-thread-id': data.thread.id } });
+	row.toggleClass('is-context', Boolean(context.contextOnly));
 	row.toggleClass('is-root', data.thread.id === ROOT_THREAD_ID);
 	row.toggleClass('is-selected', context.selection?.threadId === data.thread.id && !context.selection.filePath);
 	const select = (filter: ThreadTableTaskFilter): void => context.select({ threadId: data.thread.id, filter });
-	row.addEventListener('click', () => select('all'));
+	row.addEventListener('click', () => { if (!context.contextOnly) select('all'); });
 	if (item.node.children.length) row.setAttribute('aria-expanded', String(!context.childrenCollapsed));
 	const name = row.createEl('td').createDiv({ cls: 'thread-journal-table-name' });
 	guides(name, item);
@@ -101,4 +104,13 @@ export function renderTableFileRows(parent: HTMLElement, item: ThreadTableTreeRo
 		const row = parent.createEl('tr');
 		row.createEl('td', { cls: 'thread-journal-empty', text: t('No thread files yet.'), attr: { colspan: String(context.columns.length + 1) } });
 	}
+}
+
+export function renderTableTotalRow(parent: HTMLElement, counts: ThreadTableCounts, columns: ThreadTableColumn[], select: (selection: TableSelection) => void): void {
+	const row = parent.createEl('tr', { cls: 'thread-journal-table-total' });
+	row.createEl('td', { text: t('Total') });
+	values(row, counts, '', {
+		columns, filesExpanded: false,
+		toggleChildren: () => {}, toggleFiles: () => {},
+	}, filter => select({ filter }), true, true);
 }
