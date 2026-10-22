@@ -7,30 +7,23 @@ import type { TableSelection } from './thread-table-rows';
 import { tableTaskMatches } from './thread-table-model';
 import { uniqueTableTasks } from './thread-table-total-model';
 import { compareBoardTasks } from './thread-task-board-model';
-import { THREAD_TABLE_COLUMNS } from './thread-table-columns';
+import { TABLE_TASK_BUTTONS } from './thread-table-columns';
 
 export function renderTableTaskDetails(parent: HTMLElement, rows: ThreadTableRow[], selection: TableSelection, context: {
-	app: App; taskManager: TaskManager; showEnded: boolean;
-	onShowEnded: (value: boolean) => void; onClose: () => void; onRefresh: () => Promise<void>;
+	app: App; taskManager: TaskManager;
+	onClose: () => void; onRefresh: () => Promise<void>;
 }): void {
 	const panel = parent.createEl('aside', { cls: 'thread-journal-table-details', attr: { 'aria-label': t('Task details') } });
 	const header = panel.createDiv({ cls: 'thread-journal-table-details-header' });
 	const titles = header.createDiv();
 	const row = rows.find(row => row.thread.id === selection.threadId);
 	titles.createEl('strong', { text: row ? selection.filePath ? row.files.find(file => file.member.file.path === selection.filePath)?.member.file.basename ?? row.thread.title : row.thread.title : t('Total') });
-	const filter = THREAD_TABLE_COLUMNS.find(column => column.key === selection.filter);
+	const filter = TABLE_TASK_BUTTONS.find(column => column.key === selection.filter);
 	titles.createDiv({ cls: 'thread-journal-table-details-scope', text: filter ? t(filter.label) : t('All tasks') });
 	const close = header.createEl('button', { cls: 'clickable-icon', attr: { type: 'button', 'aria-label': t('Close') } });
 	setIcon(close, 'x'); close.addEventListener('click', context.onClose);
-	if (selection.filter === 'all') {
-		const label = panel.createEl('label', { cls: 'thread-journal-table-ended' });
-		const toggle = label.createEl('input', { type: 'checkbox' });
-		toggle.checked = context.showEnded;
-		label.createSpan({ text: t('Show completed and cancelled tasks') });
-		toggle.addEventListener('change', () => context.onShowEnded(toggle.checked));
-	}
 	const tasks = uniqueTableTasks(row ? [row] : rows).filter(({ task }) => (!selection.filePath || task.file.path === selection.filePath)
-		&& tableTaskMatches(task.data, selection.filter, context.showEnded, moment().format('YYYY-MM-DD')))
+		&& tableTaskMatches(task.data, selection.filter, true, moment().format('YYYY-MM-DD')))
 		.sort(compareBoardTasks);
 	const list = panel.createDiv({ cls: 'thread-journal-table-details-list' });
 	if (!tasks.length) list.createDiv({ cls: 'thread-journal-empty', text: t('No tasks in this state.') });

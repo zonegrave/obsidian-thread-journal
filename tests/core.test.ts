@@ -57,6 +57,7 @@ import {
 import { ThreadIndex } from '../src/thread-index';
 import { RootThreadManager } from '../src/thread-root';
 import { tableRootTrail } from '../src/thread-table-breadcrumb-model';
+import { DEFAULT_TABLE_TASK_FILTERS, matchesTableTask, tableTaskFiltersFromState } from '../src/thread-table-task-filter';
 import { filterThreadTable, DEFAULT_TABLE_FILTERS, tableFiltersFromState } from '../src/thread-table-filter-model';
 import { totalThreadTable, uniqueTableTasks } from '../src/thread-table-total-model';
 import { collectThreadTable, type ThreadTableRow } from '../src/thread-table-data';
@@ -788,29 +789,54 @@ function tableFixtureRow(id: string, parent?: string): ThreadTableRow {
 		counts: emptyThreadTableCounts(), files: [], tasks: [] };
 }
 
-void test('table filters intersect within the selected root and keep only necessary ancestors', () => {
-	const root = tableFixtureRow('ROOT');
-	const parent = tableFixtureRow('Alpha'); parent.thread.status = 'paused'; parent.counts.open = 2;
-	const child = tableFixtureRow('Child', 'Alpha'); child.counts.completed = 7;
-	child.files.push({ member: { file: { path: 'Needle.md', basename: 'Needle' } as never, threadId: 'Child', role: 'workspace', roleStatus: 'active', icon: '', attentionFallback: false }, counts: emptyThreadTableCounts() });
-	const other = tableFixtureRow('Other'); other.counts.open = 3;
-	const rows = [root, parent, child, other];
-	const result = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'Alpha', query: 'needle', statuses: ['active'], present: ['completed'] });
-	assert.deepEqual(result.matchedRows.map(row => row.thread.id), ['Child']);
-	assert.deepEqual(flattenThreadTableTree(result.tree, new Set()).map(row => row.node.item.id), ['Alpha', 'Child']);
-	assert.equal(result.tree[0]?.contextOnly, true);
-	assert.deepEqual([...result.fileMatches.get('Child')!], ['Needle.md']);
-	assert.equal(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'Other', query: 'needle' }).tree.length, 0);
-	assert.equal(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, statuses: [] }).tree.length, 0);
-	assert.equal(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'missing' }).tree.length, 0);
-	const named = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, query: 'alpha' });
-	assert.deepEqual(named.matchedRows.map(row => row.thread.id), ['Alpha']);
-	assert.equal(named.fileMatches.size, 0);
-	assert.deepEqual(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, present: ['open'] }).matchedRows.map(row => row.thread.id), ['Alpha', 'Other']);
-	assert.deepEqual(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, present: ['open', 'completed'] }).matchedRows, []);
-	parent.counts.holding = 1;
-	assert.deepEqual(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, present: ['open', 'holding'] }).matchedRows.map(row => row.thread.id), ['Alpha']);
-	assert.deepEqual(tableFiltersFromState({ statuses: [], present: ['open', 'invalid', 'open', 'status'] }), { ...DEFAULT_TABLE_FILTERS, statuses: [], present: ['open'] });
+function addTableTask(row: ThreadTableRow, data: Partial<typeof EMPTY_TASK> = {}, path = 'Needle.md'): void {
+ const line = row.tasks.length;
+ row.tasks.push({ key: `${path}:${line}`, file: { path, basename: path.replace('.md', '') } as never, line,
+  sourceLine: '- [ ] task', text: 'task', disposition: 'ready', pinned: data.pinned ?? false, data: { ...EMPTY_TASK, ...data } });
+}
+
+void test('table task filters prune unrelated branches and keep navigation ancestors with matching counts', () => {
+ const root = tableFixtureRow('ROOT');
+ const parent = tableFixtureRow('Alpha'); parent.thread.status = 'paused';
+ const child = tableFixtureRow('Child', 'Alpha');
+ child.files.push({ member: { file: { path: 'Needle.md', basename: 'Needle' } as never, threadId: 'Child', role: 'workspace', roleStatus: 'active', icon: '', attentionFallback: false }, counts: emptyThreadTableCounts() });
+ addTableTask(child, { status: 'completed' }); addTableTask(child, { pinned: true }); addTableTask(child);
+ const other = tableFixtureRow('Other'); addTableTask(other);
+ const rows = [root, parent, child, other];
+ const result = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'Alpha', query: 'needle', statuses: ['active'], tasks: { ...DEFAULT_TABLE_TASK_FILTERS, pin: 'yes' } });
+ assert.deepEqual(result.matchedRows.map(row => row.thread.id), ['Child']);
+ assert.deepEqual(flattenThreadTableTree(result.tree, new Set()).map(row => row.node.item.id), ['Alpha', 'Child']);
+ assert.equal(result.tree[0]?.contextOnly, true);
+ assert.equal(result.matchedRows[0]?.counts.open, 1);
+ assert.equal(result.matchedRows[0]?.files[0]?.counts.open, 1);
+ assert.equal(totalThreadTable(result.matchedRows, '2026-10-22').open, 1);
+ assert.deepEqual([...result.fileMatches.get('Child')!], ['Needle.md']);
+ assert.equal(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, statuses: [] }).tree.length, 0);
+ assert.equal(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'missing' }).tree.length, 0);
+ const done = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, tasks: { ...DEFAULT_TABLE_TASK_FILTERS, states: ['completed'] } });
+ assert.deepEqual(done.matchedRows.map(row => row.thread.id), ['Child']);
+ assert.equal(done.matchedRows[0]?.counts.completed, 1);
+ assert.equal(done.matchedRows[0]?.counts.open, 0);
+ const cleared = filterThreadTable(rows, DEFAULT_TABLE_FILTERS);
+ assert.equal(cleared.matchedRows.length, 4);
+ assert.equal(cleared.matchedRows.find(row => row.thread.id === 'Child')?.counts.completed, 0);
+ assert.equal(filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, tasks: { ...DEFAULT_TABLE_TASK_FILTERS, states: [] } }).tree.length, 0);
+ assert.deepEqual(tableFiltersFromState({ tasks: { pin: 'yes', states: ['open', 'invalid', 'open'] } }).tasks, { ...DEFAULT_TABLE_TASK_FILTERS, pin: 'yes', states: ['open'] });
+});
+
+void test('table task date and flag filters intersect and keep overdue tasks', () => {
+ const task = { ...EMPTY_TASK, scheduled: '2026-10-20', windowStart: '2026-10-19', windowEnd: '2026-10-21', holding: true };
+ const filters = { ...DEFAULT_TABLE_TASK_FILTERS, scheduledBy: 'today', windowOn: 'today' };
+ assert.equal(matchesTableTask(task, filters, '2026-10-22'), true);
+ assert.equal(matchesTableTask({ ...task, scheduled: '2026-10-23' }, filters, '2026-10-22'), false);
+ assert.equal(matchesTableTask({ ...task, scheduled: '' }, filters, '2026-10-22'), false);
+ assert.equal(matchesTableTask({ ...task, windowStart: '2026-10-23' }, filters, '2026-10-22'), false);
+ assert.equal(matchesTableTask(task, { ...filters, holding: 'no' }, '2026-10-22'), false);
+ assert.equal(matchesTableTask(task, { ...filters, pin: 'yes' }, '2026-10-22'), false);
+ assert.equal(matchesTableTask(task, { ...filters, scheduled: 'no' }, '2026-10-22'), false);
+ assert.equal(matchesTableTask(task, { ...filters, scheduledBy: '2026-10-19' }, '2026-10-22'), false);
+ assert.equal(matchesTableTask(EMPTY_TASK, { ...DEFAULT_TABLE_TASK_FILTERS, windowOn: 'today' }, '2026-10-22'), true);
+ assert.deepEqual(tableTaskFiltersFromState({ windowOn: 'bad', scheduledBy: '2026-02-30', pin: 'bad' }), DEFAULT_TABLE_TASK_FILTERS);
 });
 
 void test('table root breadcrumb follows the canonical tree and exposes direct children', () => {
@@ -1928,7 +1954,8 @@ void test('indented examples inside lists are excluded from the dependency graph
 });
 
 void test('file status filters scope file rows and name search without changing thread statistics', () => {
- const row = tableFixtureRow('Alpha'); row.counts.open = 3; row.counts.files = 2;
+ const row = tableFixtureRow('Alpha'); row.counts.files = 2;
+ addTableTask(row); addTableTask(row); addTableTask(row);
  for (const [name, roleStatus] of [['Current', 'active'], ['Archive', 'terminated']] as const) row.files.push({ member: {
   file: { path: `${name}.md`, basename: name } as never, threadId: 'Alpha', role: 'workspace', roleStatus, icon: '', attentionFallback: false,
  }, counts: emptyThreadTableCounts() });

@@ -3292,3 +3292,20 @@
  background: color-mix(in srgb, var(--thread-branch-color) 12%, transparent);
  border-radius: 5px;
 }
+
+.thread-journal-table-task-buttons { display: flex; align-items: center; justify-content: flex-start; gap: 6px; flex-wrap: wrap; }
+.thread-journal-table-task-buttons > button { display: inline-flex; align-items: center; gap: 4px; padding: 2px 5px; min-height: 24px; border: 0; box-shadow: none; background: var(--background-secondary); color: var(--text-normal); }
+.thread-journal-table-task-buttons .is-open { --table-count-color: var(--color-green); }
+.thread-journal-table-task-buttons .is-committed { --table-count-color: var(--color-blue); }
+.thread-journal-table-task-buttons .is-idea { --table-count-color: var(--color-orange); }
+.thread-journal-table-task-buttons .is-completed { --table-count-color: var(--text-muted); }
+.thread-journal-table-task-buttons .is-cancelled { --table-count-color: var(--color-red); }
+.thread-journal-table-task-buttons .thread-journal-table-count-icon { color: var(--table-count-color); }
+.thread-journal-table-filter-popover.thread-journal-table-task-filter { width: 300px; max-width: calc(100% - 8px); }
+.thread-journal-table-task-filter fieldset { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 8px; padding: 8px; border: 1px solid var(--background-modifier-border); border-radius: 6px; }
+.thread-journal-table-task-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.thread-journal-table-task-filter-date { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.thread-journal-table-task-filter-date > div { display: flex; gap: 6px; }
+.thread-journal-table-task-filter-date input { min-width: 0; flex: 1; }
+.thread-journal-table-task-filter-date button[aria-pressed="true"] { color: var(--text-on-accent); background: var(--interactive-accent); }
+.thread-journal-table-filter-hint { color: var(--text-muted); font-size: var(--font-ui-smaller); margin: 8px 0; }

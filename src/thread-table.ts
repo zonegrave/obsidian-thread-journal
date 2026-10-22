@@ -25,7 +25,6 @@ export class ThreadTableView extends ItemView {
 	private rows: ThreadTableRow[] = [];
 	private expandedFiles = new Set<string>();
 	private selection?: TableSelection;
-	private showEnded = false;
 	private collapsed = new Set<string>();
 	private fields = new Set<ThreadTableColumn>(THREAD_TABLE_COLUMNS.map(column => column.key));
 	private timer?: number;
@@ -122,7 +121,7 @@ export class ThreadTableView extends ItemView {
 		} : undefined;
 		this.disposeGrid?.(); this.disposeHeader?.();
 		this.contentEl.empty();
-		const projection = filterThreadTable(this.rows, this.filters);
+		const projection = filterThreadTable(this.rows, this.filters, moment().format('YYYY-MM-DD'));
 		const tree = projection.tree;
 		const matchingIds = new Set(projection.matchedRows.map(row => row.thread.id));
 		const searching = tableHasConditions(this.filters);
@@ -133,7 +132,7 @@ export class ThreadTableView extends ItemView {
 			const files = projection.fileMatches.get(this.selection.threadId);
 			if (files && !files.has(this.selection.filePath)) this.selection = undefined;
 		}
-		const byId = new Map(this.rows.map(row => [row.thread.id, row]));
+		const byId = new Map([...this.rows, ...projection.matchedRows].map(row => [row.thread.id, row]));
 		const main = this.contentEl.createDiv({ cls: 'thread-journal-table-main' });
 		const columns = THREAD_TABLE_COLUMNS.filter(column => this.fields.has(column.key));
 		const keys = columns.map(column => column.key);
@@ -163,8 +162,7 @@ export class ThreadTableView extends ItemView {
 		if (!visible.length) body.createEl('tr').createEl('td', { cls: 'thread-journal-empty', text: t('No threads match the filters.'), attr: { colspan: String(columns.length + 1) } });
 		renderTableTotalRow(grid.total, totalThreadTable(projection.matchedRows, moment().format('YYYY-MM-DD')), columns.map(column => column.key), selection => this.select(selection));
 		if (this.selection) renderTableTaskDetails(main, projection.matchedRows, this.selection, {
-			app: this.app, taskManager: this.taskManager, showEnded: this.showEnded,
-			onShowEnded: value => { this.showEnded = value; this.render(); },
+			app: this.app, taskManager: this.taskManager,
 			onClose: () => { this.selection = undefined; this.render(); },
 			onRefresh: () => this.refresh(),
 		});
@@ -203,7 +201,7 @@ export class ThreadTableView extends ItemView {
 	}
 
 	private toggleFiles(id: string): void {
-		const automatic = filterThreadTable(this.rows, this.filters).fileMatches.has(id);
+		const automatic = filterThreadTable(this.rows, this.filters, moment().format('YYYY-MM-DD')).fileMatches.has(id);
 		if (automatic) {
 			if (this.filterFilesCollapsed.has(id)) this.filterFilesCollapsed.delete(id);
 			else this.filterFilesCollapsed.add(id);

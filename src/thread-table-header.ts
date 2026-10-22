@@ -2,16 +2,18 @@ import { setIcon } from 'obsidian';
 import { t } from './i18n';
 import { THREAD_STATUS_CHOICES, threadStatusLabel } from './thread-status-model';
 import type { ThreadTableRow } from './thread-table-data';
-import { DEFAULT_TABLE_FILTERS, TABLE_PRESENCE_COLUMNS, type TableFilters } from './thread-table-filter-model';
+import { DEFAULT_TABLE_FILTERS, type TableFilters } from './thread-table-filter-model';
+import { renderTableTaskFilter } from './thread-table-task-filter-ui';
+import { tableTaskFilterActive } from './thread-table-task-filter';
 import { THREAD_TABLE_COLUMNS, type ThreadTableColumn } from './thread-table-columns';
 
-export interface TableFilterUI { menu?: 'query' | 'status' | 'files' }
+export interface TableFilterUI { menu?: 'query' | 'status' | 'files' | 'tasks' }
 
 export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: ThreadTableRow[], columns: ThreadTableColumn[], filters: TableFilters,
 	ui: TableFilterUI, change: (filters: TableFilters) => void, render: () => void): () => void {
 	const head = table.createEl('thead');
 	const top = head.createEl('tr');
-	const cells: Partial<Record<'query' | 'status' | 'files', HTMLElement>> = {};
+	const cells: Partial<Record<'query' | 'status' | 'files' | 'tasks', HTMLElement>> = {};
 	const name = top.createEl('th', { attr: { scope: 'col' } });
 	const nameTitle = name.createDiv({ cls: 'thread-journal-table-heading-label' });
 	nameTitle.createSpan({ text: t('Thread') }); cells.query = nameTitle;
@@ -20,21 +22,13 @@ export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: T
 		const cell = top.createEl('th', { attr: { scope: 'col' } });
 		const title = cell.createDiv({ cls: 'thread-journal-table-heading-label' });
 		title.createSpan({ text: label });
-		if (key === 'status' || key === 'files') cells[key] = title;
-		const presence = TABLE_PRESENCE_COLUMNS.find(column => column === key);
-		if (!presence) continue;
-		const enabled = filters.present.includes(presence);
-		const description = `${label} · ${t(enabled ? 'Has items' : 'Any quantity')}`;
-		const button = title.createEl('button', { cls: `clickable-icon thread-journal-table-header-filter${enabled ? ' is-active' : ''}`,
-			attr: { type: 'button', title: description, 'aria-label': description, 'aria-pressed': String(enabled) } });
-		setIcon(button, 'list-filter');
-		button.addEventListener('click', () => change({ ...filters, present: enabled ? filters.present.filter(column => column !== presence) : [...filters.present, presence] }));
+		if (key === 'status' || key === 'files' || key === 'tasks') cells[key] = title;
 	}
-	const triggers: Partial<Record<'query' | 'status' | 'files', HTMLButtonElement>> = {};
-	for (const key of ['query', 'status', 'files'] as const) {
+	const triggers: Partial<Record<'query' | 'status' | 'files' | 'tasks', HTMLButtonElement>> = {};
+	for (const key of ['query', 'status', 'files', 'tasks'] as const) {
 		if (!cells[key]) continue;
-		const active = key === 'query' ? Boolean(filters.query.trim()) : key === 'files' ? filters.fileStatuses !== null : filters.statuses !== null;
-		const label = key === 'query' ? `${t('Search thread or file name…')} ${filters.query}` : key === 'files' ? `${t('Thread files')} · ${filters.fileStatuses?.map(value => t(value === 'active' ? 'Active' : 'Terminated')).join(', ') ?? t('All statuses')}` : `${t('Status')} ${filters.statuses?.map(threadStatusLabel).join(', ') ?? ''}`;
+		const active = key === 'query' ? Boolean(filters.query.trim()) : key === 'tasks' ? tableTaskFilterActive(filters.tasks) : key === 'files' ? filters.fileStatuses !== null : filters.statuses !== null;
+		const label = key === 'query' ? `${t('Search thread or file name…')} ${filters.query}` : key === 'tasks' ? t('Tasks') : key === 'files' ? `${t('Thread files')} · ${filters.fileStatuses?.map(value => t(value === 'active' ? 'Active' : 'Terminated')).join(', ') ?? t('All statuses')}` : `${t('Status')} ${filters.statuses?.map(threadStatusLabel).join(', ') ?? ''}`;
 		const button = cells[key].createEl('button', { cls: `clickable-icon thread-journal-table-header-filter${active ? ' is-active' : ''}`, attr: { type: 'button', title: label, 'aria-label': label, 'aria-expanded': String(ui.menu === key) } });
 		setIcon(button, key === 'query' ? 'search' : 'list-filter');
 		button.addEventListener('click', () => { ui.menu = ui.menu === key ? undefined : key; render(); });
@@ -86,6 +80,7 @@ export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: T
 			});
 		}
 	}
+	if (ui.menu === 'tasks') renderTableTaskFilter(panel, filters.tasks, tasks => change({ ...filters, tasks }));
 	const position = (): void => {
 		const bounds = host.getBoundingClientRect(); const anchor = trigger.getBoundingClientRect();
 		panel.style.left = `${Math.max(4, Math.min(anchor.left - bounds.left, bounds.width - panel.offsetWidth - 4))}px`;

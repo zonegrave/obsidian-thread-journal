@@ -3,6 +3,11 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'Yes': '是',
+	'No': '否',
+	'Scheduled on or before': '执行日不晚于',
+	'Window active on': '可执行日期',
+	'Overdue tasks remain included.': '保留逾期任务；留空则不限日期。',
 	'Has items': '有',
 	'Any quantity': '不限',
 	'No threads match the filters.': '没有符合筛选条件的 Thread。',

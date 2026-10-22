@@ -1,17 +1,17 @@
 import type { ThreadTableRow } from './thread-table-data';
 import { buildRootedThreadOverviewTree, filterThreadOverviewTree, type ThreadOverviewNode } from './thread-overview-model';
 
-export const TABLE_PRESENCE_COLUMNS = ['open', 'committed', 'idea', 'completed', 'cancelled', 'holding', 'scheduled', 'pinned'] as const;
-export type TablePresenceColumn = typeof TABLE_PRESENCE_COLUMNS[number];
+import { DEFAULT_TABLE_TASK_FILTERS, matchesTableTask, tableTaskFilterActive, tableTaskFiltersFromState, type TableTaskFilters } from './thread-table-task-filter';
+import { countTableTask, emptyThreadTableCounts } from './thread-table-model';
 
 export interface TableFilters {
 	root: string;
 	query: string;
 	statuses: string[] | null;
 	fileStatuses: ('active' | 'terminated')[] | null;
-	present: TablePresenceColumn[];
+	tasks: TableTaskFilters;
 }
-export const DEFAULT_TABLE_FILTERS: TableFilters = { root: '', query: '', statuses: null, fileStatuses: null, present: [] };
+export const DEFAULT_TABLE_FILTERS: TableFilters = { root: '', query: '', statuses: null, fileStatuses: null, tasks: DEFAULT_TABLE_TASK_FILTERS };
 
 export function tableFiltersFromState(value: unknown): TableFilters {
 	const data = typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
@@ -19,17 +19,28 @@ export function tableFiltersFromState(value: unknown): TableFilters {
 		root: typeof data.root === 'string' ? data.root : '', query: typeof data.query === 'string' ? data.query : '',
 		statuses: Array.isArray(data.statuses) ? data.statuses.filter((s): s is string => typeof s === 'string') : null,
 		fileStatuses: Array.isArray(data.fileStatuses) ? (['active', 'terminated'] as const).filter(status => (data.fileStatuses as unknown[]).includes(status)) : null,
-		present: Array.isArray(data.present) ? TABLE_PRESENCE_COLUMNS.filter(key => (data.present as unknown[]).includes(key)) : [],
+		tasks: tableTaskFiltersFromState(data.tasks),
 	};
 }
 
 export function tableHasConditions(filters: TableFilters): boolean {
-	return Boolean(filters.query.trim() || filters.statuses !== null || filters.fileStatuses !== null || filters.present.length > 0);
+	return Boolean(filters.query.trim() || filters.statuses !== null || filters.fileStatuses !== null || tableTaskFilterActive(filters.tasks));
 }
 
-export function filterThreadTable(rows: readonly ThreadTableRow[], filters: TableFilters): {
+export function filterThreadTable(rows: readonly ThreadTableRow[], filters: TableFilters, today = new Date().toLocaleDateString('en-CA')): {
 	tree: ThreadOverviewNode[]; matchedRows: ThreadTableRow[]; fileMatches: Map<string, Set<string>>;
 } {
+	const taskFiltered = tableTaskFilterActive(filters.tasks);
+	const projected = rows.map(row => {
+		const tasks = row.tasks.filter(task => matchesTableTask(task.data, filters.tasks, today));
+		const counts = { ...emptyThreadTableCounts(), files: row.counts.files, children: row.counts.children, commits: row.counts.commits, logs: row.counts.logs };
+		for (const task of tasks) countTableTask(counts, task.data, today);
+		return { ...row, tasks, counts, files: row.files.map(file => {
+			const counts = { ...emptyThreadTableCounts(), commits: file.counts.commits, logs: file.counts.logs };
+			for (const task of tasks) if (task.file.path === file.member.file.path) countTableTask(counts, task.data, today);
+			return { ...file, counts };
+		}) };
+	});
 	const full = buildRootedThreadOverviewTree(rows.map(row => ({ id: row.thread.id, title: row.thread.title,
 		status: row.thread.status, parent: row.parent })), new Set(rows.map(row => row.thread.status)));
 	const findRoot = (nodes: ThreadOverviewNode[]): ThreadOverviewNode | undefined => {
@@ -46,10 +57,10 @@ export function filterThreadTable(rows: readonly ThreadTableRow[], filters: Tabl
 	visit(scope);
 	const query = filters.query.trim().toLocaleLowerCase();
 	const fileMatches = new Map<string, Set<string>>();
-	const matchedRows = rows.filter(row => {
+	const matchedRows = projected.filter(row => {
 		if (!allowed.has(row.thread.id)) return false;
 		if (filters.statuses !== null && !filters.statuses.includes(row.thread.status)) return false;
-		if (filters.present.some(key => row.counts[key] === 0)) return false;
+		if (taskFiltered && !row.tasks.length) return false;
 		const eligible = row.files.filter(file => filters.fileStatuses === null || filters.fileStatuses.includes(file.member.roleStatus));
 		if (filters.fileStatuses !== null) fileMatches.set(row.thread.id, new Set(eligible.map(file => file.member.file.path)));
 		if (!query || row.thread.title.toLocaleLowerCase().includes(query)) return true;
