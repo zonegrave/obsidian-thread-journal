@@ -3,3 +3,5 @@ export class TFile {
 	constructor(public path: string) {}
 	extension = 'md';
 }
+
+export function setIcon(): void {}

@@ -3,6 +3,7 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'Search': '搜索',
 	'Focus this thread': '聚焦此 Thread',
 	'All day': '全天',
 	'Scheduled hour': '执行小时',
@@ -33,9 +34,9 @@ const ZH_TRANSLATIONS = {
 	'All tasks': '全部任务',
 	'External tasks': '外部任务',
 	'Show completed and cancelled tasks': '显示已完成和取消的任务',
-	'Thread overview table': 'Thread 总览表格',
-	'Loading thread table…': '正在加载 Thread 表格…',
-	'Failed to read thread table: {error}': '无法读取 Thread 表格：{error}',
+	'Thread explorer': 'Thread 树形浏览',
+	'Loading thread tree…': '正在加载 Thread 树…',
+	'Failed to read thread explorer: {error}': '无法读取 Thread 树：{error}',
 	'Child threads': '子线程',
 	'Commits': 'Commits',
 	'Logs': 'Logs',

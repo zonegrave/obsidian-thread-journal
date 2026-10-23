@@ -245,11 +245,13 @@ order: asc
 
 **Open thread overview** 打开常驻 Overview tab；`thread-overview` 代码块嵌入同一视图。Overview 只负责 thread 层级、状态和所属 Thread Files，不扫描或展示具体任务，也不提供任务范围、今日关注或 Holding queue 控件。Status 默认选择 `active` 与 `dormant`，支持八种状态，必要祖先以淡色结构节点保留。节点标题打开 entry，无 entry 时打开 meta；展开节点显示全部成员文件的名称、图标、角色、入口标记，terminated 文件淡化并标注，仍可打开查看历史。文件列表不受任务内容或 attention_fallback 影响。节点上的文件菜单提供 active 成员快捷入口。**Expand all files / Collapse files** 控制文件列表，节点右侧按钮独立控制子分支。独立视图保留缩放、适应视图、滚动与视角恢复功能；底部工具栏保留状态筛选、文件展开、缩放与刷新。
 
-**Open thread overview table** 打开独立的紧凑树形表格。通过缩进、加粗彩色折线和箭头表达父子关系；分支色按节点固定，搜索或折叠后不变化。默认列为 Status、Thread Files、Child Threads、Tasks、Commits、Logs。Tasks 合并为一列，使用 Open／Committed／Idea／Completed／Cancelled 的图标＋数量按钮；零值隐藏，点击打开同范围的任务明细。默认只显示 Open／Committed／Idea，可在 Tasks 表头筛选器中选择完成或取消状态。各行只统计自身，展开成员行查看文件级数量；点击 Thread 名称切换 Root／Focus 并同步底栏 breadcrumb，保留当前筛选；点击文件图标或文件名打开对应笔记，支持 Cmd／Ctrl 新标签。数量按钮继续控制展开或任务明细。明细沿用 Task Board 的操作，terminated 文件中的任务只读。
+**Open thread explorer** 打开紧凑的纯树形浏览视图，保留原来的 Overview 思维导图。Thread、Thread File、Task 使用不同的自由行布局，不再强制按表格列对齐。Thread 名称加粗且背景透明，后面紧跟状态、文件数、直接子线程数、任务及记录摘要；成员名称使用与引导线同色的淡背景，前方保留角色图标，不重复显示 workspace／context 文字。彩色引导线、层级折叠及 Focus 保留；点击 Thread 名称切换 Root 并同步底栏 breadcrumb，点击文件名或图标打开笔记。
 
-筛选集成在表头：Thread 搜索名称或文件名；Status 只显示并筛选 Thread 状态；Thread Files 独立多选 active／terminated，同步限制文件数和展开列表，文件状态显示在该列，文件行的 Status 留空。Tasks 统一筛选任务状态，以及 Pin／Schedule／Holding 的不限、是、否。日期分为“执行日不晚于”（必须有排期）和“可执行日期”（排除窗口尚未开始的任务，保留逾期），都可选今天或指定日期，留空不限；条件取交集。任务按钮、文件级任务数、总计和明细都使用过滤后的任务范围；Commit／Log 仍为自身历史统计，文件状态筛选不改变任务或记录范围。启用任务条件后，没有匹配任务的分支隐藏；仅为连接匹配后代而保留的祖先淡化且不显示数量、不参与总计。清除筛选恢复完整树和原折叠状态。Root 通过底栏 breadcrumb 切换，保留其他条件。
+点击文件数量展开成员；文件前的箭头独立展开该文件下的 Task 行，复用现有任务渲染与操作，terminated 来源只读。点击状态数量仍可在侧栏查看过滤后的任务明细，包含 meta 或外部任务。每个 Thread 仅统计自身，不累计子线程；外部任务必须同一行明确链接 pack，任务引用不重复计数。
 
-表头和总计固定在可视区域上下两端，只有中间数据纵向滚动；三部分列宽与横向滚动同步，数据少时总计也贴底。总计仅汇总 Tasks、Commit、Log；任务按来源文件＋行号去重，点击状态按钮展示相同范围的明细。列选择、筛选和折叠随视图保存。侧栏可关闭，窄分栏使用浮层。
+搜索、Thread 状态、Thread File 状态和 Tasks 筛选移到底栏，向上弹出。Tasks 筛选包括状态、Pin／Schedule／Holding（不限／是／否）、执行日不晚于及可执行日期；过滤后隐藏无匹配任务分支，必要祖先只保留为淡色导航，不显示数量、不参与总计。默认只显示 Open／Committed／Idea，可选 Completed／Cancelled；未到执行时刻的排期默认隐藏，逾期任务保留。文件状态只限制文件数量及成员列表，任务和记录仍遵循自身范围。清除条件恢复完整树与原折叠状态。Root、筛选、可见摘要字段、文件和任务展开状态随视图保存。
+
+底部总计固定，只汇总 Tasks、Commit、Log；任务按来源文件＋行号去重。摘要按钮、文件级数量、总计和明细使用同一过滤范围，Commit／Log 保留历史统计。中间树形内容独立滚动；窄窗口的任务明细使用浮层。命令 ID 与视图 ID 保持稳定，沿用原视图。
 
 Active 成员的编辑视图提供统一的 **Create or edit task**。光标在 task 行时直接编辑；在普通文本行时先将该行原地转换为 Markdown task，再打开编辑表单；空行则打开空白新建表单。任务内容本身表达要达成的结果；表单保存只读的 `task_id`、任务状态、独立 holding 条件、可选固定、可选的日期窗口、`quick`/`light`/`normal`/`deep` 模糊消耗，以及可选循环。日期窗口通过独立浮层编辑，不改变任务表单尺寸；浮层并排展示两个日历，左侧选择开始、右侧选择结束，各自可翻月，也可清除单侧或整体清空；主表单不再重复提供 Clear 按钮。`task_id` 在创建时自动生成，用于任务移动行号后继续准确定位；表单顶部以小号只读文字展示，左侧 Pin 图标可直接切换固定状态，阅读视图、Live Preview 摘要和 Task Board 不显示 ID。表单中预计消耗、状态与 Window 位于选择区域；Schedule 单独占下一行，开启后默认安排到今天，并显示执行日及可选 Repeat；Repeat 开启后选择每 N 天／周／月／年，N 为大于等于 1 的整数。关闭 Schedule 同时清除执行日和循环。Pin 用于未排期但需当前关注的任务，与 Schedule 互斥；设置执行日时取消 Pin，清除执行日不会自动 Pin。Window 是可安排边界，Schedule 是已经确定的安排，二者独立。
 

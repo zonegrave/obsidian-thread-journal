@@ -4,13 +4,14 @@ import type { TaskManager } from './task';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
 import { ROOT_THREAD_ID } from './thread-root-model';
 import { filterThreadTable, tableFiltersFromState, tableHasConditions, DEFAULT_TABLE_FILTERS } from './thread-table-filter-model';
-import { renderTableHeader, type TableFilterUI } from './thread-table-header';
-import { createThreadTableGrid } from './thread-table-grid';
+import { renderTreeFilters, type TableFilterUI } from './thread-table-header';
+import { createThreadTree } from './thread-table-grid';
 import { renderTableRootBreadcrumb } from './thread-table-breadcrumb';
 import { totalThreadTable } from './thread-table-total-model';
 import { flattenThreadTableTree } from './thread-table-model';
 import { collectThreadTable, type ThreadTableRow } from './thread-table-data';
 import { renderTableThreadRow, renderTableFileRows, renderTableTotalRow, type TableSelection } from './thread-table-rows';
+import { renderTreeFileTasks } from './thread-tree-tasks';
 import { renderTableTaskDetails } from './thread-table-details';
 import { THREAD_TABLE_COLUMNS, type ThreadTableColumn } from './thread-table-columns';
 
@@ -19,11 +20,11 @@ export const THREAD_TABLE_VIEW_TYPE = 'thread-journal-overview-table';
 export class ThreadTableView extends ItemView {
 	private filters = { ...DEFAULT_TABLE_FILTERS };
 	private filterUI: TableFilterUI = {};
-	private disposeGrid?: () => void;
 	private disposeHeader?: () => void;
 	private filterCollapsed = new Set<string>();
 	private filterFilesCollapsed = new Set<string>();
 	private rows: ThreadTableRow[] = [];
+	private expandedTasks = new Set<string>();
 	private expandedFiles = new Set<string>();
 	private selection?: TableSelection;
 	private collapsed = new Set<string>();
@@ -38,11 +39,11 @@ export class ThreadTableView extends ItemView {
 	}
 
 	getViewType(): string { return THREAD_TABLE_VIEW_TYPE; }
-	getDisplayText(): string { return t('Thread overview table'); }
-	getIcon(): string { return 'table-properties'; }
+	getDisplayText(): string { return t('Thread explorer'); }
+	getIcon(): string { return 'list-tree'; }
 
 	getState(): Record<string, unknown> {
-		return { filters: this.filters, expandedFiles: [...this.expandedFiles], collapsed: [...this.collapsed], fields: [...this.fields] };
+		return { filters: this.filters, expandedTasks: [...this.expandedTasks], expandedFiles: [...this.expandedFiles], collapsed: [...this.collapsed], fields: [...this.fields] };
 	}
 
 	async setState(state: unknown, result: ViewStateResult): Promise<void> {
@@ -50,6 +51,7 @@ export class ThreadTableView extends ItemView {
 		if (typeof state === 'object' && state !== null) {
 			const value = state as Record<string, unknown>;
 			this.filters = tableFiltersFromState(value.filters);
+			if (Array.isArray(value.expandedTasks)) this.expandedTasks = new Set(value.expandedTasks.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.expandedFiles)) this.expandedFiles = new Set(value.expandedFiles.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.collapsed)) this.collapsed = new Set(value.collapsed.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.fields) && value.fields.every(key => THREAD_TABLE_COLUMNS.some(column => column.key === key))) this.fields = new Set(THREAD_TABLE_COLUMNS.filter(column =>
@@ -60,7 +62,7 @@ export class ThreadTableView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.opened = true;
-		this.contentEl.addClass('thread-journal-table-view');
+		this.contentEl.addClass('thread-journal-table-view', 'thread-journal-explorer');
 		this.registerEvent(this.app.metadataCache.on('changed', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('delete', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('rename', () => this.scheduleRefresh()));
@@ -68,17 +70,17 @@ export class ThreadTableView extends ItemView {
 		const languageChanged = (): void => this.render();
 		window.addEventListener(LANGUAGE_CHANGE_EVENT, languageChanged);
 		this.register(() => window.removeEventListener(LANGUAGE_CHANGE_EVENT, languageChanged));
-		this.contentEl.createDiv({ cls: 'thread-journal-empty', text: t('Loading thread table…') });
+		this.contentEl.createDiv({ cls: 'thread-journal-empty', text: t('Loading thread tree…') });
 		await this.refresh();
 	}
 
 	async onClose(): Promise<void> {
 		this.opened = false;
-		this.disposeGrid?.(); this.disposeHeader?.();
+		this.disposeHeader?.();
 		this.request++;
 		if (this.timer !== undefined) window.clearTimeout(this.timer);
 		this.contentEl.empty();
-		this.contentEl.removeClass('thread-journal-table-view');
+		this.contentEl.removeClass('thread-journal-table-view', 'thread-journal-explorer');
 	}
 
 	private scheduleRefresh(): void {
@@ -100,7 +102,7 @@ export class ThreadTableView extends ItemView {
 			this.render();
 		} catch (error) {
 			if (!this.opened || request !== this.request) return;
-			const message = t('Failed to read thread table: {error}', { error: String(error) });
+			const message = t('Failed to read thread explorer: {error}', { error: String(error) });
 			if (!this.rows.length) {
 				this.contentEl.empty();
 				this.contentEl.createDiv({ cls: 'thread-journal-empty', text: message });
@@ -120,7 +122,7 @@ export class ThreadTableView extends ItemView {
 		const focus = active instanceof HTMLInputElement && this.contentEl.contains(active) ? {
 			key: active.getAttribute('data-table-filter'), start: active.selectionStart, end: active.selectionEnd,
 		} : undefined;
-		this.disposeGrid?.(); this.disposeHeader?.();
+		this.disposeHeader?.();
 		this.contentEl.empty();
 		const projection = filterThreadTable(this.rows, this.filters, moment().format('YYYY-MM-DDTHH:mm'));
 		const tree = projection.tree;
@@ -136,12 +138,8 @@ export class ThreadTableView extends ItemView {
 		const byId = new Map([...this.rows, ...projection.matchedRows].map(row => [row.thread.id, row]));
 		const main = this.contentEl.createDiv({ cls: 'thread-journal-table-main' });
 		const columns = THREAD_TABLE_COLUMNS.filter(column => this.fields.has(column.key));
-		const keys = columns.map(column => column.key);
-		const grid = createThreadTableGrid(main, keys);
-		this.disposeGrid = grid.dispose;
+		const grid = createThreadTree(main);
 		const { scroll, body } = grid;
-		this.disposeHeader = renderTableHeader(grid.header, this.contentEl, this.rows, keys, this.filters, this.filterUI,
-			filters => this.changeFilters(filters), () => this.render());
 		for (const item of visible) {
 			const data = byId.get(item.node.item.id);
 			if (!data) continue;
@@ -152,6 +150,13 @@ export class ThreadTableView extends ItemView {
 				toggleChildren: () => this.toggle(data.thread.id),
 				toggleFiles: () => this.toggleFiles(data.thread.id),
 				select: (selection: TableSelection) => this.select(selection),
+				tasksExpanded: (filePath: string) => this.expandedTasks.has(`${data.thread.id}:${filePath}`),
+				toggleTasks: (filePath: string) => {
+					const key = `${data.thread.id}:${filePath}`;
+					if (this.expandedTasks.has(key)) this.expandedTasks.delete(key); else this.expandedTasks.add(key);
+					this.render(); this.saveLayout();
+				},
+				renderTasks: (parent: HTMLElement, filePath: string, fileItem: Pick<typeof item, 'guides' | 'ancestors' | 'depth' | 'last'>) => renderTreeFileTasks(parent, data, filePath, fileItem, { app: this.app, taskManager: this.taskManager, onRefresh: () => this.refresh() }),
 			};
 			const files = projection.fileMatches.get(data.thread.id);
 			const display = files ? { ...data, files: data.files.filter(file => files.has(file.member.file.path)) } : data;
@@ -160,7 +165,7 @@ export class ThreadTableView extends ItemView {
 				renderTableFileRows(body, item, display, context);
 			}
 		}
-		if (!visible.length) body.createEl('tr').createEl('td', { cls: 'thread-journal-empty', text: t('No threads match the filters.'), attr: { colspan: String(columns.length + 1) } });
+		if (!visible.length) body.createDiv({ cls: 'thread-journal-empty', text: t('No threads match the filters.') });
 		renderTableTotalRow(grid.total, totalThreadTable(projection.matchedRows, moment().format('YYYY-MM-DDTHH:mm')), columns.map(column => column.key), selection => this.select(selection));
 		if (this.selection) renderTableTaskDetails(main, projection.matchedRows, this.selection, {
 			app: this.app, taskManager: this.taskManager,
@@ -170,7 +175,6 @@ export class ThreadTableView extends ItemView {
 		this.renderFooter(flattenThreadTableTree(tree, new Set()).filter(item => item.node.children.length).map(item => item.node.item.id));
 		scroll.scrollTop = scrollTop;
 		scroll.scrollLeft = scrollLeft;
-		grid.sync();
 		const details = this.contentEl.querySelector('.thread-journal-table-details-list');
 		if (details) details.scrollTop = detailScroll;
 		if (focus?.key) {
@@ -221,12 +225,14 @@ export class ThreadTableView extends ItemView {
 
 	private renderFooter(branchIds: string[]): void {
 		const footer = this.contentEl.createDiv({ cls: 'thread-journal-view-bottom-bar thread-journal-table-footer' });
+		this.disposeHeader = renderTreeFilters(footer, this.contentEl, this.rows, this.filters, this.filterUI, filters => this.changeFilters(filters), () => this.render());
 		renderTableRootBreadcrumb(footer, this.rows, this.filters.root, root => this.focusThread(root));
 		for (const expand of [true, false]) {
 			const button = footer.createEl('button', { text: t(expand ? 'Expand all threads' : 'Collapse all threads') });
 			button.addEventListener('click', () => {
 				if (tableHasConditions(this.filters)) this.filterCollapsed = new Set(expand ? [] : branchIds);
 				else this.collapsed = new Set(expand ? [] : branchIds);
+				if (!expand) this.expandedTasks.clear();
 				if (!expand && !tableHasConditions(this.filters)) this.expandedFiles.clear();
 				if (!expand && tableHasConditions(this.filters)) this.filterFilesCollapsed = new Set(this.rows.map(row => row.thread.id));
 				this.render();
@@ -268,6 +274,6 @@ export async function openThreadTable(app: App): Promise<void> {
 		await app.workspace.revealLeaf(leaf);
 		app.workspace.setActiveLeaf(leaf, { focus: true });
 	} catch (error) {
-		new Notice(t('Failed to read thread table: {error}', { error: String(error) }));
+		new Notice(t('Failed to read thread explorer: {error}', { error: String(error) }));
 	}
 }

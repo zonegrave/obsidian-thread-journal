@@ -200,7 +200,7 @@ export default class ThreadJournalPlugin extends Plugin {
 	}
 
 	private registerCommands(): void {
-		this.addCommand({ id: 'thread-overview-table', name: 'Open thread overview table', callback: () => void openThreadTable(this.app) });
+		this.addCommand({ id: 'thread-overview-table', name: 'Open thread explorer', callback: () => void openThreadTable(this.app) });
 		// ROOT is the reserved system identity; command names remain English.
 		this.addCommand({ id: 'open-root-thread', name: `Open ${ROOT_THREAD_ID} thread`, callback: () => void this.openRootThread(false) });
 		this.addCommand({ id: 'new-root-thread-file', name: `Create ${ROOT_THREAD_ID} thread file`, callback: () => void this.openRootThread(true) });

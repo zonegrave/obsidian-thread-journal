@@ -5,36 +5,23 @@ import type { ThreadTableRow } from './thread-table-data';
 import { DEFAULT_TABLE_FILTERS, type TableFilters } from './thread-table-filter-model';
 import { renderTableTaskFilter } from './thread-table-task-filter-ui';
 import { tableTaskFilterActive } from './thread-table-task-filter';
-import { THREAD_TABLE_COLUMNS, type ThreadTableColumn } from './thread-table-columns';
 
 export interface TableFilterUI { menu?: 'query' | 'status' | 'files' | 'tasks' }
 
-export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: ThreadTableRow[], columns: ThreadTableColumn[], filters: TableFilters,
+export function renderTreeFilters(toolbar: HTMLElement, host: HTMLElement, rows: ThreadTableRow[], filters: TableFilters,
 	ui: TableFilterUI, change: (filters: TableFilters) => void, render: () => void): () => void {
-	const head = table.createEl('thead');
-	const top = head.createEl('tr');
-	const cells: Partial<Record<'query' | 'status' | 'files' | 'tasks', HTMLElement>> = {};
-	const name = top.createEl('th', { attr: { scope: 'col' } });
-	const nameTitle = name.createDiv({ cls: 'thread-journal-table-heading-label' });
-	nameTitle.createSpan({ text: t('Thread') }); cells.query = nameTitle;
-	for (const key of columns) {
-		const label = t(THREAD_TABLE_COLUMNS.find(column => column.key === key)!.label);
-		const cell = top.createEl('th', { attr: { scope: 'col' } });
-		const title = cell.createDiv({ cls: 'thread-journal-table-heading-label' });
-		title.createSpan({ text: label });
-		if (key === 'status' || key === 'files' || key === 'tasks') cells[key] = title;
-	}
+	const controls = toolbar.createDiv({ cls: 'thread-journal-tree-filters' });
 	const triggers: Partial<Record<'query' | 'status' | 'files' | 'tasks', HTMLButtonElement>> = {};
 	for (const key of ['query', 'status', 'files', 'tasks'] as const) {
-		if (!cells[key]) continue;
 		const active = key === 'query' ? Boolean(filters.query.trim()) : key === 'tasks' ? tableTaskFilterActive(filters.tasks) : key === 'files' ? filters.fileStatuses !== null : filters.statuses !== null;
 		const label = key === 'query' ? `${t('Search thread or file name…')} ${filters.query}` : key === 'tasks' ? t('Tasks') : key === 'files' ? `${t('Thread files')} · ${filters.fileStatuses?.map(value => t(value === 'active' ? 'Active' : 'Terminated')).join(', ') ?? t('All statuses')}` : `${t('Status')} ${filters.statuses?.map(threadStatusLabel).join(', ') ?? ''}`;
-		const button = cells[key].createEl('button', { cls: `clickable-icon thread-journal-table-header-filter${active ? ' is-active' : ''}`, attr: { type: 'button', title: label, 'aria-label': label, 'aria-expanded': String(ui.menu === key) } });
-		setIcon(button, key === 'query' ? 'search' : 'list-filter');
+		const button = controls.createEl('button', { cls: `clickable-icon thread-journal-table-header-filter${active ? ' is-active' : ''}`, attr: { type: 'button', title: label, 'aria-label': label, 'aria-expanded': String(ui.menu === key) } });
+		setIcon(button.createSpan({ cls: 'thread-journal-tree-filter-icon' }), key === 'query' ? 'search' : 'list-filter');
+		button.createSpan({ text: t(key === 'query' ? 'Search' : key === 'status' ? 'Status' : key === 'files' ? 'Thread files' : 'Tasks') });
 		button.addEventListener('click', () => { ui.menu = ui.menu === key ? undefined : key; render(); });
 		triggers[key] = button;
 	}
-	const clear = nameTitle.createEl('button', { cls: 'clickable-icon thread-journal-table-header-filter', attr: { type: 'button', 'aria-label': t('Clear filters'), title: t('Clear filters') } });
+	const clear = controls.createEl('button', { cls: 'clickable-icon thread-journal-table-header-filter', attr: { type: 'button', 'aria-label': t('Clear filters'), title: t('Clear filters') } });
 	setIcon(clear, 'filter-x');
 	clear.addEventListener('click', () => change({ ...DEFAULT_TABLE_FILTERS, root: filters.root }));
 	const trigger = ui.menu ? triggers[ui.menu] : undefined;
@@ -84,12 +71,12 @@ export function renderTableHeader(table: HTMLElement, host: HTMLElement, rows: T
 	const position = (): void => {
 		const bounds = host.getBoundingClientRect(); const anchor = trigger.getBoundingClientRect();
 		panel.style.left = `${Math.max(4, Math.min(anchor.left - bounds.left, bounds.width - panel.offsetWidth - 4))}px`;
-		panel.style.top = `${anchor.bottom - bounds.top + 4}px`;
-		panel.style.maxHeight = `${Math.max(60, bounds.bottom - anchor.bottom - 12)}px`;
+		panel.style.maxHeight = `${Math.max(60, anchor.top - bounds.top - 12)}px`;
+		panel.style.top = `${Math.max(4, anchor.top - bounds.top - panel.offsetHeight - 4)}px`;
 	};
 	position();
 	panel.querySelector<HTMLInputElement>('input[type=search]')?.focus();
-	const observer = new ResizeObserver(position); observer.observe(host);
+	const observer = new ResizeObserver(position); observer.observe(host); observer.observe(toolbar);
 	const close = (): void => {
 		ui.menu = undefined; trigger.setAttribute('aria-expanded', 'false'); panel.remove(); observer.disconnect();
 		host.ownerDocument.removeEventListener('pointerdown', outside, true);
