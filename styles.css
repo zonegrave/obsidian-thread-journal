@@ -3279,7 +3279,7 @@
 .thread-journal-tree-metadata .thread-journal-table-value { flex: 0 0 auto; }
 .thread-journal-tree-row.is-terminated .thread-journal-table-file-title { color: var(--text-muted); }
 .thread-journal-tree-task { min-width: 0; flex: 1; margin: 0; padding: 4px 0; border: 0; background: transparent; }
-.thread-journal-tree-task .thread-journal-overview-task-text { white-space: normal; overflow-wrap: anywhere; }
+.thread-journal-tree-task .thread-journal-overview-task-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .thread-journal-tree-total { flex: 0 0 auto; border-top: 1px solid var(--background-modifier-border); background: var(--background-secondary); padding: 4px 12px; }
 .thread-journal-tree-summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 24px; font-size: var(--font-ui-small); }
 .thread-journal-tree-filters { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
@@ -3290,3 +3290,33 @@
 .thread-journal-explorer .thread-journal-table-breadcrumbs { min-width: 90px; }
 
 .thread-journal-tree-filters > button.clickable-icon { width: auto; height: 24px; min-width: 24px; padding: 2px 5px; }
+
+/* Shared task rows keep effort and the other compact details beside the title. */
+.thread-journal-overview-task:not(.thread-journal-overview-fallback) {
+	display: flex;
+	align-items: center;
+	flex-wrap: nowrap;
+	gap: 6px;
+}
+.thread-journal-overview-task:not(.thread-journal-overview-fallback) > a {
+	flex: 0 1 auto;
+	align-items: center;
+	min-width: 0;
+}
+.thread-journal-overview-task:not(.thread-journal-overview-fallback) .thread-journal-overview-task-text {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.thread-journal-overview-task:not(.thread-journal-overview-fallback) > .thread-journal-overview-task-details {
+	flex: 0 1 auto;
+	flex-wrap: nowrap;
+	min-width: 0;
+	overflow: hidden;
+}
+.thread-journal-overview-task-details > * { flex-shrink: 0; white-space: nowrap; }
+.thread-journal-overview-task:not(.thread-journal-overview-fallback) > .thread-journal-overview-task-actions {
+	flex: 0 0 auto;
+	margin-left: auto;
+}
+.thread-journal-overview-task:not(.thread-journal-overview-fallback) > .thread-journal-overview-task-pin { flex: 0 0 auto; }

@@ -61,6 +61,7 @@ function renderTaskLink(
 	const taskLink = parent.createEl('a', {
 		cls: 'thread-journal-overview-task-link',
 		href: task.file.path,
+		attr: { title: task.text },
 	});
 	if (showStatus) {
 		const statusLabel = t(TASK_STATUS_LABELS[task.data.status]);
