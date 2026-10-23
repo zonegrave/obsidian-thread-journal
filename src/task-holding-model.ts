@@ -1,11 +1,11 @@
-import { parseTaskLine, validDate, type TaskData, type ParsedTaskLine } from './task-model';
+import { parseTaskLine, validTaskSchedule, type TaskData, type ParsedTaskLine } from './task-model';
 
 export type TaskLookup = ReadonlyMap<string, readonly TaskData[]>;
 export type HoldingResult = 'manual' | 'pending' | 'ready' | 'invalid';
 
 export function parseDependency(value: string): { id: string; occurrence: string } | undefined {
-	const match = /^(task-[a-z0-9]{12})(?:@(\d{4}-\d{2}-\d{2}))?$/u.exec(value);
-	if (!match || (match[2] && !validDate(match[2]))) return undefined;
+	const match = /^(task-[a-z0-9]{12})(?:@(\d{4}-\d{2}-\d{2}(?:T\d{2}:00)?))?$/u.exec(value);
+	if (!match || (match[2] && !validTaskSchedule(match[2]))) return undefined;
 	return { id: match[1]!, occurrence: match[2] ?? '' };
 }
 

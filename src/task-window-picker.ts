@@ -1,5 +1,6 @@
 import { moment, setIcon } from 'obsidian';
 import { t } from './i18n';
+import { validTaskSchedule, taskScheduledDay } from './task-model';
 
 type WindowSide = 'start' | 'end';
 
@@ -231,6 +232,7 @@ class TaskDatePopover {
 	private readonly doc: Document;
 	private readonly win: Window;
 	private draftValue: string;
+	private draftHour = '';
 	private month = moment().startOf('month');
 	private closed = false;
 
@@ -242,7 +244,8 @@ class TaskDatePopover {
 	) {
 		this.doc = trigger.ownerDocument;
 		this.win = this.doc.defaultView ?? window;
-		this.draftValue = validDate(value) ? value : moment().format('YYYY-MM-DD');
+		this.draftValue = validTaskSchedule(value) ? taskScheduledDay(value) : moment().format('YYYY-MM-DD');
+		this.draftHour = validTaskSchedule(value) && value.length > 10 ? value.slice(11, 13) : '';
 		this.month = moment(this.draftValue, 'YYYY-MM-DD', true).startOf('month');
 		this.popover = this.doc.body.createDiv({
 			cls: 'thread-journal-task-window-popover is-single',
@@ -356,6 +359,16 @@ class TaskDatePopover {
 			day.add(1, 'day');
 		}
 
+		const time = pane.createEl('label', { cls: 'thread-journal-task-scheduled-hour' });
+		time.createSpan({ text: t('Hour') });
+		const hour = time.createEl('select', { attr: { 'aria-label': t('Scheduled hour') } });
+		hour.createEl('option', { value: '', text: t('All day') });
+		for (let index = 0; index < 24; index++) {
+			const value = String(index).padStart(2, '0');
+			hour.createEl('option', { value, text: `${value}:00` });
+		}
+		hour.value = this.draftHour;
+		hour.addEventListener('change', () => { this.draftHour = hour.value; });
 		const actions = this.popover.createDiv({ cls: 'thread-journal-task-window-actions' });
 		actions.createEl('button', {
 			text: t('Cancel'),
@@ -366,7 +379,7 @@ class TaskDatePopover {
 			text: t('Apply'),
 			attr: { type: 'button' },
 		}).addEventListener('click', () => {
-			this.onApply(this.draftValue);
+			this.onApply(this.draftValue + (this.draftHour ? `T${this.draftHour}:00` : ''));
 			this.close();
 		});
 		this.position();

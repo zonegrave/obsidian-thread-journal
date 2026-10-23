@@ -3309,3 +3309,6 @@
 .thread-journal-table-task-filter-date input { min-width: 0; flex: 1; }
 .thread-journal-table-task-filter-date button[aria-pressed="true"] { color: var(--text-on-accent); background: var(--interactive-accent); }
 .thread-journal-table-filter-hint { color: var(--text-muted); font-size: var(--font-ui-smaller); margin: 8px 0; }
+
+.thread-journal-task-scheduled-hour { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--text-muted); }
+.thread-journal-task-scheduled-hour select { min-width: 110px; }

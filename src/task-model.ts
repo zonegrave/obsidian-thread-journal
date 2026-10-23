@@ -82,6 +82,18 @@ export function validDate(value: string): boolean {
 		&& date.getUTCDate() === day;
 }
 
+// Local calendar scheduling: optional hour, without a timezone or minute precision.
+export function validTaskSchedule(value: string): boolean {
+	return validDate(value) || (/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):00$/u.test(value) && validDate(value.slice(0, 10)));
+}
+
+export function taskScheduledDay(value: string): string { return value.slice(0, 10); }
+
+function inputSchedule(value: string | undefined): string {
+	const normalized = value?.trim() ?? '';
+	return validTaskSchedule(normalized) ? normalized : '';
+}
+
 function inputDate(value: string | undefined): string {
 	const normalized = value?.trim() ?? '';
 	return validDate(normalized) ? normalized : '';
@@ -116,7 +128,7 @@ export function completeTaskData(data: TaskData): TaskData {
 	return {
 		...releaseTaskHolding(data),
 		status: 'completed',
-		completedOccurrences: data.repeat && validDate(data.scheduled)
+		completedOccurrences: data.repeat && validTaskSchedule(data.scheduled)
 			? [...new Set([...data.completedOccurrences, data.scheduled])].sort()
 			: data.completedOccurrences,
 	};
@@ -185,14 +197,14 @@ export function parseTaskLine(line: string): ParsedTaskLine | undefined {
 			holding: fields.get('holding')?.toLowerCase() === 'true',
 			holdingReview: fields.get('holding_review') ?? '',
 			holdingFor: (fields.get('holding_for') ?? '').split(',').map(value => value.trim()).filter(Boolean),
-			completedOccurrences: (fields.get('completed_occurrences') ?? '').split(',').map(value => value.trim()).filter(validDate),
+			completedOccurrences: (fields.get('completed_occurrences') ?? '').split(',').map(value => value.trim()).filter(validTaskSchedule),
 			content: body.replace(/\s+/gu, ' ').trim(),
-			pinned: !inputDate(fields.get('scheduled')) && fields.get('thread_pin')?.trim().toLowerCase() === 'true',
+			pinned: !inputSchedule(fields.get('scheduled')) && fields.get('thread_pin')?.trim().toLowerCase() === 'true',
 			windowStart: inputDate(fields.get('window_start')),
 			windowEnd: inputDate(fields.get('window_end')),
 			effort: taskEffort(fields.get('effort')),
 			...repeat,
-			scheduled: inputDate(fields.get('scheduled')),
+			scheduled: inputSchedule(fields.get('scheduled')),
 		},
 		preservedFields,
 		blockId: block?.[1],
@@ -228,7 +240,7 @@ export function taskValidationError(
 	if (!inputTaskId(data.taskId)) return 'task-id';
 	if (!data.content.trim()) return 'content';
 	if (data.windowStart && data.windowEnd && data.windowEnd < data.windowStart) return 'window-order';
-	if ((data.scheduled && !inputDate(data.scheduled)) || (data.repeat && !data.scheduled)) return 'schedule-date';
+	if ((data.scheduled && !inputSchedule(data.scheduled)) || (data.repeat && !data.scheduled)) return 'schedule-date';
 	if (data.scheduled && data.repeat && (!Number.isSafeInteger(data.repeatInterval) || data.repeatInterval < 1)) {
 		return 'repeat-interval';
 	}
@@ -236,7 +248,7 @@ export function taskValidationError(
 }
 
 function dateParts(value: string): [number, number, number] {
-	const [year = 0, month = 0, day = 0] = value.split('-').map(Number);
+	const [year = 0, month = 0, day = 0] = value.slice(0, 10).split('-').map(Number);
 	return [year, month, day];
 }
 
@@ -273,7 +285,7 @@ function addMonths(value: string, months: number, monthDay: number): string {
 }
 
 export function nextTaskScheduled(data: TaskData): string {
-	if (!data.repeat || !validDate(data.scheduled) || !Number.isSafeInteger(data.repeatInterval) || data.repeatInterval < 1) return '';
+	if (!data.repeat || !validTaskSchedule(data.scheduled) || !Number.isSafeInteger(data.repeatInterval) || data.repeatInterval < 1) return '';
 	let next: string;
 	if (data.repeatFrequency === 'yearly') {
 		const [year] = dateParts(data.scheduled);
@@ -281,7 +293,8 @@ export function nextTaskScheduled(data: TaskData): string {
 	} else if (data.repeatFrequency === 'monthly') {
 		next = addMonths(data.scheduled, data.repeatInterval, data.repeatMonthDay);
 	} else next = addDays(data.scheduled, data.repeatInterval * (data.repeatFrequency === 'weekly' ? 7 : 1));
-	return validDate(next) && next > data.scheduled ? next : '';
+	const scheduled = next + data.scheduled.slice(10);
+	return validTaskSchedule(scheduled) && scheduled > data.scheduled ? scheduled : '';
 }
 
 function nextTaskScheduledOnOrAfter(data: TaskData, minimumDate: string): string {
@@ -291,7 +304,7 @@ function nextTaskScheduledOnOrAfter(data: TaskData, minimumDate: string): string
 		const step = data.repeatInterval * (data.repeatFrequency === 'weekly' ? 7 : 1);
 		const remaining = daysBetween(scheduled, minimumDate);
 		const next = addDays(scheduled, Math.ceil(remaining / step) * step);
-		return validDate(next) ? next : '';
+		return validDate(next) ? next + scheduled.slice(10) : '';
 	}
 	while (scheduled < minimumDate) {
 		scheduled = nextTaskScheduled({ ...data, scheduled });
@@ -337,11 +350,12 @@ export function taskWindowLabel(data: Pick<TaskData, 'windowStart' | 'windowEnd'
 
 export function taskScheduledLabel(value: string, today: string, todayLabel: string): string {
 	if (!value) return '';
-	if (value === today) return todayLabel;
-	if (!validDate(value) || !validDate(today)) return value;
-	const [year, month, day] = dateParts(value);
+	if (!validTaskSchedule(value) || !validDate(today)) return value;
+	const date = taskScheduledDay(value);
+	const [year, month, day] = dateParts(date);
 	const [currentYear] = dateParts(today);
-	return year === currentYear ? `${month}/${day}` : `${year}/${month}/${day}`;
+	const label = date === today ? todayLabel : year === currentYear ? `${month}/${day}` : `${year}/${month}/${day}`;
+	return label + (value.length > 10 ? ` ${value.slice(11)}` : '');
 }
 
 export function taskWindowState(
@@ -377,7 +391,7 @@ export function taskDraftFromTextLine(line: string): ParsedTaskLine {
 }
 
 export function taskIsScheduledToday(data: Pick<TaskData, 'scheduled' | 'status'>, today: string): boolean {
-	return Boolean(data.scheduled && data.scheduled <= today && !['completed', 'cancelled'].includes(data.status));
+	return Boolean(data.scheduled && taskScheduledDay(data.scheduled) <= today && !['completed', 'cancelled'].includes(data.status));
 }
 
 export function taskNeedsPinnedAttention(data: Pick<TaskData, 'scheduled' | 'pinned' | 'status'>): boolean {

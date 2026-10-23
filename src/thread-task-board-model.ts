@@ -18,6 +18,7 @@ export function compareBoardTasks(left: BoardSortItem, right: BoardSortItem): nu
 	const leftDate = leftEnd || left.task.data.windowStart || left.task.data.scheduled || '9999-99-99';
 	const rightDate = rightEnd || right.task.data.windowStart || right.task.data.scheduled || '9999-99-99';
 	return leftDate.localeCompare(rightDate)
+		|| (left.task.data.scheduled && right.task.data.scheduled ? left.task.data.scheduled.localeCompare(right.task.data.scheduled) : 0)
 		|| left.task.text.localeCompare(right.task.text)
 		|| left.thread.title.localeCompare(right.thread.title);
 }

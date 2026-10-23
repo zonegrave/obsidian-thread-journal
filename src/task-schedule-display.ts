@@ -1,6 +1,6 @@
 import { Notice, setIcon } from 'obsidian';
 import { t } from './i18n';
-import { taskScheduledLabel, type TaskData } from './task-model';
+import { taskScheduledLabel, taskScheduledDay, type TaskData } from './task-model';
 import { taskNextActionLabel, taskRepeatRuleDisplay } from './task-display';
 
 // Scheduling stays primary; repeating schedules expose a separate next-occurrence action.
@@ -8,7 +8,7 @@ export function renderTaskSchedule(parent: HTMLElement, data: TaskData, today: s
 	onNext: () => void | Promise<void>): void {
 	if (!data.scheduled) return;
 	const label = taskScheduledLabel(data.scheduled, today, t('Today'));
-	const overdue = data.scheduled < today && !['completed', 'cancelled'].includes(data.status);
+	const overdue = taskScheduledDay(data.scheduled) < today && !['completed', 'cancelled'].includes(data.status);
 	const title = data.repeat ? `${taskRepeatRuleDisplay(data)} · ${taskNextActionLabel(data, today)}` : t('Scheduled date');
 	const schedule = parent.createSpan({ cls: `thread-journal-task-schedule${overdue ? ' is-overdue' : ''}`, attr: { title } });
 	const icon = schedule.createSpan({ cls: 'thread-journal-task-chip-icon', attr: { 'aria-hidden': 'true' } });

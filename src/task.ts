@@ -247,7 +247,7 @@ class TaskModal extends Modal {
 			.setName(t('Scheduled date'));
 		const trigger = scheduled.controlEl.createEl('button', {
 			cls: 'thread-journal-task-schedule-trigger',
-			text: this.data.scheduled,
+			text: this.data.scheduled.replace('T', ' '),
 			attr: {
 				type: 'button',
 				'aria-expanded': 'false',

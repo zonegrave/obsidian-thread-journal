@@ -1,8 +1,8 @@
 import { migrateTaskSchedule } from '../scripts/task-schedule-migration';
 import { migrateTaskStates } from '../scripts/task-state-migration';
-import { EMPTY_TASK, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
+import { EMPTY_TASK, validTaskSchedule, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
 import { boardTaskLane, compareBoardTasks, groupBoardTasks, taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
-import { dependencyReference, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
+import { dependencyReference, parseDependency, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
 	attentionHint,
 	filterAttentionTasks,
@@ -1971,4 +1971,41 @@ void test('file status filters scope file rows and name search without changing 
  assert.equal(filterThreadTable([row], { ...filters, statuses: ['paused'] }).matchedRows.length, 0);
  assert.equal(filterThreadTable([row], { ...filters, fileStatuses: [] }).fileMatches.get('Alpha')?.size, 0);
  assert.deepEqual(tableFiltersFromState({ fileStatuses: ['active', 'unknown', 'active'] }).fileStatuses, ['active']);
+});
+
+void test('hour schedules round-trip, remain in the daily queue, and reject unsupported precision', () => {
+ const parsed = parseTaskLine('- [ ] Call [task_id:: task-aaaaaaaaaaaa] [scheduled:: 2026-10-22T09:00] [thread_pin:: true]')!;
+ assert.equal(parsed.data.scheduled, '2026-10-22T09:00');
+ assert.equal(parsed.data.pinned, false);
+ assert.equal(taskValidationError(parsed.data), undefined);
+ assert.equal(parseTaskLine(buildTaskLine(parsed.data))?.data.scheduled, parsed.data.scheduled);
+ assert.equal(taskScheduledLabel(parsed.data.scheduled, '2026-10-22', 'Today'), 'Today 09:00');
+ assert.equal(taskScheduledLabel('2027-01-01T00:00', '2026-10-22', 'Today'), '2027/1/1 00:00');
+ assert.equal(taskIsActiveOnBoard(parsed.data, '2026-10-22'), true);
+ assert.equal(taskIsActiveOnBoard(parsed.data, '2026-10-21'), false);
+ assert.equal(matchesTableTask(parsed.data, { ...DEFAULT_TABLE_TASK_FILTERS, scheduledBy: 'today' }, '2026-10-22'), true);
+ assert.throws(() => taskLineWithPin(buildTaskLine(parsed.data), true));
+ for (const value of ['2026-10-22T24:00', '2026-10-22T09:30', '2026-02-30T09:00', '2026-10-22T9:00', '2026-10-22T09:00Z']) assert.equal(validTaskSchedule(value), false);
+ assert.equal(validTaskSchedule('2026-10-22'), true);
+ assert.equal(validTaskSchedule('2026-10-22T23:00'), true);
+});
+
+void test('repeating schedules preserve local hours through skips, month clamps, and completion dependencies', () => {
+ const daily = { ...EMPTY_TASK, taskId: 'task-aaaaaaaaaaaa', repeat: true, scheduled: '2026-03-01T09:00', windowStart: '2026-03-01', windowEnd: '2026-03-02' };
+ const next = advanceTaskData(daily, '2026-03-10')!;
+ assert.equal(next.scheduled, '2026-03-10T09:00');
+ assert.equal(next.windowStart, '2026-03-10');
+ assert.equal(next.windowEnd, '2026-03-11');
+ const monthly = { ...daily, scheduled: '2026-01-31T23:00', repeatFrequency: 'monthly' as const, repeatMonthDay: 31 };
+ assert.equal(advanceTaskData(monthly)?.scheduled, '2026-02-28T23:00');
+ assert.equal(advanceTaskData(monthly, '2026-03-01')?.scheduled, '2026-03-31T23:00');
+ const yearly = { ...monthly, scheduled: '2024-02-29T00:00', repeatFrequency: 'yearly' as const, repeatMonthDay: 29, repeatMonth: 2 };
+ assert.equal(advanceTaskData(yearly)?.scheduled, '2025-02-28T00:00');
+ const ref = dependencyReference(daily);
+ assert.equal(parseDependency(ref)?.occurrence, daily.scheduled);
+ assert.equal(parseDependency('task-aaaaaaaaaaaa@2026-03-01T24:00'), undefined);
+ const completed = advanceTaskData(completeTaskData(daily))!;
+ assert.deepEqual(parseTaskLine(buildTaskLine(completed))?.data.completedOccurrences, [daily.scheduled]);
+ const dependent = { ...EMPTY_TASK, taskId: 'task-bbbbbbbbbbbb', holding: true, holdingFor: [ref] };
+ assert.equal(holdingResult(dependent, new Map([[daily.taskId, [completed]]])), 'ready');
 });

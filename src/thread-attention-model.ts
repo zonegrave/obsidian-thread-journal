@@ -40,7 +40,7 @@ export function taskTextWithoutPin(text: string): string {
 }
 
 export function taskLineWithPin(line: string, pinned: boolean): string {
- if (pinned && /\[scheduled::\s*\d{4}-\d{2}-\d{2}\s*\]/u.test(line)) throw new Error(t('Scheduled tasks cannot be pinned.'));
+ if (pinned && /\[scheduled::\s*\d{4}-\d{2}-\d{2}(?:T\d{2}:00)?\s*\]/u.test(line)) throw new Error(t('Scheduled tasks cannot be pinned.'));
  const withoutPin = line.replace(THREAD_PIN_FIELD, '');
  if (!pinned) return withoutPin;
  const trailingWhitespace = /\s*$/u.exec(withoutPin)?.[0] ?? '';
@@ -93,7 +93,7 @@ export function todoDisposition(marker: string, text: string, now: string): Todo
 	if (dates.some(match => (match[1] ?? '') > today)) return 'future';
 	const windowStart = /\[window_start::\s*(\d{4}-\d{2}-\d{2})\s*\]/u.exec(text)?.[1];
 	if (windowStart && windowStart > today) return 'future';
-	const scheduled = /\[scheduled::\s*(\d{4}-\d{2}-\d{2})\s*\]/u.exec(text)?.[1];
+	const scheduled = /\[scheduled::\s*(\d{4}-\d{2}-\d{2})(?:T\d{2}:00)?\s*\]/u.exec(text)?.[1];
 	if (scheduled && scheduled > today) return 'future';
  // A due date is a deadline, not a reason to postpone starting.
  return 'ready';
