@@ -3310,9 +3310,9 @@
 .thread-journal-table-task-filter-date button[aria-pressed="true"] { color: var(--text-on-accent); background: var(--interactive-accent); }
 .thread-journal-table-filter-hint { color: var(--text-muted); font-size: var(--font-ui-smaller); margin: 8px 0; }
 
-.thread-journal-task-scheduled-hour { margin-top: 10px; color: var(--text-muted); }
-.thread-journal-task-scheduled-hour > summary { cursor: pointer; padding: 6px 8px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); color: var(--text-normal); }
-.thread-journal-task-hour-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
-.thread-journal-task-hour-grid > button { min-width: 0; min-height: 28px; padding: 3px 0; font-size: var(--font-ui-small); font-variant-numeric: tabular-nums; box-shadow: none; }
-.thread-journal-task-hour-grid > button:first-child { grid-column: 1 / -1; }
-.thread-journal-task-hour-grid > button[aria-pressed="true"] { background: var(--interactive-accent); color: var(--text-on-accent); }
+.thread-journal-task-scheduled-hour { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--text-muted); }
+.thread-journal-task-hour-trigger { min-width: 96px; font-variant-numeric: tabular-nums; }
+.thread-journal-task-hour-menu { position: fixed; z-index: calc(var(--layer-menu) + 1); width: 110px; box-sizing: border-box; max-height: 180px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); background: var(--background-primary); box-shadow: var(--shadow-s); }
+.thread-journal-task-hour-menu > button { display: block; width: 100%; min-height: 28px; padding: 4px 8px; border: 0; box-shadow: none; background: transparent; text-align: center; font-variant-numeric: tabular-nums; }
+.thread-journal-task-hour-menu > button:hover { background: var(--background-modifier-hover); }
+.thread-journal-task-hour-menu > button[aria-selected="true"] { background: var(--interactive-accent); color: var(--text-on-accent); }
