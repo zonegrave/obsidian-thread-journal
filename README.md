@@ -245,7 +245,7 @@ order: asc
 
 **Open thread overview** 打开常驻 Overview tab；`thread-overview` 代码块嵌入同一视图。Overview 只负责 thread 层级、状态和所属 Thread Files，不扫描或展示具体任务，也不提供任务范围、今日关注或 Holding queue 控件。Status 默认选择 `active` 与 `dormant`，支持八种状态，必要祖先以淡色结构节点保留。节点标题打开 entry，无 entry 时打开 meta；展开节点显示全部成员文件的名称、图标、角色、入口标记，terminated 文件淡化并标注，仍可打开查看历史。文件列表不受任务内容或 attention_fallback 影响。节点上的文件菜单提供 active 成员快捷入口。**Expand all files / Collapse files** 控制文件列表，节点右侧按钮独立控制子分支。独立视图保留缩放、适应视图、滚动与视角恢复功能；底部工具栏保留状态筛选、文件展开、缩放与刷新。
 
-**Open thread overview table** 打开独立的紧凑树形表格。通过缩进、加粗彩色折线和箭头表达父子关系；分支色按节点固定，搜索或折叠后不变化。默认列为 Status、Thread Files、Child Threads、Tasks、Commits、Logs。Tasks 合并为一列，使用 Open／Committed／Idea／Completed／Cancelled 的图标＋数量按钮；零值隐藏，点击打开同范围的任务明细。默认只显示 Open／Committed／Idea，可在 Tasks 表头筛选器中选择完成或取消状态。各行只统计自身，展开成员行查看文件级数量；点击文件图标打开原文件，点击文件名打开其任务明细。明细沿用 Task Board 的操作，terminated 文件中的任务只读。
+**Open thread overview table** 打开独立的紧凑树形表格。通过缩进、加粗彩色折线和箭头表达父子关系；分支色按节点固定，搜索或折叠后不变化。默认列为 Status、Thread Files、Child Threads、Tasks、Commits、Logs。Tasks 合并为一列，使用 Open／Committed／Idea／Completed／Cancelled 的图标＋数量按钮；零值隐藏，点击打开同范围的任务明细。默认只显示 Open／Committed／Idea，可在 Tasks 表头筛选器中选择完成或取消状态。各行只统计自身，展开成员行查看文件级数量；点击 Thread 名称切换 Root／Focus 并同步底栏 breadcrumb，保留当前筛选；点击文件图标或文件名打开对应笔记，支持 Cmd／Ctrl 新标签。数量按钮继续控制展开或任务明细。明细沿用 Task Board 的操作，terminated 文件中的任务只读。
 
 筛选集成在表头：Thread 搜索名称或文件名；Status 只显示并筛选 Thread 状态；Thread Files 独立多选 active／terminated，同步限制文件数和展开列表，文件状态显示在该列，文件行的 Status 留空。Tasks 统一筛选任务状态，以及 Pin／Schedule／Holding 的不限、是、否。日期分为“执行日不晚于”（必须有排期）和“可执行日期”（排除窗口尚未开始的任务，保留逾期），都可选今天或指定日期，留空不限；条件取交集。任务按钮、文件级任务数、总计和明细都使用过滤后的任务范围；Commit／Log 仍为自身历史统计，文件状态筛选不改变任务或记录范围。启用任务条件后，没有匹配任务的分支隐藏；仅为连接匹配后代而保留的祖先淡化且不显示数量、不参与总计。清除筛选恢复完整树和原折叠状态。Root 通过底栏 breadcrumb 切换，保留其他条件。
 

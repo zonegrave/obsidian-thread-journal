@@ -1,4 +1,4 @@
-import { setIcon, type App, type TFile } from 'obsidian';
+import { setIcon, type App } from 'obsidian';
 import { t } from './i18n';
 import { threadStatusLabel } from './thread-status-model';
 import { ROOT_THREAD_ID } from './thread-root-model';
@@ -14,7 +14,7 @@ export interface TableRowContext {
 	selection?: TableSelection;
 	filesExpanded: boolean;
 	childrenCollapsed: boolean;
-	entry?: TFile;
+	focus: () => void;
 	toggleChildren: () => void;
 	toggleFiles: () => void;
 	select: (selection: TableSelection) => void;
@@ -98,12 +98,9 @@ export function renderTableThreadRow(parent: HTMLElement, item: ThreadTableTreeR
 	toggle.style.setProperty('--thread-branch-color', branchColor(data.thread.id));
 	if (item.node.children.length) setIcon(toggle, context.childrenCollapsed ? 'chevron-right' : 'chevron-down');
 	toggle.addEventListener('click', event => { event.stopPropagation(); context.toggleChildren(); });
-	const target = context.entry ?? data.thread.file;
-	const link = name.createEl('a', { text: data.thread.title, href: target.path, attr: { title: data.thread.title } });
-	link.addEventListener('click', event => {
-		event.preventDefault(); event.stopPropagation();
-		void context.app.workspace.openLinkText(target.path, '', event.metaKey || event.ctrlKey);
-	});
+	const focus = name.createEl('button', { cls: 'thread-journal-table-thread-focus', text: data.thread.title,
+		attr: { type: 'button', title: t('Focus this thread'), 'aria-label': `${t('Focus this thread')}: ${data.thread.title}` } });
+	focus.addEventListener('click', event => { event.stopPropagation(); context.focus(); });
 	values(row, data.counts, threadStatusLabel(data.thread.status), context, select);
 }
 
@@ -124,8 +121,11 @@ export function renderTableFileRows(parent: HTMLElement, item: ThreadTableTreeRo
 			event.stopPropagation();
 			void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
 		});
-		const title = name.createEl('button', { cls: 'thread-journal-table-file-title', text: member.file.basename, attr: { type: 'button', title: member.file.path } });
-		title.addEventListener('click', event => { event.stopPropagation(); select('all'); });
+		const title = name.createEl('a', { cls: 'thread-journal-table-file-title', text: member.file.basename, href: member.file.path, attr: { title: member.file.path } });
+		title.addEventListener('click', event => {
+			event.preventDefault(); event.stopPropagation();
+			void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
+		});
 		name.createSpan({ cls: 'thread-journal-table-role', text: member.role });
 		values(row, file.counts, t(member.roleStatus === 'terminated' ? 'Terminated' : 'Active'), context, select, true);
 	}

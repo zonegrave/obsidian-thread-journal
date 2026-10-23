@@ -1361,7 +1361,8 @@
 
 .thread-journal-table-name > a:hover { text-decoration: underline; }
 
-.thread-journal-table-file-title {
+.thread-journal-table-file-title,
+.thread-journal-table-thread-focus {
 	min-width: 0;
 	padding: 0;
 	overflow: hidden;
@@ -3272,7 +3273,7 @@
 .thread-journal-table-filter-popover label { display: flex; align-items: center; gap: 6px; }
 .thread-journal-table-filter-popover input[type="search"] { width: 100%; min-width: 0; }
 .thread-journal-table-filter-hint { color: var(--text-muted); font-size: var(--font-ui-smaller); }
-.thread-journal-thread-table .is-context .thread-journal-table-name > a { color: var(--text-muted); }
+.thread-journal-thread-table .is-context .thread-journal-table-thread-focus { color: var(--text-muted); }
 .thread-journal-table-total-wrap td { border-top: 1px solid var(--background-modifier-border); background: var(--background-secondary); font-weight: var(--font-semibold); }
 .thread-journal-table-total-wrap td:first-child { background: var(--background-secondary); }
 .thread-journal-table-breadcrumbs { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; gap: 1px; overflow-x: auto; scrollbar-width: none; }
@@ -3316,3 +3317,6 @@
 .thread-journal-task-hour-menu > button { display: block; width: 100%; min-height: 28px; padding: 4px 8px; border: 0; box-shadow: none; background: transparent; text-align: center; font-variant-numeric: tabular-nums; }
 .thread-journal-task-hour-menu > button:hover { background: var(--background-modifier-hover); }
 .thread-journal-task-hour-menu > button[aria-selected="true"] { background: var(--interactive-accent); color: var(--text-on-accent); }
+
+.thread-journal-table-thread-focus { cursor: pointer; }
+.thread-journal-table-thread-focus:hover { text-decoration: underline; }

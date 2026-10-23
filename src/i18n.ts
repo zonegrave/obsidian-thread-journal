@@ -3,6 +3,7 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'Focus this thread': '聚焦此 Thread',
 	'All day': '全天',
 	'Scheduled hour': '执行小时',
 	'Yes': '是',

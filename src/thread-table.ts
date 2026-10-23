@@ -2,6 +2,7 @@ import { App, ItemView, Notice, moment, setIcon, type ViewStateResult, type Work
 import type { ThreadIndex } from './thread-index';
 import type { TaskManager } from './task';
 import { LANGUAGE_CHANGE_EVENT, t } from './i18n';
+import { ROOT_THREAD_ID } from './thread-root-model';
 import { filterThreadTable, tableFiltersFromState, tableHasConditions, DEFAULT_TABLE_FILTERS } from './thread-table-filter-model';
 import { renderTableHeader, type TableFilterUI } from './thread-table-header';
 import { createThreadTableGrid } from './thread-table-grid';
@@ -147,7 +148,7 @@ export class ThreadTableView extends ItemView {
 			const context = {
 				contextOnly: item.node.contextOnly, app: this.app, columns: columns.map(column => column.key), selection: this.selection,
 				filesExpanded: !item.node.contextOnly && (projection.fileMatches.has(data.thread.id) ? !this.filterFilesCollapsed.has(data.thread.id) : this.expandedFiles.has(data.thread.id)), childrenCollapsed: effectiveCollapsed.has(data.thread.id),
-				entry: this.index.getEntry(data.thread.file),
+				focus: () => this.focusThread(data.thread.id === ROOT_THREAD_ID ? '' : data.thread.id),
 				toggleChildren: () => this.toggle(data.thread.id),
 				toggleFiles: () => this.toggleFiles(data.thread.id),
 				select: (selection: TableSelection) => this.select(selection),
@@ -177,6 +178,13 @@ export class ThreadTableView extends ItemView {
 			input?.focus();
 			if (input && focus.start !== null && focus.end !== null) input.setSelectionRange(focus.start, focus.end);
 		}
+	}
+
+	private focusThread(root: string): void {
+		this.selection = undefined;
+		const scroll = this.contentEl.querySelector('.thread-journal-table-scroll');
+		if (scroll) scroll.scrollTop = 0;
+		this.changeFilters({ ...this.filters, root });
 	}
 
 	private changeFilters(filters: typeof this.filters): void {
@@ -213,7 +221,7 @@ export class ThreadTableView extends ItemView {
 
 	private renderFooter(branchIds: string[]): void {
 		const footer = this.contentEl.createDiv({ cls: 'thread-journal-view-bottom-bar thread-journal-table-footer' });
-		renderTableRootBreadcrumb(footer, this.rows, this.filters.root, root => this.changeFilters({ ...this.filters, root }));
+		renderTableRootBreadcrumb(footer, this.rows, this.filters.root, root => this.focusThread(root));
 		for (const expand of [true, false]) {
 			const button = footer.createEl('button', { text: t(expand ? 'Expand all threads' : 'Collapse all threads') });
 			button.addEventListener('click', () => {
