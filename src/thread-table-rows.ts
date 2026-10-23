@@ -126,7 +126,6 @@ export function renderTableFileRows(parent: HTMLElement, item: ThreadTableTreeRo
 			event.preventDefault(); event.stopPropagation();
 			void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
 		});
-		name.createSpan({ cls: 'thread-journal-table-role', text: member.role });
 		values(row, file.counts, t(member.roleStatus === 'terminated' ? 'Terminated' : 'Active'), context, select, true);
 	}
 	if (!data.files.length) {
