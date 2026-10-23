@@ -16,7 +16,7 @@ class TaskWindowPopover {
 	private draftStart: string;
 	private draftEnd: string;
 	private startMonth = moment().startOf('month');
-	private endMonth = moment().add(1, 'month').startOf('month');
+	private endMonth = moment().startOf('month');
 	private closed = false;
 
 	constructor(
@@ -31,9 +31,7 @@ class TaskWindowPopover {
 		this.draftStart = start;
 		this.draftEnd = end;
 		this.startMonth = moment(validDate(start) ? start : undefined).startOf('month');
-		this.endMonth = moment(
-			validDate(end) ? end : this.startMonth.clone().add(1, 'month'),
-		).startOf('month');
+		this.endMonth = moment(validDate(end) ? end : undefined).startOf('month');
 		this.popover = this.doc.body.createDiv({ cls: 'thread-journal-task-window-popover' });
 		this.render();
 		this.doc.addEventListener('pointerdown', this.handleOutsidePointer, true);
