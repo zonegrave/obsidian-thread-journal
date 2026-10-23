@@ -1,6 +1,6 @@
 import { validDate, taskScheduledDay, taskScheduleReached, type TaskData, type TaskStatus } from './task-model';
 
-export const TABLE_TASK_STATES: TaskStatus[] = ['open', 'committed', 'idea', 'completed', 'cancelled'];
+export const TABLE_TASK_STATES: TaskStatus[] = ['open', 'committed', 'idea', 'cancelled', 'completed'];
 export type TableTaskFlag = 'any' | 'yes' | 'no';
 export interface TableTaskFilters {
 	states: TaskStatus[] | null;

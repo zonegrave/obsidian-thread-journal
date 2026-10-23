@@ -16,6 +16,6 @@ export const TABLE_TASK_BUTTONS: { key: TaskStatus; label: TranslationKey; icon:
 	{ key: 'open', label: 'Open', icon: 'circle' },
 	{ key: 'committed', label: 'Committed', icon: 'circle-dot' },
 	{ key: 'idea', label: 'Idea', icon: 'lightbulb' },
-	{ key: 'completed', label: 'Completed', icon: 'circle-check' },
 	{ key: 'cancelled', label: 'Cancelled', icon: 'circle-minus' },
+	{ key: 'completed', label: 'Completed', icon: 'circle-check' },
 ];

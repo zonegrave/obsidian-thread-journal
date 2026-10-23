@@ -1,3 +1,4 @@
+import { compareExplorerTasks } from '../src/thread-tree-task-order';
 import { migrateTaskSchedule } from '../scripts/task-schedule-migration';
 import { migrateTaskStates } from '../scripts/task-state-migration';
 import { EMPTY_TASK, taskScheduleReached, validTaskSchedule, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
@@ -2035,4 +2036,18 @@ void test('scheduled tasks become visible exactly at their local scheduled hour'
  assert.equal(filterThreadTable([row], treeFilters, reached).matchedRows[0]?.counts.scheduled, 1);
  assert.equal(todoDisposition(' ', 'Task [scheduled:: 2026-10-22T09:00]', '2026-10-22 08:59'), 'future');
  assert.equal(todoDisposition(' ', 'Task [scheduled:: 2026-10-22T09:00]', '2026-10-22 09:00'), 'ready');
+});
+
+void test('explorer task order prioritizes pinned Open then states before deadlines', () => {
+ const item = (content: string, data: Partial<typeof EMPTY_TASK>) => ({ task: { text: content, data: { ...EMPTY_TASK, content, ...data } }, thread: { title: 'Thread' } });
+ const tasks = [item('done', { status: 'completed', windowEnd: '2026-01-01', pinned: true }),
+  item('idea', { status: 'idea', pinned: true }), item('open', { windowEnd: '2026-01-01' }),
+  item('cancelled', { status: 'cancelled' }), item('committed', { status: 'committed' }),
+  item('pin', { pinned: true, windowEnd: '2026-12-01' })];
+ assert.deepEqual(tasks.sort(compareExplorerTasks).map(item => item.task.text), ['pin', 'open', 'committed', 'idea', 'cancelled', 'done']);
+ const within = [item('no deadline', {}), item('late', { windowEnd: '2026-12-01' }), item('early held', { windowEnd: '2026-10-01', holding: true })];
+ assert.deepEqual(within.sort(compareExplorerTasks).map(item => item.task.text), ['early held', 'late', 'no deadline']);
+ const scheduled = item('scheduled', { scheduled: '2026-10-22T09:00', pinned: true });
+ assert.ok(compareExplorerTasks(item('pin', { pinned: true }), scheduled) < 0);
+ assert.ok(compareExplorerTasks(item('early', { windowEnd: '2026-01-01' }), scheduled) < 0);
 });

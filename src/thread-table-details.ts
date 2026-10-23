@@ -6,7 +6,7 @@ import type { ThreadTableRow } from './thread-table-data';
 import type { TableSelection } from './thread-table-rows';
 import { tableTaskMatches } from './thread-table-model';
 import { uniqueTableTasks } from './thread-table-total-model';
-import { compareBoardTasks } from './thread-task-board-model';
+import { compareExplorerTasks } from './thread-tree-task-order';
 import { TABLE_TASK_BUTTONS } from './thread-table-columns';
 
 export function renderTableTaskDetails(parent: HTMLElement, rows: ThreadTableRow[], selection: TableSelection, context: {
@@ -24,7 +24,7 @@ export function renderTableTaskDetails(parent: HTMLElement, rows: ThreadTableRow
 	setIcon(close, 'x'); close.addEventListener('click', context.onClose);
 	const tasks = uniqueTableTasks(row ? [row] : rows).filter(({ task }) => (!selection.filePath || task.file.path === selection.filePath)
 		&& tableTaskMatches(task.data, selection.filter, true, moment().format('YYYY-MM-DDTHH:mm')))
-		.sort(compareBoardTasks);
+		.sort(compareExplorerTasks);
 	const list = panel.createDiv({ cls: 'thread-journal-table-details-list' });
 	if (!tasks.length) list.createDiv({ cls: 'thread-journal-empty', text: t('No tasks in this state.') });
 	const groups = new Map<string, typeof tasks>();
