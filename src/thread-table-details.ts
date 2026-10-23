@@ -23,7 +23,7 @@ export function renderTableTaskDetails(parent: HTMLElement, rows: ThreadTableRow
 	const close = header.createEl('button', { cls: 'clickable-icon', attr: { type: 'button', 'aria-label': t('Close') } });
 	setIcon(close, 'x'); close.addEventListener('click', context.onClose);
 	const tasks = uniqueTableTasks(row ? [row] : rows).filter(({ task }) => (!selection.filePath || task.file.path === selection.filePath)
-		&& tableTaskMatches(task.data, selection.filter, true, moment().format('YYYY-MM-DD')))
+		&& tableTaskMatches(task.data, selection.filter, true, moment().format('YYYY-MM-DDTHH:mm')))
 		.sort(compareBoardTasks);
 	const list = panel.createDiv({ cls: 'thread-journal-table-details-list' });
 	if (!tasks.length) list.createDiv({ cls: 'thread-journal-empty', text: t('No tasks in this state.') });

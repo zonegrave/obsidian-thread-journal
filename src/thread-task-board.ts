@@ -173,7 +173,7 @@ export class ThreadTaskBoardView extends ItemView {
 
 	private render(): void {
 		if (this.draggedTask || this.savingDrop) return;
-		const tasks = collectBoardTasks(this.rows, moment().format('YYYY-MM-DD'));
+		const tasks = collectBoardTasks(this.rows, moment().format('YYYY-MM-DDTHH:mm'));
 		this.contentEl.empty();
 		const board = this.contentEl.createDiv({ cls: 'thread-journal-task-board' });
 		const footer = this.contentEl.createDiv({
@@ -199,7 +199,7 @@ export class ThreadTaskBoardView extends ItemView {
 
 	private renderBoard(board: HTMLElement, tasks: BoardTask[]): void {
 		board.empty();
-		const today = moment().format('YYYY-MM-DD');
+		const today = moment().format('YYYY-MM-DDTHH:mm');
 		const pinned = tasks.filter(item => boardTaskLane(item.task.data, today) === 'pinned');
 		const scheduled = tasks.filter(item => boardTaskLane(item.task.data, today) === 'scheduled');
 		this.renderPriorityColumn(board, pinned, scheduled);

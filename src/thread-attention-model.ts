@@ -1,3 +1,4 @@
+import { taskScheduleReached } from './task-model';
 import { t } from './i18n';
 
 export type TodoDisposition = 'ready' | 'future' | 'holding' | 'idea' | 'committed' | 'unknown';
@@ -93,8 +94,8 @@ export function todoDisposition(marker: string, text: string, now: string): Todo
 	if (dates.some(match => (match[1] ?? '') > today)) return 'future';
 	const windowStart = /\[window_start::\s*(\d{4}-\d{2}-\d{2})\s*\]/u.exec(text)?.[1];
 	if (windowStart && windowStart > today) return 'future';
-	const scheduled = /\[scheduled::\s*(\d{4}-\d{2}-\d{2})(?:T\d{2}:00)?\s*\]/u.exec(text)?.[1];
-	if (scheduled && scheduled > today) return 'future';
+	const scheduled = /\[scheduled::\s*(\d{4}-\d{2}-\d{2}(?:T\d{2}:00)?)\s*\]/u.exec(text)?.[1];
+	if (scheduled && !taskScheduleReached(scheduled, now)) return 'future';
  // A due date is a deadline, not a reason to postpone starting.
  return 'ready';
 }

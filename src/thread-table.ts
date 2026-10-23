@@ -88,7 +88,7 @@ export class ThreadTableView extends ItemView {
 	private async refresh(): Promise<void> {
 		const request = ++this.request;
 		try {
-			const rows = await collectThreadTable(this.app, this.index, moment().format('YYYY-MM-DD'));
+			const rows = await collectThreadTable(this.app, this.index, moment().format('YYYY-MM-DDTHH:mm'));
 			if (!this.opened || request !== this.request) return;
 			this.rows = rows;
 			if (this.filters.root && !rows.some(row => row.thread.id === this.filters.root)) this.filters.root = '';
@@ -121,7 +121,7 @@ export class ThreadTableView extends ItemView {
 		} : undefined;
 		this.disposeGrid?.(); this.disposeHeader?.();
 		this.contentEl.empty();
-		const projection = filterThreadTable(this.rows, this.filters, moment().format('YYYY-MM-DD'));
+		const projection = filterThreadTable(this.rows, this.filters, moment().format('YYYY-MM-DDTHH:mm'));
 		const tree = projection.tree;
 		const matchingIds = new Set(projection.matchedRows.map(row => row.thread.id));
 		const searching = tableHasConditions(this.filters);
@@ -160,7 +160,7 @@ export class ThreadTableView extends ItemView {
 			}
 		}
 		if (!visible.length) body.createEl('tr').createEl('td', { cls: 'thread-journal-empty', text: t('No threads match the filters.'), attr: { colspan: String(columns.length + 1) } });
-		renderTableTotalRow(grid.total, totalThreadTable(projection.matchedRows, moment().format('YYYY-MM-DD')), columns.map(column => column.key), selection => this.select(selection));
+		renderTableTotalRow(grid.total, totalThreadTable(projection.matchedRows, moment().format('YYYY-MM-DDTHH:mm')), columns.map(column => column.key), selection => this.select(selection));
 		if (this.selection) renderTableTaskDetails(main, projection.matchedRows, this.selection, {
 			app: this.app, taskManager: this.taskManager,
 			onClose: () => { this.selection = undefined; this.render(); },
@@ -201,7 +201,7 @@ export class ThreadTableView extends ItemView {
 	}
 
 	private toggleFiles(id: string): void {
-		const automatic = filterThreadTable(this.rows, this.filters, moment().format('YYYY-MM-DD')).fileMatches.has(id);
+		const automatic = filterThreadTable(this.rows, this.filters, moment().format('YYYY-MM-DDTHH:mm')).fileMatches.has(id);
 		if (automatic) {
 			if (this.filterFilesCollapsed.has(id)) this.filterFilesCollapsed.delete(id);
 			else this.filterFilesCollapsed.add(id);

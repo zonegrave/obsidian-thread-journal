@@ -390,8 +390,15 @@ export function taskDraftFromTextLine(line: string): ParsedTaskLine {
 	};
 }
 
-export function taskIsScheduledToday(data: Pick<TaskData, 'scheduled' | 'status'>, today: string): boolean {
-	return Boolean(data.scheduled && taskScheduledDay(data.scheduled) <= today && !['completed', 'cancelled'].includes(data.status));
+// Date-only schedules become available at local midnight; hourly ones at the selected hour.
+export function taskScheduleReached(scheduled: string, now: string): boolean {
+ if (!validTaskSchedule(scheduled)) return false;
+ const boundary = now.replace(' ', 'T');
+ return scheduled <= (boundary.length === 10 ? `${boundary}T00:00` : boundary);
+}
+
+export function taskIsScheduledToday(data: Pick<TaskData, 'scheduled' | 'status'>, now: string): boolean {
+ return taskScheduleReached(data.scheduled, now) && !['completed', 'cancelled'].includes(data.status);
 }
 
 export function taskNeedsPinnedAttention(data: Pick<TaskData, 'scheduled' | 'pinned' | 'status'>): boolean {

@@ -1,4 +1,4 @@
-import { validDate, taskScheduledDay, type TaskData, type TaskStatus } from './task-model';
+import { validDate, taskScheduledDay, taskScheduleReached, type TaskData, type TaskStatus } from './task-model';
 
 export const TABLE_TASK_STATES: TaskStatus[] = ['open', 'committed', 'idea', 'completed', 'cancelled'];
 export type TableTaskFlag = 'any' | 'yes' | 'no';
@@ -23,11 +23,13 @@ export function tableTaskFilterActive(filters: TableTaskFilters): boolean {
 }
 export function matchesTableTask(data: TaskData, filters: TableTaskFilters, today: string): boolean {
 	if (!(filters.states ?? ['open', 'committed', 'idea']).includes(data.status)) return false;
+	if (data.scheduled && !filters.scheduledBy && !taskScheduleReached(data.scheduled, today)) return false;
 	const flag = (filter: TableTaskFlag, value: boolean): boolean => filter === 'any' || value === (filter === 'yes');
 	if (!flag(filters.pin, data.pinned) || !flag(filters.scheduled, Boolean(data.scheduled)) || !flag(filters.holding, data.holding)) return false;
-	const due = filters.scheduledBy === 'today' ? today : filters.scheduledBy;
+	if (filters.scheduledBy === 'today' && !taskScheduleReached(data.scheduled, today)) return false;
+	const due = filters.scheduledBy === 'today' ? today.slice(0, 10) : filters.scheduledBy;
 	if (due && (!data.scheduled || taskScheduledDay(data.scheduled) > due)) return false;
-	const window = filters.windowOn === 'today' ? today : filters.windowOn;
+	const window = filters.windowOn === 'today' ? today.slice(0, 10) : filters.windowOn;
 	// Keep overdue tasks visible; only a future window start excludes an unfinished task.
 	if (window && data.windowStart && data.windowStart > window) return false;
 	return true;

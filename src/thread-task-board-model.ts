@@ -46,7 +46,7 @@ export function taskIsActiveOnBoard(data: TaskData, today: string): boolean {
 	if (!['open', 'committed', 'idea'].includes(data.status)) return false;
 	if (data.scheduled) return taskIsScheduledToday(data, today);
 	if (taskNeedsPinnedAttention(data)) return true;
-	return taskWindowState(data, today) !== 'upcoming';
+	return taskWindowState(data, today.slice(0, 10)) !== 'upcoming';
 }
 
 export function boardTaskLane(data: TaskData, today: string): 'pinned' | 'scheduled' | 'decision' | undefined {

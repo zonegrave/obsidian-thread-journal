@@ -1,6 +1,6 @@
 import { migrateTaskSchedule } from '../scripts/task-schedule-migration';
 import { migrateTaskStates } from '../scripts/task-state-migration';
-import { EMPTY_TASK, validTaskSchedule, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
+import { EMPTY_TASK, taskScheduleReached, validTaskSchedule, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
 import { boardTaskLane, compareBoardTasks, groupBoardTasks, taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
 import { dependencyReference, parseDependency, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
@@ -1981,9 +1981,9 @@ void test('hour schedules round-trip, remain in the daily queue, and reject unsu
  assert.equal(parseTaskLine(buildTaskLine(parsed.data))?.data.scheduled, parsed.data.scheduled);
  assert.equal(taskScheduledLabel(parsed.data.scheduled, '2026-10-22', 'Today'), 'Today 09:00');
  assert.equal(taskScheduledLabel('2027-01-01T00:00', '2026-10-22', 'Today'), '2027/1/1 00:00');
- assert.equal(taskIsActiveOnBoard(parsed.data, '2026-10-22'), true);
+ assert.equal(taskIsActiveOnBoard(parsed.data, '2026-10-22T09:00'), true);
  assert.equal(taskIsActiveOnBoard(parsed.data, '2026-10-21'), false);
- assert.equal(matchesTableTask(parsed.data, { ...DEFAULT_TABLE_TASK_FILTERS, scheduledBy: 'today' }, '2026-10-22'), true);
+ assert.equal(matchesTableTask(parsed.data, { ...DEFAULT_TABLE_TASK_FILTERS, scheduledBy: 'today' }, '2026-10-22T09:00'), true);
  assert.throws(() => taskLineWithPin(buildTaskLine(parsed.data), true));
  for (const value of ['2026-10-22T24:00', '2026-10-22T09:30', '2026-02-30T09:00', '2026-10-22T9:00', '2026-10-22T09:00Z']) assert.equal(validTaskSchedule(value), false);
  assert.equal(validTaskSchedule('2026-10-22'), true);
@@ -2008,4 +2008,31 @@ void test('repeating schedules preserve local hours through skips, month clamps,
  assert.deepEqual(parseTaskLine(buildTaskLine(completed))?.data.completedOccurrences, [daily.scheduled]);
  const dependent = { ...EMPTY_TASK, taskId: 'task-bbbbbbbbbbbb', holding: true, holdingFor: [ref] };
  assert.equal(holdingResult(dependent, new Map([[daily.taskId, [completed]]])), 'ready');
+});
+
+void test('scheduled tasks become visible exactly at their local scheduled hour', () => {
+ const task = { ...EMPTY_TASK, scheduled: '2026-10-22T09:00' };
+ const before = '2026-10-22T08:59'; const reached = '2026-10-22T09:00';
+ assert.equal(taskScheduleReached(task.scheduled, before), false);
+ assert.equal(taskScheduleReached(task.scheduled, reached), true);
+ assert.equal(taskIsActiveOnBoard(task, before), false);
+ assert.equal(boardTaskLane(task, before), undefined);
+ assert.equal(boardTaskLane(task, reached), 'scheduled');
+ assert.equal(boardTaskLane(task, '2026-10-23T00:00'), 'scheduled');
+ assert.equal(taskIsActiveOnBoard({ ...task, scheduled: '2026-10-22' }, '2026-10-22T00:00'), true);
+ assert.equal(taskIsActiveOnBoard({ ...task, scheduled: '2026-10-22T00:00' }, '2026-10-22T00:00'), true);
+ assert.equal(taskIsActiveOnBoard({ ...task, status: 'completed' }, reached), false);
+ assert.equal(taskIsActiveOnBoard({ ...task, scheduled: '' }, before), true);
+ const filters = { ...DEFAULT_TABLE_TASK_FILTERS, scheduledBy: 'today' };
+ assert.equal(matchesTableTask(task, DEFAULT_TABLE_TASK_FILTERS, before), false);
+ assert.equal(matchesTableTask(task, DEFAULT_TABLE_TASK_FILTERS, reached), true);
+ assert.equal(matchesTableTask(task, filters, before), false);
+ assert.equal(matchesTableTask(task, filters, reached), true);
+ assert.equal(matchesTableTask(task, { ...filters, scheduledBy: '2026-10-22' }, before), true);
+ const row = tableFixtureRow('Hourly'); addTableTask(row, task);
+ const treeFilters = { ...DEFAULT_TABLE_FILTERS, tasks: filters };
+ assert.equal(filterThreadTable([row], treeFilters, before).matchedRows.length, 0);
+ assert.equal(filterThreadTable([row], treeFilters, reached).matchedRows[0]?.counts.scheduled, 1);
+ assert.equal(todoDisposition(' ', 'Task [scheduled:: 2026-10-22T09:00]', '2026-10-22 08:59'), 'future');
+ assert.equal(todoDisposition(' ', 'Task [scheduled:: 2026-10-22T09:00]', '2026-10-22 09:00'), 'ready');
 });
