@@ -3192,9 +3192,6 @@
 .thread-journal-table-pane { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .thread-journal-table-pane > .thread-journal-table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
 
-.thread-journal-table-header-filter { width: 22px; height: 22px; padding: 3px; flex: 0 0 22px; }
-.thread-journal-table-header-filter svg { width: 14px; height: 14px; }
-.thread-journal-table-header-filter.is-active { color: var(--text-accent); background: var(--background-modifier-hover); }
 .thread-journal-table-filter-popover {
 	position: absolute; z-index: var(--layer-popover); display: grid; gap: 8px; min-width: 210px; max-width: calc(100% - 8px);
 	box-sizing: border-box; overflow-y: auto; padding: 10px; border: 1px solid var(--background-modifier-border);
@@ -3279,14 +3276,17 @@
 .thread-journal-tree-task .thread-journal-overview-task-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .thread-journal-tree-total { flex: 0 0 auto; border-top: 1px solid var(--background-modifier-border); background: var(--background-secondary); padding: 4px 12px; }
 .thread-journal-tree-summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 24px; font-size: var(--font-ui-small); }
-.thread-journal-tree-filters { display: flex; align-items: center; gap: 3px; flex: 0 0 auto; }
-.thread-journal-tree-filters > button { display: inline-flex; gap: 4px; align-items: center; min-height: 24px; padding: 2px 5px; font-size: var(--font-ui-smaller); }
+.thread-journal-tree-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; flex: 0 1 auto; min-width: 0; }
+.thread-journal-tree-filters > .thread-journal-tree-filter-button { display: inline-flex; flex: 0 0 auto; width: max-content; min-width: max-content; gap: 4px; align-items: center; justify-content: center; height: 24px; min-height: 24px; padding: 2px 6px; white-space: nowrap; line-height: 1.2; font-size: var(--font-ui-smaller); }
 .thread-journal-tree-filter-icon { display: inline-flex; }
 .thread-journal-tree-filter-icon svg { width: 13px; height: 13px; }
-.thread-journal-explorer .thread-journal-table-footer { flex-wrap: wrap; }
-.thread-journal-explorer .thread-journal-table-breadcrumbs { min-width: 90px; }
+.thread-journal-explorer .thread-journal-table-footer { height: auto; min-height: 30px; flex-wrap: wrap; gap: 4px 8px; }
+.thread-journal-explorer .thread-journal-table-breadcrumbs { flex: 1 1 160px; min-width: 120px; }
 
-.thread-journal-tree-filters > button.clickable-icon { width: auto; height: 24px; min-width: 24px; padding: 2px 5px; }
+.thread-journal-tree-filters > .thread-journal-tree-filter-clear { flex: 0 0 24px; width: 24px; min-width: 24px; padding: 4px; }
+.thread-journal-tree-filter-button.is-active { color: var(--text-accent); background: var(--background-modifier-hover); border-radius: var(--radius-s); }
+.thread-journal-tree-footer-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; margin-left: auto; }
+.thread-journal-tree-footer-actions > .clickable-icon { flex: 0 0 24px; }
 
 /* Shared task rows keep effort and the other compact details beside the title. */
 .thread-journal-overview-task:not(.thread-journal-overview-fallback) {

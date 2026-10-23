@@ -15,13 +15,13 @@ export function renderTreeFilters(toolbar: HTMLElement, host: HTMLElement, rows:
 	for (const key of ['query', 'status', 'files', 'tasks'] as const) {
 		const active = key === 'query' ? Boolean(filters.query.trim()) : key === 'tasks' ? tableTaskFilterActive(filters.tasks) : key === 'files' ? filters.fileStatuses !== null : filters.statuses !== null;
 		const label = key === 'query' ? `${t('Search thread or file name…')} ${filters.query}` : key === 'tasks' ? t('Tasks') : key === 'files' ? `${t('Thread files')} · ${filters.fileStatuses?.map(value => t(value === 'active' ? 'Active' : 'Terminated')).join(', ') ?? t('All statuses')}` : `${t('Status')} ${filters.statuses?.map(threadStatusLabel).join(', ') ?? ''}`;
-		const button = controls.createEl('button', { cls: `clickable-icon thread-journal-table-header-filter${active ? ' is-active' : ''}`, attr: { type: 'button', title: label, 'aria-label': label, 'aria-expanded': String(ui.menu === key) } });
+		const button = controls.createEl('button', { cls: `thread-journal-tree-filter-button${active ? ' is-active' : ''}`, attr: { type: 'button', title: label, 'aria-label': label, 'aria-expanded': String(ui.menu === key) } });
 		setIcon(button.createSpan({ cls: 'thread-journal-tree-filter-icon' }), key === 'query' ? 'search' : 'list-filter');
 		button.createSpan({ text: t(key === 'query' ? 'Search' : key === 'status' ? 'Status' : key === 'files' ? 'Thread files' : 'Tasks') });
 		button.addEventListener('click', () => { ui.menu = ui.menu === key ? undefined : key; render(); });
 		triggers[key] = button;
 	}
-	const clear = controls.createEl('button', { cls: 'clickable-icon thread-journal-table-header-filter', attr: { type: 'button', 'aria-label': t('Clear filters'), title: t('Clear filters') } });
+	const clear = controls.createEl('button', { cls: 'clickable-icon thread-journal-tree-filter-clear', attr: { type: 'button', 'aria-label': t('Clear filters'), title: t('Clear filters') } });
 	setIcon(clear, 'filter-x');
 	clear.addEventListener('click', () => change({ ...DEFAULT_TABLE_FILTERS, root: filters.root }));
 	const trigger = ui.menu ? triggers[ui.menu] : undefined;

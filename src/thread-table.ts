@@ -218,8 +218,11 @@ export class ThreadTableView extends ItemView {
 		const footer = this.contentEl.createDiv({ cls: 'thread-journal-view-bottom-bar thread-journal-table-footer' });
 		this.disposeHeader = renderTreeFilters(footer, this.contentEl, this.rows, this.filters, this.filterUI, filters => this.changeFilters(filters), () => this.render());
 		renderTableRootBreadcrumb(footer, this.rows, this.filters.root, root => this.focusThread(root));
+		const actions = footer.createDiv({ cls: 'thread-journal-tree-footer-actions' });
 		for (const expand of [true, false]) {
-			const button = footer.createEl('button', { text: t(expand ? 'Expand all threads' : 'Collapse all threads') });
+			const label = t(expand ? 'Expand all threads' : 'Collapse all threads');
+			const button = actions.createEl('button', { cls: 'clickable-icon', attr: { type: 'button', title: label, 'aria-label': label } });
+			setIcon(button, expand ? 'unfold-vertical' : 'fold-vertical');
 			button.addEventListener('click', () => {
 				if (tableHasConditions(this.filters)) this.filterCollapsed = new Set(expand ? [] : branchIds);
 				else this.collapsed = new Set(expand ? [] : branchIds);
@@ -228,7 +231,7 @@ export class ThreadTableView extends ItemView {
 				this.saveLayout();
 			});
 		}
-		const menu = footer.createEl('details', { cls: 'thread-journal-overview-filter-menu thread-journal-table-fields' });
+		const menu = actions.createEl('details', { cls: 'thread-journal-overview-filter-menu thread-journal-table-fields' });
 		menu.open = this.fieldsOpen;
 		menu.addEventListener('toggle', () => { this.fieldsOpen = menu.open; });
 		const summary = menu.createEl('summary', { cls: 'thread-journal-overview-filter-summary', text: t('Fields') });
@@ -249,7 +252,7 @@ export class ThreadTableView extends ItemView {
 		}
 		const reset = panel.createEl('button', { text: t('Reset child order'), attr: { type: 'button', title: t('Reset child order') } });
 		reset.addEventListener('click', () => { void this.drag?.reset(this.filters.root || ROOT_THREAD_ID); });
-		const refresh = footer.createEl('button', { cls: 'clickable-icon', attr: { type: 'button', 'aria-label': t('Refresh') } });
+		const refresh = actions.createEl('button', { cls: 'clickable-icon', attr: { type: 'button', 'aria-label': t('Refresh') } });
 		setIcon(refresh, 'refresh-cw');
 		refresh.addEventListener('click', () => { void this.refresh(); });
 	}
