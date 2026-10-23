@@ -3310,5 +3310,9 @@
 .thread-journal-table-task-filter-date button[aria-pressed="true"] { color: var(--text-on-accent); background: var(--interactive-accent); }
 .thread-journal-table-filter-hint { color: var(--text-muted); font-size: var(--font-ui-smaller); margin: 8px 0; }
 
-.thread-journal-task-scheduled-hour { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--text-muted); }
-.thread-journal-task-scheduled-hour select { min-width: 110px; }
+.thread-journal-task-scheduled-hour { margin-top: 10px; color: var(--text-muted); }
+.thread-journal-task-scheduled-hour > summary { cursor: pointer; padding: 6px 8px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); color: var(--text-normal); }
+.thread-journal-task-hour-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+.thread-journal-task-hour-grid > button { min-width: 0; min-height: 28px; padding: 3px 0; font-size: var(--font-ui-small); font-variant-numeric: tabular-nums; box-shadow: none; }
+.thread-journal-task-hour-grid > button:first-child { grid-column: 1 / -1; }
+.thread-journal-task-hour-grid > button[aria-pressed="true"] { background: var(--interactive-accent); color: var(--text-on-accent); }

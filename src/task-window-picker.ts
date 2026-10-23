@@ -359,16 +359,27 @@ class TaskDatePopover {
 			day.add(1, 'day');
 		}
 
-		const time = pane.createEl('label', { cls: 'thread-journal-task-scheduled-hour' });
-		time.createSpan({ text: t('Hour') });
-		const hour = time.createEl('select', { attr: { 'aria-label': t('Scheduled hour') } });
-		hour.createEl('option', { value: '', text: t('All day') });
-		for (let index = 0; index < 24; index++) {
-			const value = String(index).padStart(2, '0');
-			hour.createEl('option', { value, text: `${value}:00` });
+		const time = pane.createEl('details', { cls: 'thread-journal-task-scheduled-hour' });
+		const summary = time.createEl('summary');
+		const updateSummary = (): void => summary.setText(`${t('Hour')} · ${this.draftHour ? `${this.draftHour}:00` : t('All day')}`);
+		updateSummary();
+		const hours = time.createDiv({ cls: 'thread-journal-task-hour-grid' });
+		for (const value of ['', ...Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))]) {
+			const button = hours.createEl('button', {
+				text: value ? `${value}:00` : t('All day'),
+				attr: { type: 'button', 'aria-pressed': String(value === this.draftHour) },
+			});
+			// Keep the editing modal's focus while clicking within this separate date layer.
+			button.addEventListener('mousedown', event => event.preventDefault());
+			button.addEventListener('click', () => {
+				this.draftHour = value;
+				for (const item of Array.from(hours.querySelectorAll('button'))) item.setAttribute('aria-pressed', String(item === button));
+				updateSummary();
+				time.open = false;
+				this.position();
+			});
 		}
-		hour.value = this.draftHour;
-		hour.addEventListener('change', () => { this.draftHour = hour.value; });
+		time.addEventListener('toggle', this.position);
 		const actions = this.popover.createDiv({ cls: 'thread-journal-task-window-actions' });
 		actions.createEl('button', {
 			text: t('Cancel'),
