@@ -44,7 +44,8 @@ export async function collectThreadTable(app: App, index: ThreadIndex, today: st
 	const candidates = app.vault.getMarkdownFiles().filter(file => owners.has(file.path)
 		|| app.metadataCache.getFileCache(file)?.listItems?.some(item => item.task !== undefined));
 	const contents = await Promise.all(candidates.map(async file => {
-		const text = await app.vault.cachedRead(file);
+		// Reordering must observe the just-written frontmatter, even before cache invalidation.
+		const text = owners.has(file.path) ? await app.vault.read(file) : await app.vault.cachedRead(file);
 		const info = getFrontMatterInfo(text);
 		const frontmatter = owners.has(file.path) && info.exists ? parseYaml(info.frontmatter) as Record<string, unknown> | null : null;
 		return { file, content: threadTableContent(text), order: explorerOrder(frontmatter?.explorer_order) };
@@ -53,7 +54,7 @@ export async function collectThreadTable(app: App, index: ThreadIndex, today: st
 		const owner = owners.get(file.path);
 		const row = owner ? rows.get(owner) : undefined;
 		if (row) {
-			row.order = order;
+			if (file.path === row.thread.file.path) row.order = order;
 			row.counts.commits += content.commits;
 			row.counts.logs += content.logs;
 		}

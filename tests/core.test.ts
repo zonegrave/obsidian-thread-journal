@@ -734,7 +734,8 @@ void test('table totals stay with each owner including history; external links c
 	]);
 	const app = {
 		vault: { getMarkdownFiles: () => [root, parent, child, essay, work, history, childWork, external],
-			cachedRead: (f: unknown) => Promise.resolve(contents.get(f) ?? '') },
+			cachedRead: (f: unknown) => Promise.resolve(contents.get(f) ?? ''),
+			read: (f: unknown) => Promise.resolve(contents.get(f) ?? '') },
 		metadataCache: {
 			getFileCache: (f: unknown) => ({ frontmatter: metadata.get(f),
 				listItems: f === external ? [{ task: '+' }] : [],
@@ -2098,4 +2099,43 @@ void test('initial and exhausted ranks normalize siblings while new unranked nod
  assert.equal(compareExplorerNodes({ ...sorted[0]!, order: undefined }, sorted[1]!) > 0, true);
  for (const value of ['100', null, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1]) assert.equal(explorerOrder(value), undefined);
  assert.equal(explorerOrder(-1024), -1024);
+});
+
+void test('explorer refresh immediately observes saved ranks and never replaces meta order with member order', async () => {
+ const root = { path: 'ROOT.md', basename: 'ROOT' }; const parent = { path: 'Parent.md', basename: 'Parent' };
+ const alpha = { path: 'Alpha.md', basename: 'Alpha' }; const beta = { path: 'Beta.md', basename: 'Beta' };
+ const metadata = new Map<unknown, Record<string, unknown>>([
+  [root, { type: 'thread', thread_id: 'ROOT', status: 'active' }],
+  [parent, { type: 'thread', thread_id: 'Parent', status: 'active', explorer_order: 2000 }],
+  [alpha, { thread_id: 'ROOT', explorer_order: 1000 }], [beta, { thread_id: 'Parent', explorer_order: 9999 }],
+ ]);
+ const sources = new Map<unknown, string>([
+  [root, '---\ntype: thread\nthread_id: ROOT\n---\n'],
+  [parent, '---\ntype: thread\nthread_id: Parent\nexplorer_order: 2000\n---\n'],
+  [alpha, '---\nthread_id: ROOT\nexplorer_order: 1000\n---\n'],
+  [beta, '---\nthread_id: Parent\nexplorer_order: 9999\n---\n'],
+ ]);
+ const staleCache = new Map(sources);
+ const app = { vault: { getMarkdownFiles: () => [root, parent, alpha, beta],
+  read: (file: unknown) => Promise.resolve(sources.get(file)!), cachedRead: (file: unknown) => Promise.resolve(staleCache.get(file)!) },
+  metadataCache: { getFileCache: (file: unknown) => ({ frontmatter: metadata.get(file) }), getFirstLinkpathDest: () => null } };
+ const index = new ThreadIndex(app as never, () => root.path);
+ const read = () => collectThreadTable(app as never, index, '2026-10-23');
+ const flatten = (rows: ThreadTableRow[]) => flattenExplorerTree(filterThreadTable(rows, DEFAULT_TABLE_FILTERS).tree, new Map(rows.map(row => [row.thread.id, row])), new Set(), () => true, new Map())
+  .map(entry => entry.kind === 'file' ? entry.file.member.file.basename : entry.data.thread.id);
+ const first = await read();
+ assert.equal(first.find(row => row.thread.id === 'ROOT')?.order, undefined);
+ assert.equal(first.find(row => row.thread.id === 'Parent')?.order, 2000);
+ assert.equal(first.find(row => row.thread.id === 'Parent')?.files[0]?.order, 9999);
+ assert.deepEqual(flatten(first), ['ROOT', 'Alpha', 'Parent', 'Beta']);
+ // Frontmatter was saved, while both Obsidian caches still expose the previous values.
+ sources.set(alpha, sources.get(alpha)!.replace('1000', '3000'));
+ const refreshed = await read();
+ assert.equal(refreshed.find(row => row.thread.id === 'ROOT')?.files[0]?.order, 3000);
+ assert.equal(refreshed.find(row => row.thread.id === 'Parent')?.order, 2000);
+ assert.deepEqual(flatten(refreshed), ['ROOT', 'Parent', 'Beta', 'Alpha']);
+ sources.set(parent, sources.get(parent)!.replace('2000', '4000'));
+ const movedThread = await read();
+ assert.equal(movedThread.find(row => row.thread.id === 'Parent')?.order, 4000);
+ assert.deepEqual(flatten(movedThread), ['ROOT', 'Alpha', 'Parent', 'Beta']);
 });
