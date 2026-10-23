@@ -1,4 +1,5 @@
-import type { App } from 'obsidian';
+import { getFrontMatterInfo, parseYaml, type App } from 'obsidian';
+import { explorerOrder } from './thread-explorer-order';
 import type { ThreadIndex } from './thread-index';
 import type { ThreadInfo, ThreadMemberInfo } from './types';
 import type { AttentionRowTask } from './thread-attention';
@@ -7,11 +8,13 @@ import { countTableTask, emptyThreadTableCounts, threadTableContent, type Thread
 
 export interface ThreadTableFileRow {
 	member: ThreadMemberInfo;
+	order?: number;
 	counts: ThreadTableCounts;
 }
 
 export interface ThreadTableRow {
 	thread: ThreadInfo;
+	order?: number;
 	parent?: string;
 	counts: ThreadTableCounts;
 	files: ThreadTableFileRow[];
@@ -40,18 +43,23 @@ export async function collectThreadTable(app: App, index: ThreadIndex, today: st
 	}
 	const candidates = app.vault.getMarkdownFiles().filter(file => owners.has(file.path)
 		|| app.metadataCache.getFileCache(file)?.listItems?.some(item => item.task !== undefined));
-	const contents = await Promise.all(candidates.map(async file => ({
-		file, content: threadTableContent(await app.vault.cachedRead(file)),
-	})));
-	for (const { file, content } of contents) {
+	const contents = await Promise.all(candidates.map(async file => {
+		const text = await app.vault.cachedRead(file);
+		const info = getFrontMatterInfo(text);
+		const frontmatter = owners.has(file.path) && info.exists ? parseYaml(info.frontmatter) as Record<string, unknown> | null : null;
+		return { file, content: threadTableContent(text), order: explorerOrder(frontmatter?.explorer_order) };
+	}));
+	for (const { file, content, order } of contents) {
 		const owner = owners.get(file.path);
 		const row = owner ? rows.get(owner) : undefined;
 		if (row) {
+			row.order = order;
 			row.counts.commits += content.commits;
 			row.counts.logs += content.logs;
 		}
 		const fileRow = fileRows.get(file.path);
 		if (fileRow) {
+			fileRow.order = order;
 			fileRow.counts.commits = content.commits;
 			fileRow.counts.logs = content.logs;
 			for (const task of content.tasks) countTableTask(fileRow.counts, task.parsed.data, today);

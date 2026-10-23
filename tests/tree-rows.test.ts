@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { setLocale } from '../src/i18n';
-import { renderTableThreadRow, renderTableFileRows, type TableRowContext } from '../src/thread-table-rows';
+import { renderTableThreadRow, renderExplorerFileRow, type TableRowContext } from '../src/thread-table-rows';
 import { emptyThreadTableCounts, type ThreadTableTreeRow } from '../src/thread-table-model';
 import type { ThreadTableRow } from '../src/thread-table-data';
 import { EMPTY_TASK } from '../src/task-model';
@@ -59,7 +59,7 @@ void test('thread rows are free-flowing divs and title focus does not open a not
 
 void test('file titles open notes while task expansion and summary actions remain separate', () => {
 	const { data, item, context, events } = fixture(); const parent = new Element();
-	renderTableFileRows(parent as never, item, data, context);
+	renderExplorerFileRow(parent as never, { ...item, depth: 1, ancestors: ['thread'] }, data, data.files[0]!, context);
 	assert.deepEqual(events, ['tasks:Member.md']); events.length = 0;
 	const title = parent.find(element => element.classes === 'thread-journal-table-file-title')!;
 	assert.equal(title.tag, 'a'); title.click();

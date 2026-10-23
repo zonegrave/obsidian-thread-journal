@@ -3,6 +3,9 @@ export type Locale = Exclude<LanguageSetting, 'auto'>;
 export const LANGUAGE_CHANGE_EVENT = 'thread-journal-language-change';
 
 const ZH_TRANSLATIONS = {
+	'Drag to reorder siblings': '拖动调整同级顺序',
+	'Reset child order': '恢复下级默认排序',
+	'Failed to save explorer order: {error}': '保存树形排序失败：{error}',
 	'Search': '搜索',
 	'Focus this thread': '聚焦此 Thread',
 	'All day': '全天',

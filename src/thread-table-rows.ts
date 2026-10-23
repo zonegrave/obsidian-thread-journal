@@ -3,12 +3,14 @@ import { t } from './i18n';
 import { threadStatusLabel } from './thread-status-model';
 import { ROOT_THREAD_ID } from './thread-root-model';
 import type { ThreadTableTreeRow, ThreadTableTaskFilter, ThreadTableCounts } from './thread-table-model';
-import type { ThreadTableRow } from './thread-table-data';
+import type { ExplorerGuide } from './thread-explorer-order';
+import type { ThreadTableFileRow, ThreadTableRow } from './thread-table-data';
 import { THREAD_TABLE_COLUMNS, TABLE_TASK_BUTTONS, type ThreadTableColumn } from './thread-table-columns';
 
 export interface TableSelection { threadId?: string; filePath?: string; filter: ThreadTableTaskFilter }
 export interface TableRowContext {
 	contextOnly?: boolean;
+	bindDrag?: (row: HTMLElement, name: HTMLElement, key: string, movable: boolean) => void;
 	app: App;
 	columns: ThreadTableColumn[];
 	selection?: TableSelection;
@@ -106,41 +108,38 @@ export function renderTableThreadRow(parent: HTMLElement, item: ThreadTableTreeR
 		attr: { type: 'button', title: t('Focus this thread'), 'aria-label': `${t('Focus this thread')}: ${data.thread.title}` } });
 	focus.addEventListener('click', event => { event.stopPropagation(); context.focus(); });
 	values(name.createDiv({ cls: 'thread-journal-tree-metadata' }), data.counts, threadStatusLabel(data.thread.status), context, select);
+	context.bindDrag?.(row, name, `thread:${data.thread.id}`, !context.contextOnly && item.depth > 0);
 }
 
-export function renderTableFileRows(parent: HTMLElement, item: ThreadTableTreeRow, data: ThreadTableRow, context: TableRowContext): void {
-	for (const [i, file] of data.files.entries()) {
-		const { member } = file;
-		const select = (filter: ThreadTableTaskFilter): void => context.select({ threadId: data.thread.id, filePath: member.file.path, filter });
-		const row = parent.createDiv({ cls: 'thread-journal-tree-row thread-journal-table-file-row', attr: { 'aria-level': String(item.depth + 2), 'data-file-path': member.file.path } });
-		row.toggleClass('is-selected', context.selection?.threadId === data.thread.id && context.selection.filePath === member.file.path);
-		row.toggleClass('is-terminated', member.roleStatus === 'terminated');
-		row.addEventListener('click', () => select('all'));
-		const name = row.createDiv({ cls: 'thread-journal-table-name' });
-		const fileItem = { depth: item.depth + 1, ancestors: [...item.ancestors, data.thread.id], guides: item.depth ? [...item.guides, !item.last] : [],
-			last: i === data.files.length - 1 && (context.childrenCollapsed || !item.node.children.length) };
-		renderTreeGuides(name, fileItem);
-		const hasTasks = data.tasks.some(task => task.file.path === member.file.path);
-		const expand = name.createEl('button', { cls: 'clickable-icon thread-journal-table-toggle', attr: { type: 'button', title: t('Tasks'), 'aria-label': t('Tasks'), 'aria-expanded': String(context.tasksExpanded(member.file.path)) } });
-		expand.disabled = !hasTasks;
-		if (hasTasks) setIcon(expand, context.tasksExpanded(member.file.path) ? 'chevron-down' : 'chevron-right');
-		expand.addEventListener('click', event => { event.stopPropagation(); context.toggleTasks(member.file.path); });
-		const open = name.createEl('button', { cls: 'clickable-icon thread-journal-table-toggle', attr: { type: 'button', 'aria-label': member.file.path, title: member.file.path } });
-		setIcon(open, member.icon || 'file-text');
-		open.addEventListener('click', event => {
-			event.stopPropagation();
-			void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
-		});
-		const title = name.createEl('a', { cls: 'thread-journal-table-file-title', text: member.file.basename, href: member.file.path, attr: { title: member.file.path } });
-		title.style.setProperty('--thread-branch-color', branchColor(data.thread.id));
-		title.addEventListener('click', event => {
-			event.preventDefault(); event.stopPropagation();
-			void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
-		});
-		values(name.createDiv({ cls: 'thread-journal-tree-metadata' }), file.counts, t(member.roleStatus === 'terminated' ? 'Terminated' : 'Active'), context, select, true);
-		if (context.tasksExpanded(member.file.path)) context.renderTasks(parent, member.file.path, fileItem);
-	}
-	if (!data.files.length) parent.createDiv({ cls: 'thread-journal-empty', text: t('No thread files yet.') });
+export function renderExplorerFileRow(parent: HTMLElement, item: ExplorerGuide, data: ThreadTableRow, file: ThreadTableFileRow, context: TableRowContext): void {
+	const { member } = file;
+	const select = (filter: ThreadTableTaskFilter): void => context.select({ threadId: data.thread.id, filePath: member.file.path, filter });
+	const row = parent.createDiv({ cls: 'thread-journal-tree-row thread-journal-table-file-row', attr: { 'aria-level': String(item.depth + 1), 'data-file-path': member.file.path } });
+	row.toggleClass('is-selected', context.selection?.threadId === data.thread.id && context.selection.filePath === member.file.path);
+	row.toggleClass('is-terminated', member.roleStatus === 'terminated');
+	row.addEventListener('click', () => select('all'));
+	const name = row.createDiv({ cls: 'thread-journal-table-name' });
+	renderTreeGuides(name, item);
+	const hasTasks = data.tasks.some(task => task.file.path === member.file.path);
+	const expand = name.createEl('button', { cls: 'clickable-icon thread-journal-table-toggle', attr: { type: 'button', title: t('Tasks'), 'aria-label': t('Tasks'), 'aria-expanded': String(context.tasksExpanded(member.file.path)) } });
+	expand.disabled = !hasTasks;
+	if (hasTasks) setIcon(expand, context.tasksExpanded(member.file.path) ? 'chevron-down' : 'chevron-right');
+	expand.addEventListener('click', event => { event.stopPropagation(); context.toggleTasks(member.file.path); });
+	const open = name.createEl('button', { cls: 'clickable-icon thread-journal-table-toggle', attr: { type: 'button', 'aria-label': member.file.path, title: member.file.path } });
+	setIcon(open, member.icon || 'file-text');
+	open.addEventListener('click', event => {
+		event.stopPropagation();
+		void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
+	});
+	const title = name.createEl('a', { cls: 'thread-journal-table-file-title', text: member.file.basename, href: member.file.path, attr: { title: member.file.path } });
+	title.style.setProperty('--thread-branch-color', branchColor(data.thread.id));
+	title.addEventListener('click', event => {
+		event.preventDefault(); event.stopPropagation();
+		void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
+	});
+	values(name.createDiv({ cls: 'thread-journal-tree-metadata' }), file.counts, t(member.roleStatus === 'terminated' ? 'Terminated' : 'Active'), context, select, true);
+	if (context.tasksExpanded(member.file.path)) context.renderTasks(parent, member.file.path, item);
+	context.bindDrag?.(row, name, `file:${member.file.path}`, true);
 }
 
 export function renderTableTotalRow(parent: HTMLElement, counts: ThreadTableCounts, columns: ThreadTableColumn[], select: (selection: TableSelection) => void): void {

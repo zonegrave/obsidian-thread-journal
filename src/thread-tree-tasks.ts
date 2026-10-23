@@ -12,7 +12,7 @@ export function renderTreeFileTasks(parent: HTMLElement, data: ThreadTableRow, f
 	const tasks = data.tasks.filter(task => task.file.path === filePath).sort((a, b) => compareExplorerTasks({ task: a, thread: data.thread }, { task: b, thread: data.thread }));
 	const historical = data.files.find(file => file.member.file.path === filePath)?.member.roleStatus === 'terminated';
 	for (const [index, task] of tasks.entries()) {
-		const row = parent.createDiv({ cls: 'thread-journal-tree-row is-task' });
+		const row = parent.createDiv({ cls: 'thread-journal-tree-row is-task', attr: { 'aria-level': String(item.depth + 2) } });
 		const line = row.createDiv({ cls: 'thread-journal-table-name' });
 		renderTreeGuides(line, { depth: item.depth + 1, guides: item.depth ? [...item.guides, !item.last] : [], ancestors: [...item.ancestors, filePath], last: index === tasks.length - 1 });
 		const content = line.createDiv({ cls: 'thread-journal-overview-task thread-journal-tree-task' });

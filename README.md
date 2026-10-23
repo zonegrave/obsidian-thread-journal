@@ -247,6 +247,8 @@ order: asc
 
 **Open thread explorer** 打开紧凑的纯树形浏览视图，保留原来的 Overview 思维导图。Thread、Thread File、Task 使用不同的自由行布局，不再强制按表格列对齐。Thread 名称加粗且背景透明，后面紧跟状态、文件数、直接子线程数、任务及记录摘要；成员名称使用与引导线同色的淡背景，前方保留角色图标，不重复显示 workspace／context 文字。彩色引导线、层级折叠及 Focus 保留；点击 Thread 名称切换 Root 并同步底栏 breadcrumb，点击文件名或图标打开笔记。
 
+Thread 与 Thread File 支持同级拖动混排，使用名称前的拖动手柄，插入线明确显示前／后位置。移动 Thread 时整棵子树跟随，不能通过拖动改变 parent 或 thread_id；ROOT 和作为导航的祖先不可拖动。顺序保存在各节点自己的 frontmatter 数字字段 `explorer_order`，不保存父级成员清单，不移动文件或 Task 正文；重命名、切换 Focus、重新打开或跨设备同步后仍然保留。没有编号的新增项排在手动排序项之后，同序号按默认规则稳定排列。通常只写入被拖节点的新编号，初始化或间距耗尽时才为同级节点整理编号；筛选隐藏节点的相对位置保留。底栏 **Fields → Reset child order** 移除当前 Focus 下直接成员和子 Thread 的排序字段，恢复默认“文件在前、子 Thread 在后，各自按名称”的顺序。Task 沿用状态和日期排序，不支持拖动。
+
 点击文件数量展开成员；文件前的箭头独立展开该文件下的 Task 行，默认按 Pinned Open → Open → Committed → Idea → Cancelled → Completed 排序；Pinned 仅限未排期的 Open，同一任务只显示一次，Holding 不改变所属组。组内有截止日期的优先并按日期从近到远，其余沿用默认顺序。展开任务与侧栏明细使用同一排序，复用现有任务渲染与操作，terminated 来源只读。点击状态数量仍可在侧栏查看过滤后的任务明细，包含 meta 或外部任务。每个 Thread 仅统计自身，不累计子线程；外部任务必须同一行明确链接 pack，任务引用不重复计数。
 
 搜索、Thread 状态、Thread File 状态和 Tasks 筛选移到底栏，向上弹出。Tasks 筛选包括状态、Pin／Schedule／Holding（不限／是／否）、执行日不晚于及可执行日期；过滤后隐藏无匹配任务分支，必要祖先只保留为淡色导航，不显示数量、不参与总计。默认只显示 Open／Committed／Idea，可选 Completed／Cancelled；未到执行时刻的排期默认隐藏，逾期任务保留。文件状态只限制文件数量及成员列表，任务和记录仍遵循自身范围。清除条件恢复完整树与原折叠状态。Root、筛选、可见摘要字段、文件和任务展开状态随视图保存。

@@ -3320,3 +3320,10 @@
 	margin-left: auto;
 }
 .thread-journal-overview-task:not(.thread-journal-overview-fallback) > .thread-journal-overview-task-pin { flex: 0 0 auto; }
+
+.thread-journal-explorer-drag-handle { display: inline-flex; flex: 0 0 18px; width: 18px; align-items: center; justify-content: center; cursor: grab; opacity: 0.3; color: var(--text-muted); }
+.thread-journal-explorer-drag-handle svg { width: 12px; height: 12px; }
+.thread-journal-tree-row:hover .thread-journal-explorer-drag-handle { opacity: 1; }
+.thread-journal-tree-row.is-explorer-dragging { opacity: 0.4; }
+.thread-journal-tree-row.is-explorer-drop-before { box-shadow: inset 0 2px var(--interactive-accent); }
+.thread-journal-tree-row.is-explorer-drop-after { box-shadow: inset 0 -2px var(--interactive-accent); }

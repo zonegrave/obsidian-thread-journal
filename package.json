@@ -1,13 +1,13 @@
 {
 	"name": "thread-journal",
-	"version": "0.64.2",
+	"version": "0.65.0",
 	"description": "Thread packs with flexible role files and structured commits for Obsidian",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"test": "esbuild tests/core.test.ts --bundle --platform=node --format=esm --outfile=/tmp/thread-journal-core-test.mjs && node --test /tmp/thread-journal-core-test.mjs && esbuild tests/holding-service.test.ts --bundle --platform=node --format=esm --alias:obsidian=./tests/obsidian-stub.ts --outfile=/tmp/thread-journal-holding-test.mjs && node --test /tmp/thread-journal-holding-test.mjs && esbuild tests/tree-rows.test.ts --bundle --platform=node --format=esm --alias:obsidian=./tests/obsidian-stub.ts --outfile=/tmp/thread-journal-tree-test.mjs && node --test /tmp/thread-journal-tree-test.mjs",
+		"test": "esbuild tests/core.test.ts --bundle --platform=node --format=cjs --alias:obsidian=./tests/obsidian-stub.ts --outfile=/tmp/thread-journal-core-test.cjs && node --test /tmp/thread-journal-core-test.cjs && esbuild tests/holding-service.test.ts --bundle --platform=node --format=cjs --alias:obsidian=./tests/obsidian-stub.ts --outfile=/tmp/thread-journal-holding-test.cjs && node --test /tmp/thread-journal-holding-test.cjs && esbuild tests/tree-rows.test.ts --bundle --platform=node --format=cjs --alias:obsidian=./tests/obsidian-stub.ts --outfile=/tmp/thread-journal-tree-test.cjs && node --test /tmp/thread-journal-tree-test.cjs && esbuild tests/explorer-order-service.test.ts --bundle --platform=node --format=cjs --alias:obsidian=./tests/obsidian-stub.ts --outfile=/tmp/thread-journal-order-test.cjs && node --test /tmp/thread-journal-order-test.cjs",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint ."
 	},
@@ -33,6 +33,7 @@
 		"jiti": "^2.6.1",
 		"obsidian": "1.13.1",
 		"typescript": "^5.8.3",
-		"typescript-eslint": "^8.59.1"
+		"typescript-eslint": "^8.59.1",
+		"yaml": "2.8.4"
 	}
 }

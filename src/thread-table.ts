@@ -8,9 +8,11 @@ import { renderTreeFilters, type TableFilterUI } from './thread-table-header';
 import { createThreadTree } from './thread-table-grid';
 import { renderTableRootBreadcrumb } from './thread-table-breadcrumb';
 import { totalThreadTable } from './thread-table-total-model';
+import { allExplorerNodes, flattenExplorerTree, type ExplorerGuide } from './thread-explorer-order';
+import { ExplorerDragController } from './thread-explorer-drag';
 import { flattenThreadTableTree } from './thread-table-model';
 import { collectThreadTable, type ThreadTableRow } from './thread-table-data';
-import { renderTableThreadRow, renderTableFileRows, renderTableTotalRow, type TableSelection } from './thread-table-rows';
+import { renderTableThreadRow, renderExplorerFileRow, renderTableTotalRow, type TableSelection } from './thread-table-rows';
 import { renderTreeFileTasks } from './thread-tree-tasks';
 import { renderTableTaskDetails } from './thread-table-details';
 import { THREAD_TABLE_COLUMNS, type ThreadTableColumn } from './thread-table-columns';
@@ -19,6 +21,7 @@ export const THREAD_TABLE_VIEW_TYPE = 'thread-journal-overview-table';
 
 export class ThreadTableView extends ItemView {
 	private filters = { ...DEFAULT_TABLE_FILTERS };
+	private drag?: ExplorerDragController;
 	private filterUI: TableFilterUI = {};
 	private disposeHeader?: () => void;
 	private filterCollapsed = new Set<string>();
@@ -62,6 +65,7 @@ export class ThreadTableView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		this.opened = true;
+		this.drag = new ExplorerDragController(this.app, this.contentEl, () => allExplorerNodes(this.rows), async () => allExplorerNodes(await collectThreadTable(this.app, this.index, moment().format('YYYY-MM-DDTHH:mm'))), () => this.refresh());
 		this.contentEl.addClass('thread-journal-table-view', 'thread-journal-explorer');
 		this.registerEvent(this.app.metadataCache.on('changed', () => this.scheduleRefresh()));
 		this.registerEvent(this.app.vault.on('delete', () => this.scheduleRefresh()));
@@ -76,6 +80,7 @@ export class ThreadTableView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.opened = false;
+		this.drag?.dispose(); this.drag = undefined;
 		this.disposeHeader?.();
 		this.request++;
 		if (this.timer !== undefined) window.clearTimeout(this.timer);
@@ -89,10 +94,11 @@ export class ThreadTableView extends ItemView {
 	}
 
 	private async refresh(): Promise<void> {
+		if (!this.opened || this.drag?.busy) return;
 		const request = ++this.request;
 		try {
 			const rows = await collectThreadTable(this.app, this.index, moment().format('YYYY-MM-DDTHH:mm'));
-			if (!this.opened || request !== this.request) return;
+			if (!this.opened || this.drag?.busy || request !== this.request) return;
 			this.rows = rows;
 			if (this.filters.root && !rows.some(row => row.thread.id === this.filters.root)) this.filters.root = '';
 			if (this.selection?.threadId) {
@@ -101,7 +107,7 @@ export class ThreadTableView extends ItemView {
 			}
 			this.render();
 		} catch (error) {
-			if (!this.opened || request !== this.request) return;
+			if (!this.opened || this.drag?.busy || request !== this.request) return;
 			const message = t('Failed to read thread explorer: {error}', { error: String(error) });
 			if (!this.rows.length) {
 				this.contentEl.empty();
@@ -114,6 +120,7 @@ export class ThreadTableView extends ItemView {
 	private saveLayout(): void { void this.app.workspace.requestSaveLayout(); }
 
 	private render(): void {
+		if (this.drag?.busy) return;
 		const oldScroll = this.contentEl.querySelector('.thread-journal-table-scroll');
 		const scrollTop = oldScroll?.scrollTop ?? 0;
 		const scrollLeft = oldScroll?.scrollLeft ?? 0;
@@ -129,23 +136,26 @@ export class ThreadTableView extends ItemView {
 		const matchingIds = new Set(projection.matchedRows.map(row => row.thread.id));
 		const searching = tableHasConditions(this.filters);
 		const effectiveCollapsed = searching ? this.filterCollapsed : new Set(this.collapsed);
-		const visible = flattenThreadTableTree(tree, effectiveCollapsed);
 		if (this.selection?.threadId && !matchingIds.has(this.selection.threadId)) this.selection = undefined;
 		if (this.selection?.threadId && this.selection.filePath) {
 			const files = projection.fileMatches.get(this.selection.threadId);
 			if (files && !files.has(this.selection.filePath)) this.selection = undefined;
 		}
 		const byId = new Map([...this.rows, ...projection.matchedRows].map(row => [row.thread.id, row]));
+		const filesExpanded = (id: string): boolean => projection.fileMatches.has(id) ? !this.filterFilesCollapsed.has(id) : this.expandedFiles.has(id);
+		const visible = flattenExplorerTree(tree, byId, effectiveCollapsed, filesExpanded, projection.fileMatches);
 		const main = this.contentEl.createDiv({ cls: 'thread-journal-table-main' });
 		const columns = THREAD_TABLE_COLUMNS.filter(column => this.fields.has(column.key));
 		const grid = createThreadTree(main);
 		const { scroll, body } = grid;
-		for (const item of visible) {
-			const data = byId.get(item.node.item.id);
-			if (!data) continue;
+		for (const entry of visible) {
+			const { data } = entry;
+			const contextOnly = entry.kind === 'thread' && entry.item.node.contextOnly;
 			const context = {
-				contextOnly: item.node.contextOnly, app: this.app, columns: columns.map(column => column.key), selection: this.selection,
-				filesExpanded: !item.node.contextOnly && (projection.fileMatches.has(data.thread.id) ? !this.filterFilesCollapsed.has(data.thread.id) : this.expandedFiles.has(data.thread.id)), childrenCollapsed: effectiveCollapsed.has(data.thread.id),
+				contextOnly,
+				bindDrag: (row: HTMLElement, name: HTMLElement, key: string, movable: boolean) => this.drag?.bind(row, name, key, movable),
+				app: this.app, columns: columns.map(column => column.key), selection: this.selection,
+				filesExpanded: !contextOnly && filesExpanded(data.thread.id), childrenCollapsed: effectiveCollapsed.has(data.thread.id),
 				focus: () => this.focusThread(data.thread.id === ROOT_THREAD_ID ? '' : data.thread.id),
 				toggleChildren: () => this.toggle(data.thread.id),
 				toggleFiles: () => this.toggleFiles(data.thread.id),
@@ -156,14 +166,10 @@ export class ThreadTableView extends ItemView {
 					if (this.expandedTasks.has(key)) this.expandedTasks.delete(key); else this.expandedTasks.add(key);
 					this.render(); this.saveLayout();
 				},
-				renderTasks: (parent: HTMLElement, filePath: string, fileItem: Pick<typeof item, 'guides' | 'ancestors' | 'depth' | 'last'>) => renderTreeFileTasks(parent, data, filePath, fileItem, { app: this.app, taskManager: this.taskManager, onRefresh: () => this.refresh() }),
+				renderTasks: (parent: HTMLElement, filePath: string, fileItem: ExplorerGuide) => renderTreeFileTasks(parent, data, filePath, fileItem, { app: this.app, taskManager: this.taskManager, onRefresh: () => this.refresh() }),
 			};
-			const files = projection.fileMatches.get(data.thread.id);
-			const display = files ? { ...data, files: data.files.filter(file => files.has(file.member.file.path)) } : data;
-			renderTableThreadRow(body, item, { ...data, counts: { ...data.counts, files: this.filters.fileStatuses === null ? data.counts.files : data.files.filter(file => this.filters.fileStatuses!.includes(file.member.roleStatus)).length } }, context);
-			if (context.filesExpanded) {
-				renderTableFileRows(body, item, display, context);
-			}
+			if (entry.kind === 'thread') renderTableThreadRow(body, entry.item, { ...data, counts: { ...data.counts, files: this.filters.fileStatuses === null ? data.counts.files : data.files.filter(file => this.filters.fileStatuses!.includes(file.member.roleStatus)).length } }, context);
+			else renderExplorerFileRow(body, entry.item, data, entry.file, context);
 		}
 		if (!visible.length) body.createDiv({ cls: 'thread-journal-empty', text: t('No threads match the filters.') });
 		renderTableTotalRow(grid.total, totalThreadTable(projection.matchedRows, moment().format('YYYY-MM-DDTHH:mm')), columns.map(column => column.key), selection => this.select(selection));
@@ -258,6 +264,8 @@ export class ThreadTableView extends ItemView {
 				this.saveLayout();
 			});
 		}
+		const reset = panel.createEl('button', { text: t('Reset child order'), attr: { type: 'button', title: t('Reset child order') } });
+		reset.addEventListener('click', () => { void this.drag?.reset(this.filters.root || ROOT_THREAD_ID); });
 		const refresh = footer.createEl('button', { cls: 'clickable-icon', attr: { type: 'button', 'aria-label': t('Refresh') } });
 		setIcon(refresh, 'refresh-cw');
 		refresh.addEventListener('click', () => { void this.refresh(); });

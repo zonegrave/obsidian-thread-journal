@@ -1,3 +1,4 @@
+import { allExplorerNodes, compareExplorerNodes, explorerMovePlan, explorerOrder, flattenExplorerTree } from '../src/thread-explorer-order';
 import { compareExplorerTasks } from '../src/thread-tree-task-order';
 import { migrateTaskSchedule } from '../scripts/task-schedule-migration';
 import { migrateTaskStates } from '../scripts/task-state-migration';
@@ -2050,4 +2051,51 @@ void test('explorer task order prioritizes pinned Open then states before deadli
  const scheduled = item('scheduled', { scheduled: '2026-10-22T09:00', pinned: true });
  assert.ok(compareExplorerTasks(item('pin', { pinned: true }), scheduled) < 0);
  assert.ok(compareExplorerTasks(item('early', { windowEnd: '2026-01-01' }), scheduled) < 0);
+});
+
+function orderedExplorerFixture() {
+ const root = tableFixtureRow('ROOT'); const parent = tableFixtureRow('Parent'); const child = tableFixtureRow('Child', 'Parent'); const leaf = tableFixtureRow('Leaf', 'Child');
+ const member = (name: string, order?: number) => ({ member: { file: { path: `${name}.md`, basename: name } as never, threadId: 'Parent', role: 'workspace', roleStatus: 'active' as const, icon: '', attentionFallback: false }, counts: emptyThreadTableCounts(), order });
+ parent.files = [member('A', 1000), member('B', 3000)]; child.order = 2000;
+ const rows = [root, parent, child, leaf];
+ return { rows, nodes: allExplorerNodes(rows), tree: filterThreadTable(rows, DEFAULT_TABLE_FILTERS).tree };
+}
+
+void test('mixed explorer traversal keeps subtrees contiguous and guide positions correct', () => {
+ const { rows, tree } = orderedExplorerFixture(); const byId = new Map(rows.map(row => [row.thread.id, row]));
+ const list = flattenExplorerTree(tree, byId, new Set(), () => true, new Map());
+ const name = (entry: typeof list[number]) => entry.kind === 'file' ? entry.file.member.file.basename : entry.data.thread.id;
+ assert.deepEqual(list.map(name), ['ROOT', 'Parent', 'A', 'Child', 'Leaf', 'B']);
+ assert.equal(list.find(entry => name(entry) === 'Child')?.item.last, false);
+ assert.equal(list.find(entry => name(entry) === 'B')?.item.last, true);
+ assert.deepEqual(list.find(entry => name(entry) === 'Leaf')?.item.guides, [false, true]);
+ assert.deepEqual(flattenExplorerTree(tree, byId, new Set(['Child']), () => true, new Map()).map(name), ['ROOT', 'Parent', 'A', 'Child', 'B']);
+ assert.deepEqual(flattenExplorerTree(tree, byId, new Set(), () => false, new Map()).map(name), ['ROOT', 'Parent', 'Child', 'Leaf']);
+ const focused = filterThreadTable(rows, { ...DEFAULT_TABLE_FILTERS, root: 'Parent' }).tree;
+ assert.deepEqual(flattenExplorerTree(focused, byId, new Set(), () => true, new Map()).map(name), ['Parent', 'A', 'Child', 'Leaf', 'B']);
+});
+
+void test('rank allocation changes one node when a gap exists and preserves hidden siblings', () => {
+ const { nodes } = orderedExplorerFixture();
+ const changes = explorerMovePlan(nodes, 'file:B.md', 'thread:Child', 'before');
+ assert.deepEqual([...changes], [['B.md', 1500]]);
+ const reordered = nodes.filter(node => node.parent === 'Parent').map(node => ({ ...node, order: changes.get(node.path) ?? node.order })).sort(compareExplorerNodes);
+ assert.deepEqual(reordered.map(node => node.key), ['file:A.md', 'file:B.md', 'thread:Child']);
+ assert.equal(explorerMovePlan(nodes, 'file:A.md', 'thread:Child', 'before').size, 0);
+ assert.equal(explorerMovePlan(nodes, 'thread:ROOT', 'thread:Parent', 'after').size, 0);
+ assert.equal(explorerMovePlan(nodes, 'file:A.md', 'thread:Leaf', 'before').size, 0);
+ assert.equal(explorerMovePlan(nodes, 'file:A.md', 'file:A.md', 'before').size, 0);
+});
+
+void test('initial and exhausted ranks normalize siblings while new unranked nodes stay last', () => {
+ const { nodes } = orderedExplorerFixture(); const siblings = nodes.filter(node => node.parent === 'Parent').map(node => ({ ...node, order: undefined }));
+ const plan = explorerMovePlan(siblings, 'thread:Child', 'file:B.md', 'before');
+ assert.equal(plan.size, 3);
+ const sorted = siblings.map(node => ({ ...node, order: plan.get(node.path) })).sort(compareExplorerNodes);
+ assert.deepEqual(sorted.map(node => node.key), ['file:A.md', 'thread:Child', 'file:B.md']);
+ const tight = sorted.map((node, index) => ({ ...node, order: index + 1 }));
+ assert.equal(explorerMovePlan(tight, 'file:B.md', 'thread:Child', 'before').size, 3);
+ assert.equal(compareExplorerNodes({ ...sorted[0]!, order: undefined }, sorted[1]!) > 0, true);
+ for (const value of ['100', null, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1]) assert.equal(explorerOrder(value), undefined);
+ assert.equal(explorerOrder(-1024), -1024);
 });
