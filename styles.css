@@ -3273,10 +3273,7 @@
 .thread-journal-tree-row .thread-journal-table-guide,
 .thread-journal-tree-row .thread-journal-table-branch { align-self: stretch; height: auto; }
 .thread-journal-tree-row .thread-journal-table-thread-focus,
-.thread-journal-tree-row .thread-journal-table-file-title { flex: 0 1 auto; max-width: min(34rem, 65%); white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
-.thread-journal-tree-metadata { display: flex; flex: 0 1 auto; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: 10px; }
-.thread-journal-tree-metadata:empty { display: none; }
-.thread-journal-tree-metadata .thread-journal-table-value { flex: 0 0 auto; }
+.thread-journal-tree-row .thread-journal-table-file-title { flex: 0 1 auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
 .thread-journal-tree-row.is-terminated .thread-journal-table-file-title { color: var(--text-muted); }
 .thread-journal-tree-task { min-width: 0; flex: 1; margin: 0; padding: 4px 0; border: 0; background: transparent; }
 .thread-journal-tree-task .thread-journal-overview-task-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

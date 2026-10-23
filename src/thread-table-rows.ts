@@ -1,6 +1,5 @@
 import { setIcon, type App } from 'obsidian';
 import { t } from './i18n';
-import { threadStatusLabel } from './thread-status-model';
 import { ROOT_THREAD_ID } from './thread-root-model';
 import type { ThreadTableTreeRow, ThreadTableTaskFilter, ThreadTableCounts } from './thread-table-model';
 import type { ExplorerGuide } from './thread-explorer-order';
@@ -12,13 +11,10 @@ export interface TableRowContext {
 	contextOnly?: boolean;
 	bindDrag?: (row: HTMLElement, name: HTMLElement, key: string, movable: boolean) => void;
 	app: App;
-	columns: ThreadTableColumn[];
 	selection?: TableSelection;
-	filesExpanded: boolean;
 	childrenCollapsed: boolean;
 	focus: () => void;
 	toggleChildren: () => void;
-	toggleFiles: () => void;
 	select: (selection: TableSelection) => void;
 	tasksExpanded: (filePath: string) => boolean;
 	toggleTasks: (filePath: string) => void;
@@ -44,14 +40,10 @@ export function renderTreeGuides(name: HTMLElement, item: Pick<ThreadTableTreeRo
 	}
 }
 
-function values(row: HTMLElement, counts: ThreadTableCounts, status: string, context: Pick<TableRowContext, 'columns' | 'contextOnly' | 'toggleFiles' | 'toggleChildren' | 'filesExpanded'>,
-	select: (filter: ThreadTableTaskFilter) => void, isFile = false, total = false): void {
-	if (context.contextOnly) return;
-	for (const key of context.columns) {
+function values(row: HTMLElement, counts: ThreadTableCounts, columns: ThreadTableColumn[], select: (filter: ThreadTableTaskFilter) => void): void {
+	for (const key of columns) {
 		const cell = row.createDiv({ cls: `thread-journal-table-value is-${key}` });
-		if (key === 'status') { if (!isFile) cell.setText(status); else cell.remove(); continue; }
-		if (isFile && key === 'files' && !total) { if (status === t('Terminated')) cell.setText(status); else cell.remove(); continue; }
-		if (isFile && (key === 'files' || key === 'children')) { cell.remove(); continue; }
+		if (key === 'status' || key === 'files' || key === 'children') { cell.remove(); continue; }
 		if (key === 'tasks') {
 			const group = cell.createDiv({ cls: 'thread-journal-table-task-buttons' });
 			for (const state of TABLE_TASK_BUTTONS) {
@@ -69,20 +61,14 @@ function values(row: HTMLElement, counts: ThreadTableCounts, status: string, con
 		if (!value) { cell.remove(); continue; }
 		cell.toggleClass('is-zero', !value);
 		const column = THREAD_TABLE_COLUMNS.find(column => column.key === key)!;
-		const action = key === 'files' ? context.toggleFiles : key === 'children' ? (value ? context.toggleChildren : undefined)
-			: undefined;
+
 		const label = `${t(column.label)}: ${value}`;
 		cell.setAttribute('title', label);
-		const count: HTMLElement = cell.createEl(action ? 'button' : 'span', {
+		const count: HTMLElement = cell.createSpan({
 			cls: 'thread-journal-table-count', attr: { 'aria-label': label },
 		});
 		if (column.icon) setIcon(count.createSpan({ cls: 'thread-journal-table-count-icon', attr: { 'aria-hidden': 'true' } }), column.icon);
 		count.createSpan({ text: value ? String(value) : '–' });
-		if (action) {
-			count.setAttribute('type', 'button');
-			if (key === 'files') count.setAttribute('aria-expanded', String(context.filesExpanded));
-			count.addEventListener('click', event => { event.stopPropagation(); action(); });
-		}
 	}
 }
 
@@ -93,21 +79,21 @@ export function renderTableThreadRow(parent: HTMLElement, item: ThreadTableTreeR
 	row.toggleClass('is-selected', context.selection?.threadId === data.thread.id && !context.selection.filePath);
 	const select = (filter: ThreadTableTaskFilter): void => context.select({ threadId: data.thread.id, filter });
 	row.addEventListener('click', () => { if (!context.contextOnly) select('all'); });
-	if (item.node.children.length) row.setAttribute('aria-expanded', String(!context.childrenCollapsed));
+	const hasChildren = Boolean(item.node.children.length || (!context.contextOnly && data.counts.files));
+	if (hasChildren) row.setAttribute('aria-expanded', String(!context.childrenCollapsed));
 	const name = row.createDiv({ cls: 'thread-journal-table-name' });
 	renderTreeGuides(name, item);
 	const toggle = name.createEl('button', {
 		cls: 'clickable-icon thread-journal-table-toggle is-thread-toggle',
 		attr: { type: 'button', 'aria-label': t(context.childrenCollapsed ? 'Expand child threads' : 'Collapse child threads') },
 	});
-	toggle.disabled = !item.node.children.length;
+	toggle.disabled = !hasChildren;
 	toggle.style.setProperty('--thread-branch-color', branchColor(data.thread.id));
-	if (item.node.children.length) setIcon(toggle, context.childrenCollapsed ? 'chevron-right' : 'chevron-down');
+	if (hasChildren) setIcon(toggle, context.childrenCollapsed ? 'chevron-right' : 'chevron-down');
 	toggle.addEventListener('click', event => { event.stopPropagation(); context.toggleChildren(); });
 	const focus = name.createEl('button', { cls: 'thread-journal-table-thread-focus', text: data.thread.title,
 		attr: { type: 'button', title: t('Focus this thread'), 'aria-label': `${t('Focus this thread')}: ${data.thread.title}` } });
 	focus.addEventListener('click', event => { event.stopPropagation(); context.focus(); });
-	values(name.createDiv({ cls: 'thread-journal-tree-metadata' }), data.counts, threadStatusLabel(data.thread.status), context, select);
 	context.bindDrag?.(row, name, `thread:${data.thread.id}`, !context.contextOnly && item.depth > 0);
 }
 
@@ -137,7 +123,6 @@ export function renderExplorerFileRow(parent: HTMLElement, item: ExplorerGuide, 
 		event.preventDefault(); event.stopPropagation();
 		void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
 	});
-	values(name.createDiv({ cls: 'thread-journal-tree-metadata' }), file.counts, t(member.roleStatus === 'terminated' ? 'Terminated' : 'Active'), context, select, true);
 	if (context.tasksExpanded(member.file.path)) context.renderTasks(parent, member.file.path, item);
 	context.bindDrag?.(row, name, `file:${member.file.path}`, true);
 }
@@ -145,8 +130,5 @@ export function renderExplorerFileRow(parent: HTMLElement, item: ExplorerGuide, 
 export function renderTableTotalRow(parent: HTMLElement, counts: ThreadTableCounts, columns: ThreadTableColumn[], select: (selection: TableSelection) => void): void {
 	const row = parent.createDiv({ cls: 'thread-journal-tree-summary' });
 	row.createEl('strong', { text: t('Total') });
-	values(row, counts, '', {
-		columns, filesExpanded: false,
-		toggleChildren: () => {}, toggleFiles: () => {},
-	}, filter => select({ filter }), true, true);
+	values(row, counts, columns, filter => select({ filter }));
 }

@@ -42,8 +42,8 @@ function fixture(): { data: ThreadTableRow; item: ThreadTableTreeRow; context: T
 		tasks: [{ file, line: 0, key: 'Member.md:0', text: 'Task', sourceLine: '- [ ] Task', data: EMPTY_TASK, pinned: false, disposition: 'ready' }] };
 	const item: ThreadTableTreeRow = { depth: 0, ancestors: [], guides: [], last: true, node: { item: { id: 'thread', title: 'Thread', status: 'active' }, children: [], contextOnly: false } };
 	const context: TableRowContext = { app: { workspace: { openLinkText: (path: string) => { events.push(`open:${path}`); return Promise.resolve(); } } } as never,
-		columns: ['status', 'files', 'tasks'], filesExpanded: true, childrenCollapsed: false, focus: () => { events.push('focus'); },
-		toggleChildren: () => {}, toggleFiles: () => {}, select: selection => { events.push(`details:${selection.filter}`); },
+		childrenCollapsed: false, focus: () => { events.push('focus'); },
+		toggleChildren: () => { events.push('toggle:thread'); }, select: selection => { events.push(`details:${selection.filter}`); },
 		tasksExpanded: () => true, toggleTasks: path => { events.push(`toggle:${path}`); }, renderTasks: (_parent, path) => { events.push(`tasks:${path}`); } };
 	return { data, item, context, events };
 }
@@ -55,9 +55,12 @@ void test('thread rows are free-flowing divs and title focus does not open a not
 	assert.equal(parent.find(element => ['table', 'tr', 'td', 'th'].includes(element.tag)), undefined);
 	parent.find(element => element.classes === 'thread-journal-table-thread-focus')!.click();
 	assert.deepEqual(events, ['focus']);
+	assert.equal(parent.find(element => element.classes.includes('thread-journal-tree-metadata')), undefined);
+	parent.find(element => element.classes.includes('is-thread-toggle'))!.click();
+	assert.deepEqual(events, ['focus', 'toggle:thread']);
 });
 
-void test('file titles open notes while task expansion and summary actions remain separate', () => {
+void test('file rows keep navigation and task expansion without summary blocks', () => {
 	const { data, item, context, events } = fixture(); const parent = new Element();
 	renderExplorerFileRow(parent as never, { ...item, depth: 1, ancestors: ['thread'] }, data, data.files[0]!, context);
 	assert.deepEqual(events, ['tasks:Member.md']); events.length = 0;
@@ -65,7 +68,8 @@ void test('file titles open notes while task expansion and summary actions remai
 	assert.equal(title.tag, 'a'); title.click();
 	assert.deepEqual(events, ['open:Member.md']); events.length = 0;
 	parent.find(element => element.attrs['aria-label'] === 'Tasks')!.click();
-	parent.find(element => element.attrs['aria-label'] === 'Open: 1')!.click();
-	assert.deepEqual(events, ['toggle:Member.md', 'details:open']);
+	assert.deepEqual(events, ['toggle:Member.md']);
+	assert.equal(parent.find(element => element.classes.includes('thread-journal-tree-metadata')), undefined);
+	assert.equal(parent.find(element => element.classes.includes('thread-journal-table-count')), undefined);
 	assert.equal(parent.find(element => element.text === 'workspace'), undefined);
 });

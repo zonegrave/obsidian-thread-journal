@@ -25,10 +25,8 @@ export class ThreadTableView extends ItemView {
 	private filterUI: TableFilterUI = {};
 	private disposeHeader?: () => void;
 	private filterCollapsed = new Set<string>();
-	private filterFilesCollapsed = new Set<string>();
 	private rows: ThreadTableRow[] = [];
 	private expandedTasks = new Set<string>();
-	private expandedFiles = new Set<string>();
 	private selection?: TableSelection;
 	private collapsed = new Set<string>();
 	private fields = new Set<ThreadTableColumn>(THREAD_TABLE_COLUMNS.map(column => column.key));
@@ -46,7 +44,7 @@ export class ThreadTableView extends ItemView {
 	getIcon(): string { return 'list-tree'; }
 
 	getState(): Record<string, unknown> {
-		return { filters: this.filters, expandedTasks: [...this.expandedTasks], expandedFiles: [...this.expandedFiles], collapsed: [...this.collapsed], fields: [...this.fields] };
+		return { filters: this.filters, expandedTasks: [...this.expandedTasks], collapsed: [...this.collapsed], fields: [...this.fields] };
 	}
 
 	async setState(state: unknown, result: ViewStateResult): Promise<void> {
@@ -55,7 +53,6 @@ export class ThreadTableView extends ItemView {
 			const value = state as Record<string, unknown>;
 			this.filters = tableFiltersFromState(value.filters);
 			if (Array.isArray(value.expandedTasks)) this.expandedTasks = new Set(value.expandedTasks.filter((id): id is string => typeof id === 'string'));
-			if (Array.isArray(value.expandedFiles)) this.expandedFiles = new Set(value.expandedFiles.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.collapsed)) this.collapsed = new Set(value.collapsed.filter((id): id is string => typeof id === 'string'));
 			if (Array.isArray(value.fields) && value.fields.every(key => THREAD_TABLE_COLUMNS.some(column => column.key === key))) this.fields = new Set(THREAD_TABLE_COLUMNS.filter(column =>
 				(value.fields as unknown[]).includes(column.key)).map(column => column.key));
@@ -142,7 +139,7 @@ export class ThreadTableView extends ItemView {
 			if (files && !files.has(this.selection.filePath)) this.selection = undefined;
 		}
 		const byId = new Map([...this.rows, ...projection.matchedRows].map(row => [row.thread.id, row]));
-		const filesExpanded = (id: string): boolean => projection.fileMatches.has(id) ? !this.filterFilesCollapsed.has(id) : this.expandedFiles.has(id);
+		const filesExpanded = (id: string): boolean => !effectiveCollapsed.has(id);
 		const visible = flattenExplorerTree(tree, byId, effectiveCollapsed, filesExpanded, projection.fileMatches);
 		const main = this.contentEl.createDiv({ cls: 'thread-journal-table-main' });
 		const columns = THREAD_TABLE_COLUMNS.filter(column => this.fields.has(column.key));
@@ -154,11 +151,10 @@ export class ThreadTableView extends ItemView {
 			const context = {
 				contextOnly,
 				bindDrag: (row: HTMLElement, name: HTMLElement, key: string, movable: boolean) => this.drag?.bind(row, name, key, movable),
-				app: this.app, columns: columns.map(column => column.key), selection: this.selection,
-				filesExpanded: !contextOnly && filesExpanded(data.thread.id), childrenCollapsed: effectiveCollapsed.has(data.thread.id),
+				app: this.app, selection: this.selection,
+				childrenCollapsed: effectiveCollapsed.has(data.thread.id),
 				focus: () => this.focusThread(data.thread.id === ROOT_THREAD_ID ? '' : data.thread.id),
 				toggleChildren: () => this.toggle(data.thread.id),
-				toggleFiles: () => this.toggleFiles(data.thread.id),
 				select: (selection: TableSelection) => this.select(selection),
 				tasksExpanded: (filePath: string) => this.expandedTasks.has(`${data.thread.id}:${filePath}`),
 				toggleTasks: (filePath: string) => {
@@ -178,7 +174,7 @@ export class ThreadTableView extends ItemView {
 			onClose: () => { this.selection = undefined; this.render(); },
 			onRefresh: () => this.refresh(),
 		});
-		this.renderFooter(flattenThreadTableTree(tree, new Set()).filter(item => item.node.children.length).map(item => item.node.item.id));
+		this.renderFooter(flattenThreadTableTree(tree, new Set()).filter(item => item.node.children.length || byId.get(item.node.item.id)?.files.length).map(item => item.node.item.id));
 		scroll.scrollTop = scrollTop;
 		scroll.scrollLeft = scrollLeft;
 		const details = this.contentEl.querySelector('.thread-journal-table-details-list');
@@ -199,7 +195,7 @@ export class ThreadTableView extends ItemView {
 
 	private changeFilters(filters: typeof this.filters): void {
 		this.filters = filters;
-		this.filterCollapsed.clear(); this.filterFilesCollapsed.clear();
+		this.filterCollapsed.clear();
 		this.render(); this.saveLayout();
 	}
 
@@ -218,17 +214,6 @@ export class ThreadTableView extends ItemView {
 		this.saveLayout();
 	}
 
-	private toggleFiles(id: string): void {
-		const automatic = filterThreadTable(this.rows, this.filters, moment().format('YYYY-MM-DDTHH:mm')).fileMatches.has(id);
-		if (automatic) {
-			if (this.filterFilesCollapsed.has(id)) this.filterFilesCollapsed.delete(id);
-			else this.filterFilesCollapsed.add(id);
-		} else if (this.expandedFiles.has(id)) this.expandedFiles.delete(id);
-		else this.expandedFiles.add(id);
-		this.render();
-		this.saveLayout();
-	}
-
 	private renderFooter(branchIds: string[]): void {
 		const footer = this.contentEl.createDiv({ cls: 'thread-journal-view-bottom-bar thread-journal-table-footer' });
 		this.disposeHeader = renderTreeFilters(footer, this.contentEl, this.rows, this.filters, this.filterUI, filters => this.changeFilters(filters), () => this.render());
@@ -239,8 +224,6 @@ export class ThreadTableView extends ItemView {
 				if (tableHasConditions(this.filters)) this.filterCollapsed = new Set(expand ? [] : branchIds);
 				else this.collapsed = new Set(expand ? [] : branchIds);
 				if (!expand) this.expandedTasks.clear();
-				if (!expand && !tableHasConditions(this.filters)) this.expandedFiles.clear();
-				if (!expand && tableHasConditions(this.filters)) this.filterFilesCollapsed = new Set(this.rows.map(row => row.thread.id));
 				this.render();
 				this.saveLayout();
 			});
@@ -251,7 +234,7 @@ export class ThreadTableView extends ItemView {
 		const summary = menu.createEl('summary', { cls: 'thread-journal-overview-filter-summary', text: t('Fields') });
 		setIcon(summary.createSpan(), 'list-filter');
 		const panel = menu.createDiv({ cls: 'thread-journal-overview-filter-panel' });
-		for (const column of THREAD_TABLE_COLUMNS) {
+		for (const column of THREAD_TABLE_COLUMNS.filter(column => ['tasks', 'commits', 'logs'].includes(column.key))) {
 			const label = panel.createEl('label', { cls: 'thread-journal-overview-filter-option' });
 			const checkbox = label.createEl('input', { type: 'checkbox' });
 			checkbox.checked = this.fields.has(column.key);
