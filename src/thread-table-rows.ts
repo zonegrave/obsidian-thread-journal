@@ -122,6 +122,7 @@ export function renderTableFileRows(parent: HTMLElement, item: ThreadTableTreeRo
 			void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);
 		});
 		const title = name.createEl('a', { cls: 'thread-journal-table-file-title', text: member.file.basename, href: member.file.path, attr: { title: member.file.path } });
+		title.style.setProperty('--thread-branch-color', branchColor(data.thread.id));
 		title.addEventListener('click', event => {
 			event.preventDefault(); event.stopPropagation();
 			void context.app.workspace.openLinkText(member.file.path, '', event.metaKey || event.ctrlKey);

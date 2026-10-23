@@ -3315,3 +3315,12 @@
 
 .thread-journal-table-thread-focus { cursor: pointer; }
 .thread-journal-table-thread-focus:hover { text-decoration: underline; }
+
+.thread-journal-table-name > .thread-journal-table-file-title {
+	padding: 2px 6px;
+	border-radius: 5px;
+	background: color-mix(in srgb, var(--thread-branch-color) 12%, transparent);
+}
+.thread-journal-table-name > .thread-journal-table-file-title:hover {
+	background: color-mix(in srgb, var(--thread-branch-color) 20%, transparent);
+}
