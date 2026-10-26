@@ -2,7 +2,7 @@ import { allExplorerNodes, compareExplorerNodes, explorerMovePlan, explorerOrder
 import { compareExplorerTasks } from '../src/thread-tree-task-order';
 import { migrateTaskSchedule } from '../scripts/task-schedule-migration';
 import { migrateTaskStates } from '../scripts/task-state-migration';
-import { EMPTY_TASK, taskScheduleReached, validTaskSchedule, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
+import { EMPTY_TASK, taskMetadataRanges, taskScheduleReached, validTaskSchedule, completeTaskData, releaseTaskHolding, taskStatusMarker } from '../src/task-model';
 import { boardTaskLane, compareBoardTasks, groupBoardTasks, taskIsActiveOnBoard, taskLineWithBoardStatus } from '../src/thread-task-board-model';
 import { dependencyReference, parseDependency, holdingGraphError, holdingResult, scanTaskLines } from '../src/task-holding-model';
 import {
@@ -2138,4 +2138,15 @@ void test('explorer refresh immediately observes saved ranks and never replaces 
  const movedThread = await read();
  assert.equal(movedThread.find(row => row.thread.id === 'Parent')?.order, 4000);
  assert.deepEqual(flatten(movedThread), ['ROOT', 'Alpha', 'Parent', 'Beta']);
+});
+
+void test('Live Preview hides scheduled metadata and preserves unrelated inline fields', () => {
+	for (const scheduled of ['2026-10-26', '2026-10-26T09:00']) {
+		const line = `- [ ] Write report [task_id:: report] [scheduled :: ${scheduled}] [effort:: light] [custom:: keep]`;
+		let visible = line;
+		for (const { from, to } of taskMetadataRanges(line).reverse()) {
+			visible = visible.slice(0, from) + visible.slice(to);
+		}
+		assert.equal(visible, '- [ ] Write report [custom:: keep]');
+	}
 });

@@ -32,12 +32,12 @@ import {
 } from './task-display';
 import {
 	parseTaskLine,
+	taskMetadataRanges,
 	type TaskData,
 } from './task-model';
 
 const COMMIT_CALLOUT_SELECTOR = '.callout[data-callout="thread-commit"]';
 const LOG_CALLOUT_SELECTOR = '.callout[data-callout="thread-log"]';
-const TASK_RENDER_FIELD = /\s*\[(?:task_id|window_start|window_end|effort|current|repeat|thread_pin|holding|holding_review|holding_for|completed_occurrences)::\s*[^\]]*\]/gu;
 
 class TaskSummaryWidget extends WidgetType {
 	private readonly signature: string;
@@ -242,9 +242,8 @@ export function commitEditorExtension(
 						seen.add(line.number);
 						const parsed = parseTaskLine(line.text);
 						if (parsed) {
-							for (const match of line.text.matchAll(TASK_RENDER_FIELD)) {
-								const from = line.from + (match.index ?? 0);
-								ranges.push(Decoration.replace({}).range(from, from + match[0].length));
+							for (const field of taskMetadataRanges(line.text)) {
+								ranges.push(Decoration.replace({}).range(line.from + field.from, line.from + field.to));
 							}
 							ranges.push(Decoration.widget({
 								widget: new TaskSummaryWidget(

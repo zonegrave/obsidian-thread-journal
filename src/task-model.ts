@@ -172,6 +172,16 @@ function repeatRule(data: TaskData): string {
 	return rule.join(';');
 }
 
+// Live Preview hides the same metadata keys that the task parser consumes.
+export function taskMetadataRanges(line: string): { from: number; to: number }[] {
+	return Array.from(line.matchAll(INLINE_FIELD)).flatMap(match => {
+		if (!TASK_FIELDS.has((match[1] ?? '').trim())) return [];
+		let from = match.index;
+		while (from > 0 && /\s/u.test(line[from - 1] ?? '')) from -= 1;
+		return [{ from, to: match.index + match[0].length }];
+	});
+}
+
 export function parseTaskLine(line: string): ParsedTaskLine | undefined {
 	const task = TASK_LINE.exec(line);
 	if (!task) return undefined;
